@@ -405,11 +405,25 @@ function page_facts(string $html, string $base): array {
     // Large product-looking <img> tags, in page order.
     if (preg_match_all('/<img\s[^>]*>/i', $html, $ms)) {
         foreach ($ms[0] as $tag) {
-            $src = attr($tag, 'data-zoom-image') ?: attr($tag, 'data-large') ?: attr($tag, 'data-src') ?: attr($tag, 'src');
+            $set = attr($tag, 'data-srcset') ?: attr($tag, 'srcset');
+            $big = $set !== '' ? trim(explode(' ', trim(explode(',', $set)[count(explode(',', $set)) - 1]))[0]) : '';
+            $src = attr($tag, 'data-zoom-image') ?: attr($tag, 'data-large') ?: attr($tag, 'data-original') ?: attr($tag, 'data-lazy') ?: attr($tag, 'data-src') ?: $big ?: attr($tag, 'src');
             if ($src === '' || str_starts_with($src, 'data:') || preg_match('/logo|sprite|icon|badge|banner|pixel|spacer|\.svg/i', $src)) continue;
             $f['images'][] = abs_url(html_entity_decode($src, ENT_QUOTES | ENT_HTML5), $base);
             if (count($f['images']) > 30) break;
         }
+    }
+    // Picture addresses anywhere in the page (galleries often load them from scripts) that contain the
+    // product's number from the link, e.g. .../7770454 -> .../7770454_US_Large.jpg
+    if (preg_match('#(\d{5,})(?:[/?\#]|$)#', $base, $pm) && preg_match_all('#(?:https?:)?//[^\s"\'<>()\\\\]+?\.(?:jpe?g|png|webp)(?:\?[^\s"\'<>()\\\\]*)?|/[A-Za-z0-9_\-./%]+?\.(?:jpe?g|png|webp)#i', $html, $am)) {
+        foreach ($am[0] as $u) {
+            if (!str_contains($u, $pm[1]) || preg_match('/logo|sprite|icon|badge|banner|pixel|spacer/i', $u)) continue;
+            $u = abs_url(html_entity_decode(str_starts_with($u, '//') ? 'https:' . $u : $u, ENT_QUOTES | ENT_HTML5), $base);
+            if (!in_array($u, $f['primary'], true)) $f['primary'][] = $u;
+            if (count($f['primary']) > 12) break;
+        }
+        // larger versions first when the site offers sizes in the name
+        usort($f['primary'], fn($a, $b) => (preg_match('/large|zoom|xl|big|original|1200|1000|800/i', $b) <=> preg_match('/large|zoom|xl|big|original|1200|1000|800/i', $a)));
     }
     $f['images'] = array_values(array_unique(array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u))));
     $f['images'] = array_slice($f['images'], 0, 25);
@@ -444,11 +458,14 @@ function abs_url(string $u, string $base): string {
     $dir = preg_replace('#/[^/]*$#', '/', $b['path'] ?? '/');
     return $root . $dir . $u;
 }
-function fetch_image(string $url): ?array {
-    $r = http_get($url, MAX_BLOB, 20, ['Accept: image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8']);
-    if (!$r['ok']) return null;
+function fetch_image(string $url, string $referer = '', ?string &$why = null): ?array {
+    $h = ['Accept: image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8'];
+    if ($referer !== '') $h[] = 'Referer: ' . $referer;
+    $r = http_get($url, MAX_BLOB, 20, $h);
+    if (!$r['ok']) { $why = $r['error'] ?: 'no answer'; return null; }
     $mime = sniff_mime($r['body']) ?? strtolower(trim(explode(';', $r['type'])[0]));
-    if (!in_array($mime, IMG_TYPES, true) || strlen($r['body']) < 2500) return null;   // tiny = icon or tracking pixel
+    if (!in_array($mime, IMG_TYPES, true)) { $why = 'not a picture (' . ($mime ?: 'unknown') . ')'; return null; }
+    if (strlen($r['body']) < 2500) { $why = 'too small (' . strlen($r['body']) . ' bytes)'; return null; }   // tiny = icon or tracking pixel
     return ['type' => $mime, 'bytes' => $r['body']];
 }
 
@@ -527,11 +544,17 @@ function read_product_link(string $url, array $ctx = [], bool $quick = false): a
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
     $primary = $f['primary'] ?? [];
     $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $primary, $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
-    foreach (array_slice(array_values(array_unique($order)), 0, 8) as $u) {
-        $im = fetch_image($u);
+    $tried = [];
+    foreach (array_slice(array_values(array_unique($order)), 0, 10) as $u) {
+        $why = '';
+        $im = fetch_image($u, $url, $why);
         if ($im) { $res['photo'] = ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]; break; }
+        $tried[] = mb_substr($u, 0, 160) . ' → ' . $why;
     }
-    if (!$res['photo']) $res['photoNote'] = 'The server couldn\'t download a product photo from that page.';
+    if (!$res['photo']) {
+        $res['photoNote'] = 'The server couldn\'t download a product photo from that page.';
+        $res['photoDiag'] = $tried ? 'Pictures tried: ' . implode('; ', $tried) : 'The page didn\'t list any product pictures the server could see (they may be loaded by the page\'s scripts).';
+    }
     if ($res['price'] === null) $res['priceNote'] = 'No price on the page (it may only show after signing in to your supplier account).';
     if (!$res['names'] && $f['title'] !== '') $res['names'][] = $f['title'];
     return ['ok' => true] + $res;
