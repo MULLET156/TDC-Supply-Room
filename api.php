@@ -197,6 +197,14 @@ try {
             out(200, $r);
         }
 
+        case 'dump': {
+            // Every document in one collection (full backup, export and clean-up; the normal reads stop at 2,000).
+            $col = col_ok($req['col'] ?? null);
+            $docs = [];
+            foreach (all_docs($pdo, $col) as $id => $d) $docs[] = ['id' => (string)$id, 'data' => $d];
+            out(200, ['ok' => true, 'docs' => $docs]);
+        }
+
         case 'readdoc': {
             $files = is_array($req['files'] ?? null) ? $req['files'] : [];
             $ctx = is_array($req['ctx'] ?? null) ? $req['ctx'] : [];

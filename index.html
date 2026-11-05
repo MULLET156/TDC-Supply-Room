@@ -163,6 +163,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .hrow b{font-weight:600}
 .hrow .hint{font-size:12.5px}
 .logtools{display:grid;gap:10px}
+/* iPhone Safari zooms into any field with text under 16px: keep fields at 16px on phones */
+@media (max-width:640px){input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px!important}}
 .setrow select#oldAge{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:4px 6px;font:inherit;width:auto;display:inline-block}
 .setrow.dangerrow{background:var(--bad-soft)}
 .logfilt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
@@ -848,6 +850,7 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .grp.cathead .gn{font-size:13px;font-weight:700;color:var(--muted);background:var(--sunk);border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:2px}
 .grp.subhead{font-size:15px;font-weight:800;color:var(--fg);border-left:6px solid color-mix(in srgb,var(--pg,var(--accent)) 45%,transparent);padding-top:8px;padding-bottom:8px}
 .grp.subhead .gn{font-size:12px}
+@media (max-width:520px){.grp:not(.cathead):not(.subhead){flex-wrap:wrap;row-gap:4px}.grp:not(.cathead):not(.subhead) > :last-child{flex-basis:100%;text-align:left}}
 .grp:not(.cathead):not(.subhead){font-size:15px;color:var(--fg);letter-spacing:.03em;font-weight:800;padding-top:12px;padding-bottom:10px;border-left:6px solid var(--pg,var(--accent))}
 @media (max-width:520px){.grp.cathead > span:first-child{font-size:17px}.grp.cathead .grprep{display:block;margin:2px 0 0}}
 .grptools{display:inline-flex;align-items:center;gap:8px;margin-left:auto;text-transform:none;letter-spacing:0}
@@ -950,7 +953,7 @@ body[data-view="sups"],body[data-view="cats"],body[data-view="locs"]{--pg:var(--
 body[data-view] header{border-bottom-color:var(--pg,var(--accent))}
 body[data-view="all"] main,body[data-view="need"] main,body[data-view="ordered"] main,body[data-view="exp"] main,body[data-view="sups"] main,body[data-view="cats"] main,body[data-view="locs"] main{background:color-mix(in srgb,var(--pg-soft) 55%,var(--bg));border-top:4px solid var(--pg);min-height:60vh}
 .tabs-main .tab{position:relative;transition:opacity .15s}
-.tabs-main:has(.tab[aria-selected="true"]) .tab[aria-selected="false"]{opacity:.5}
+.tabs-main:has(.tab[aria-selected="true"]) .tab[aria-selected="false"]{opacity:.72}
 .tabs-main:has(.tab[aria-selected="true"]) .tab[aria-selected="false"]:hover{opacity:.85}
 .tabs-main .tab[aria-selected="true"]{box-shadow:0 0 0 3px var(--surface),0 0 0 6px var(--fg);z-index:1}
 .tabs-main .tab[aria-selected="true"]::after{content:"";position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--fg)}
@@ -2318,9 +2321,9 @@ function histHtml(){
   }).join("")}</div>`;
 }
 let logType = "", logWho = "";   /* Activity log filters: kind of activity and initials */
-function logRows(){
+function logRows(src){
   const q = keyOf($("#q").value);
-  return logs.filter(e => (!logType || e.action === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
+  return (src || logs).filter(e => (!logType || e.action === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
 }
 function logHtml(){
   const rows = logRows();
@@ -2329,8 +2332,8 @@ function logHtml(){
   const kOpts = [...kinds.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => `<option value="${esc(k)}" ${k === logType ? "selected" : ""}>${esc(k)} (${n})</option>`).join("");
   const wOpts = [...who.keys()].sort().map(k => `<option value="${esc(k)}" ${k === logWho ? "selected" : ""}>${esc(k)}</option>`).join("");
   const tool = `<div class="toolbar logtools"><p>Every count, order, receipt and edit, newest first. Pick a kind of activity or a person to narrow it down; the search box filters by item too.</p>
-    <div class="logfilt"><label>Activity <select id="logType"><option value="">All activity (${logs.length})</option>${kOpts}</select></label><label>By <select id="logWho"><option value="">Everyone</option>${wOpts}</select></label>${logType || logWho ? `<button class="btn sm" id="logClear" type="button">Show all</button>` : ""}
-    ${downloads ? `<button class="btn" id="logExport" type="button">Export ${rows.length === logs.length ? "all" : rows.length} (.csv)</button>` : ""}</div></div>`;
+    <div class="logfilt"><label>Activity <select id="logType"><option value="">All activity${logs.length >= 400 ? " (latest 400)" : ` (${logs.length})`}</option>${kOpts}</select></label><label>By <select id="logWho"><option value="">Everyone</option>${wOpts}</select></label>${logType || logWho ? `<button class="btn sm" id="logClear" type="button">Show all</button>` : ""}
+    ${downloads ? `<button class="btn" id="logExport" type="button">${logType || logWho ? "Export matching" : "Export all"} (.csv)</button>` : ""}</div></div>`;
   if (!rows.length) return tool + `<div class="list"><div class="empty">${logs.length ? "Nothing matches that search." : "No activity yet. Changes show up here with the date, time and initials."}</div></div>`;
   const days = new Map();
   rows.forEach(e => { const k = new Date(e.at).toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" }); if (!days.has(k)) days.set(k, []); days.get(k).push(e); });
@@ -2342,7 +2345,10 @@ function wireLog(){
   $("#logClear") && ($("#logClear").onclick = () => { logType = ""; logWho = ""; render(); });
   const b = $("#logExport"); if (!b) return;
   b.onclick = async () => {
-    const rows = logRows().slice().reverse();
+    b.disabled = true;
+    let all = logs; try { all = (await allDocs("log")).map(d => d.data()); } catch {}   /* the whole log, not just the latest 400 on screen */
+    b.disabled = false;
+    const rows = logRows(all).slice().sort((x, y) => (x.at || 0) - (y.at || 0));
     const csv = "Date,Time,Initials,Action,Item,Detail\n" + rows.map(e => { const d = new Date(e.at); return [d.toLocaleDateString(), d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }), e.initials, e.action, e.name, e.detail].map(csvCell).join(","); }).join("\n");
     const tag = [logType, logWho].filter(Boolean).join(" ").replace(/[^\w\s-]+/g, "").trim();
     try { await downloads.save({ filename: `TDC supply activity${tag ? " - " + tag : ""} ${new Date().toLocaleDateString("en-CA")}.csv`, data: csv }); toast("Exported"); } catch(e) { if (e?.code !== "declined") toast("Export isn't available here."); }
@@ -5235,13 +5241,14 @@ async function fullBackup(btn){
   const label = btn.textContent; btn.disabled = true;
   try {
     const collections = {};
-    for (const c of BACKUP_COLS) { btn.textContent = "Saving " + c + "…"; const snap = await db.collection(c).get(); collections[c] = Object.fromEntries(snap.docs.map(d => [d.id, d.data()])); }
+    for (const c of BACKUP_COLS) { btn.textContent = "Saving " + c + "…"; const docs = await allDocs(c); collections[c] = Object.fromEntries(docs.map(d => [d.id, d.data()])); }
     const ids = [...new Set(Object.values(collections.items).flatMap(i => [i.photo, i.skuPhoto]).filter(x => /^[a-f0-9]{32}$/.test(x || "")))];
-    const blobs = {};
-    for (let k = 0; k < ids.length; k++) { btn.textContent = `Photos ${k + 1}/${ids.length}…`; try { const bl = await photoBlob(ids[k]); if (bl) blobs[ids[k]] = { type: bl.type, data: await docB64(bl) }; } catch {} }
+    const blobs = {}; let missed = 0;
+    for (let k = 0; k < ids.length; k++) { btn.textContent = `Photos ${k + 1}/${ids.length}…`; try { const bl = await photoBlob(ids[k]); if (bl) blobs[ids[k]] = { type: bl.type, data: await docB64(bl) }; else missed++; } catch { missed++; } }
     const stamp = new Date().toISOString().slice(0, 10);
     await downloads.save({ filename: `TDC supply room ${stamp}.backup.json`, data: JSON.stringify({ app: "tdc-supply-room", version: 1, exportedAt: Date.now(), collections, blobs }) });
-    toast("Backup saved");
+    const cnt = c => Object.keys(collections[c] || {}).length;
+    toast(`Backup saved: ${cnt("items")} items, ${cnt("log")} activity entries, ${cnt("orders")} orders, ${Object.keys(blobs).length} photos${missed ? `. ⚠ ${missed} photo${missed === 1 ? "" : "s"} couldn't be read and ${missed === 1 ? "is" : "are"} missing from the file` : ""}`);
   } catch(e) { toast("Backup failed: " + (e?.message || e)); }
   finally { btn.disabled = false; btn.textContent = label; }
 }
@@ -5273,6 +5280,11 @@ document.addEventListener("click", e => {
 document.addEventListener("change", e => { if (e.target.id === "restoreFile" && e.target.files[0]) { restoreBackup(e.target.files[0]); e.target.value = ""; } });
 
 /* ---------- Setup › Backup & import: more tools ---------- */
+/* every document in a collection: the server's "dump" on Hostinger (normal reads stop at 2,000), a plain read otherwise */
+async function allDocs(col){
+  if (window.HOSTED) return (await TDC.call("dump", { col })).docs.map(d => ({ id: d.id, data: () => d.data }));
+  return (await db.collection(col).get()).docs;
+}
 async function photoBlob(id){
   if (!id) return null;
   const r = await fetch(window.HOSTED ? "blob.php?id=" + encodeURIComponent(id) : "/_blob/" + encodeURIComponent(id), { credentials: "same-origin" });
@@ -5291,8 +5303,8 @@ document.addEventListener("click", async e => {
   if (t.id === "expOrders") {
     t.disabled = true;
     try {
-      const snap = await db.collection("orders").get(), rows = [];
-      snap.docs.map(d => d.data()).sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(o => (o.lines || []).forEach(l => { const d = new Date(o.at || 0); rows.push([d.toLocaleDateString(), d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), o.initials || "", l.supplier || "", l.name || "", l.qty ?? "", l.units || ""]); }));
+      const odocs = await allDocs("orders"), rows = [];
+      odocs.map(d => d.data()).sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(o => (o.lines || []).forEach(l => { const d = new Date(o.at || 0); rows.push([d.toLocaleDateString(), d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), o.initials || "", l.supplier || "", l.name || "", l.qty ?? "", l.units || ""]); }));
       if (!rows.length) { toast("No orders yet"); return; }
       await downloads.save({ filename: `TDC order history ${stampDate()}.csv`, data: "Date,Time,Marked by,Supplier,Item,Qty,Package size\n" + rows.map(r => r.map(csvCell).join(",")).join("\n") });
       toast(`Exported ${rows.length} order line${rows.length === 1 ? "" : "s"}`);
@@ -5337,7 +5349,7 @@ document.addEventListener("click", async e => {
   if (t.id === "clearOld") {
     const days = +($("#oldAge")?.value || 365), cut = Date.now() - days * 864e5, lbl = $("#oldAge")?.selectedOptions[0]?.textContent || "1 year";
     t.disabled = true; let old = [];
-    try { old = (await db.collection("log").get()).docs.filter(d => (d.data().at || 0) < cut); } catch(err) { toast(dbErr(err)); } finally { t.disabled = false; }
+    try { old = (await allDocs("log")).filter(d => (d.data().at || 0) < cut); } catch(err) { toast(dbErr(err)); } finally { t.disabled = false; }
     if (!old.length) { toast(`Nothing in the Activity log is older than ${lbl}`); return; }
     openPanel(`<div class="ph"><h2>Clear old activity?</h2><button class="iconbtn" data-close type="button">Cancel</button></div>
       <p>${old.length} Activity log entr${old.length === 1 ? "y is" : "ies are"} older than ${esc(lbl)} (before ${esc(new Date(cut).toLocaleDateString())}). Deleting them can't be undone.</p>
