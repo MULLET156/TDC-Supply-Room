@@ -727,8 +727,18 @@ function find_product_page(array $q, array $ctx = []): array {
     $site = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($q['site'] ?? ''))));
     $site = preg_replace('#/.*$#', '', $site);
     if ($name === '' && $sku === '') return ['ok' => false, 'error' => 'no_match', 'message' => 'Give a product name or SKU to look up.'];
-    $terms = trim(($sku !== '' ? '"' . $sku . '" ' : '') . $name);
-    $queries = $site !== '' ? [$terms . ' site:' . $site, trim($terms . ' ' . $sup)] : [trim($terms . ' ' . ($sup !== '' ? $sup : 'dental supply'))];
+    // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
+    // then without quotes, and finally by name alone.
+    $bare = preg_replace('/[\s\-\.\/_]+/', '', $sku);
+    $skus = array_values(array_unique(array_filter([$sku, $bare])));
+    $where = $site !== '' ? ' site:' . $site : '';
+    $tail = $sup !== '' ? $sup : 'dental supply';
+    $queries = [];
+    foreach ($skus as $v) $queries[] = trim('"' . $v . '" ' . $name . $where);          // exact number on the supplier's site
+    foreach (array_reverse($skus) as $v) { $queries[] = trim($v . ' ' . $name . ' ' . $tail); break; }   // number without separators, anywhere
+    if ($name !== '' && $sku !== '') $queries[] = trim($name . ($where !== '' ? $where : ' ' . $tail));  // name alone
+    if (!$skus) $queries = $where !== '' ? [trim($name . $where), trim($name . ' ' . $sup)] : [trim($name . ' ' . $tail)];
+    $queries = array_slice(array_values(array_unique($queries)), 0, 4);
     $cands = []; $lastErr = '';
     foreach ($queries as $query) {
         $r = apify_search($query);
@@ -743,7 +753,7 @@ function find_product_page(array $q, array $ctx = []): array {
     $pick = 0;
     if (ai_ready() && count($cands) > 1) {
         $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
-        $a = ai_json("A dental office wants the supplier's product page for: " . ($name !== '' ? "\"$name\"" : '') . ($sku !== '' ? " SKU/catalog # $sku" : '') . ($sup !== '' ? " from $sup" : '')
+        $a = ai_json("A dental office wants the supplier's product page for: " . ($name !== '' ? "\"$name\"" : '') . ($sku !== '' ? " SKU/catalog # $sku (it may be written with or without dashes or spaces, e.g. $bare)" : '') . ($sup !== '' ? " from $sup" : '')
             . ".\nSearch results:\n$list\n\nReply with {\"pick\": index of the result that is the product page for this exact item (prefer $sup" . ($site !== '' ? " / $site" : '') . "), or -1 if none is}.", [], 'quick');
         if ($a['ok'] && isset($a['value']['pick']) && is_numeric($a['value']['pick'])) $pick = (int)$a['value']['pick'];
     }
@@ -752,7 +762,7 @@ function find_product_page(array $q, array $ctx = []): array {
     if (!$res['ok']) return $res;
     $res['searched'] = true;
     $res['candidates'] = array_slice(array_map(fn($c) => ['url' => $c['url'], 'title' => $c['title']], $cands), 0, 5);
-    if ($sku !== '' && ($res['sku'] ?? '') !== '' && strcasecmp(preg_replace('/\W/', '', $res['sku']), preg_replace('/\W/', '', $sku)) !== 0 && stripos((string)($res['mfrNumber'] ?? ''), $sku) === false) {
+    if ($sku !== '' && ($res['sku'] ?? '') !== '' && strcasecmp(preg_replace('/[\W_]/', '', $res['sku']), preg_replace('/[\W_]/', '', $sku)) !== 0 && stripos(preg_replace('/[\W_]/', '', (string)($res['mfrNumber'] ?? '')), preg_replace('/[\W_]/', '', $sku)) === false) {
         $res['note'] = trim('Found by search: the page\'s SKU (' . $res['sku'] . ') differs from ' . $sku . ', so check it\'s the right product. ' . ($res['note'] ?? ''));
     } else {
         $res['note'] = trim('Found by search, so check it\'s the right product. ' . ($res['note'] ?? ''));
