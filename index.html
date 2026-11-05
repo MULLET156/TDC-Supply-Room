@@ -823,6 +823,11 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .countmodes input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:420px){.countmodes .cmlabel{display:none}.countmodes label span{font-size:13.5px}}
 .dock .wrap{grid-template-columns:1fr!important}
+.dock .wrap{display:flex!important;gap:8px}
+.dock .wrap > *{flex:1 1 0;min-width:0}
+.dock .wrap > #scanBtn{flex:0 1 38%}
+.dockord #dockCntGo{flex:1;min-width:0}
+.dockord #dockCntGo:disabled{opacity:.55}
 .dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]){display:none}
 body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
@@ -1172,7 +1177,8 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 <div class="bulkbar ordfloat" id="ordFloat" hidden><div class="in"><b id="ofN">0 ticked</b><button class="btn pri" type="button" id="ofGo">Mark ordered</button><button class="btn ghost" type="button" id="ofClear">Clear</button></div></div>
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted">✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
-  <button class="btn pri" id="scanBtn" type="button">Scan to count</button>
+  <button class="btn" id="scanBtn" type="button">Scan to count</button>
+  <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
   <div class="dockord dockexp" id="dockExp" hidden><label class="sr" for="dockExpDate">New expiration date</label><input type="date" id="dockExpDate"><button class="btn pri" id="dockExpGo" type="button" disabled>Set new date</button><button class="btn" id="dockExpClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div></div>
@@ -1777,6 +1783,8 @@ function updateOrdFloat(){
   if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
   const dx = $("#dockExp"), ex = tab === "exp" && !readOnly;
   if (dx) { dx.hidden = !ex; const g = $("#dockExpGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Set new date for ${selected.size}` : "Tick items, then set new date"; $("#dockExpClear").hidden = !selected.size; }
+  const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
+  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} counted` : "Tick items, then Mark counted"; $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
@@ -1785,7 +1793,7 @@ function updateOrdFloat(){
 }
 function updateBulk(){
   updateOrdFloat();
-  const show = (tab === "all" || tab === "cats" || tab === "locs" || tab === "sups" || tab === "products") && selected.size > 0 && !readOnly;
+  const show = (tab === "all" || tab === "products") && selected.size > 0 && !readOnly;   /* the Inventory counter has Mark counted in the bottom bar */
   const bar = $("#bulkBar"), slot = $("#bulkSlot");
   if (tab === "products" && slot) { if (bar.parentElement !== slot) slot.append(bar); bar.classList.add("inline"); }
   else if (bar.parentElement !== document.body) { document.body.insertBefore(bar, $(".dock")); bar.classList.remove("inline"); }
@@ -1808,6 +1816,8 @@ $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockExpClear").addEventListener("click", () => { selected.clear(); render(); });
+$("#dockCntClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
+$("#dockCntGo").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockExpGo").addEventListener("click", async () => {
   if (!needMe()) return;
   const list = [...selected].map(byId).filter(Boolean); if (!list.length) return;
