@@ -3366,7 +3366,7 @@ async function openItem(it, prefill){
     ${countBoxes(f.qty, f.desired, f.urgent)}
     ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">➖ Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">➕ Add to order list</button></div>` : ""}
     <div class="isecs">
-      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">✨ Claude tools ▾</button><button class="btn sm" type="button" id="editBtn">✏️ Edit info</button></span></div>
+      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">🔎 Look up ▾</button><button class="btn sm" type="button" id="editBtn">✏️ Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
       <button type="button" class="pmi" data-autoscrape>🔄 Update from supplier page</button>
       <button type="button" class="pmi" data-suggestname>💡 Suggest names</button>
