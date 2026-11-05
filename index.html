@@ -814,9 +814,12 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .countmodes input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:420px){.countmodes .cmlabel{display:none}.countmodes label span{font-size:13.5px}}
 .dock .wrap{grid-template-columns:1fr!important}
-.dock:has(#scanBtn[hidden]){display:none}
-body:has(#scanBtn[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
-body:has(#scanBtn[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]){display:none}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.dockord{display:flex;gap:8px}
+.dockord #dockOrdGo{flex:1}
+.dockord #dockOrdGo:disabled{opacity:.55}
 header .titlerow{display:grid!important;grid-template-columns:auto auto;justify-content:start;column-gap:16px;row-gap:4px;align-items:center}
 header .titlerow .apptitle{grid-column:1;grid-row:1}
 header .titlerow .date{grid-column:1;grid-row:2}
@@ -1159,6 +1162,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted">✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn pri" id="scanBtn" type="button">Scan to count</button>
+  <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div></div>
 
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
@@ -1756,7 +1760,10 @@ function render(){ renderInner(); updateBulk(); try { syncFToggle(); } catch {} 
 /* On To order / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
-  const on = (tab === "need" || tab === "ordered") && selected.size > 0 && !readOnly;
+  /* To order has its Mark ordered button in the bottom bar all the time; On order uses the pop-up bar */
+  const dk = $("#dockOrd"), need = tab === "need" && !readOnly;
+  if (dk) { dk.hidden = !need; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ordered` : "Tick items, then Mark ordered"; $("#dockOrdClear").hidden = !selected.size; }
+  const on = tab === "ordered" && selected.size > 0 && !readOnly;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
   $("#ofN").textContent = `${selected.size} ticked`;
@@ -1784,6 +1791,8 @@ function fillBulkList(){
 $("#bulkField").addEventListener("change", () => { $("#bulkVal").value = ""; fillBulkList(); });
 $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
+$("#dockOrdGo").addEventListener("click", () => { const b = $("#markOrd"); if (b && !b.disabled) b.click(); });
+$("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#bulkForm").addEventListener("submit", async e => {
