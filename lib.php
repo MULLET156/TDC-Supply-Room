@@ -638,17 +638,18 @@ function bot_wall(string $html): bool {
 function apify_page(string $url, bool $quick = false): array {
     // First a quick plain fetch through Apify's proxies (a few seconds); only if that is
     // blocked too, a full browser (slower, 30-60 seconds). $quick skips the browser.
-    $r = apify_page_run($url, 'raw-http', 40);
+    // Residential proxies look like a home internet connection, which most store sites let in.
+    $r = apify_page_run($url, 'raw-http', 40, true);
     if ($r['ok'] || $quick) return $r;
-    $b = apify_page_run($url, 'browser-playwright', 110);
+    $b = apify_page_run($url, 'browser-playwright', 110, true);
     return $b['ok'] ? $b : $r;
 }
-function apify_page_run(string $url, string $tool, int $secs): array {
+function apify_page_run(string $url, string $tool, int $secs, bool $residential = false): array {
     @set_time_limit($secs + 40);
     $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
     $input = ['query' => $url, 'maxResults' => 1, 'outputFormats' => ['html'], 'scrapingTool' => $tool,
               'htmlTransformer' => 'none', 'removeCookieWarnings' => true, 'maxRequestRetries' => 1,
-              'proxyConfiguration' => ['useApifyProxy' => true]];
+              'proxyConfiguration' => $residential ? ['useApifyProxy' => true, 'apifyProxyGroups' => ['RESIDENTIAL'], 'apifyProxyCountry' => 'US'] : ['useApifyProxy' => true]];
     if ($tool !== 'raw-http') $input['dynamicContentWaitSecs'] = 5;
     $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=' . $secs . '&format=json&clean=true');
     curl_setopt_array($ch, [
