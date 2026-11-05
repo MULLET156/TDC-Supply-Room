@@ -516,6 +516,11 @@ body{margin:0}
 .bopts label{display:flex;gap:8px;align-items:center;font-size:14.5px}
 .bopts input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent)}
 .bopts select{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:6px 8px}
+.bphotoopt{display:grid;gap:6px}
+.bpchoice{display:grid;gap:6px;padding-left:28px}
+.bpchoice label{font-size:14px}
+.bpchoice input[type=radio]{width:18px;height:18px;accent-color:var(--accent);margin:0}
+.bpchoice.off{opacity:.5}
 .bprog{height:6px;border-radius:99px;background:var(--sunk);overflow:hidden}
 .bprog span{display:block;height:100%;background:var(--accent)}
 .bstat{padding:28px 8px;text-align:center;color:var(--muted);font-size:15px}
@@ -2950,20 +2955,21 @@ function startBatch(list){
   openPanel(`<div class="ph"><div><h2>Update ${list.length} item${list.length === 1 ? "" : "s"} from supplier pages</h2><div class="lastby">One at a time — you approve each</div></div><button class="iconbtn" data-close type="button">Close</button></div>
     ${full ? `<p class="hint">${window.HOSTED ? "For each item, the server opens its reorder link (or searches the web for it by SKU and name when there's no link) and Claude reads the page and suggests a proper name." : "For each item, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name."} Pick the name, check the filled-in details, then save and move to the next one.${window.HOSTED ? " Prices that only show when signed in to a supplier account won't come through." : " The app may ask you to allow each supplier's website the first time."}</p>`
       : `<div class="notice"><b>Names only in this browser</b><span class="hint">Reading supplier pages (price, package size, photo, description, SKU) only works when this page is open in the Claude desktop app. Here, Claude can still suggest a proper name for each item.</span></div>`}
-    ${full ? `<div class="bopts"><b>Fill in</b> <button type="button" class="btn sm" id="bPhotoOnly">📷 Photos only</button>
+    ${full ? `<div class="bopts"><b>Fill in</b>
       ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" checked> ${l}</label>`).join("")}
-      <label>Photo <select data-bo="photo"><option value="missing">only if the item has none</option><option value="always">replace existing photos</option><option value="never">don't pull photos</option></select></label></div>` : ""}
+      <div class="bphotoopt"><label><input type="checkbox" id="bPhotoOn" checked> Photo</label>
+        <div class="bpchoice" id="bPhotoMode" role="radiogroup" aria-label="Which photos"><label><input type="radio" name="bpm" value="missing" checked> Only items missing a photo</label><label><input type="radio" name="bpm" value="always"> Replace existing photos</label></div></div>
+      <p class="hint">Untick everything except Photo to update photos only.</p></div>` : ""}
     <div class="bopts"><b>Go faster</b>
       <label><input type="checkbox" data-bo="autoName" ${B.opts.autoName ? "checked" : ""}> <span>Use the suggested name automatically<span class="hint">Skips the name step. You'll still be asked when Claude isn't sure it found the right product.</span></span></label>
       <label><input type="checkbox" data-bo="autoSave" ${B.opts.autoSave ? "checked" : ""}> <span>Accept automatically after 10 seconds<span class="hint">Each time it asks you to choose (the name, then the details), it picks the suggested choice after 10 seconds unless you tap or type something first. It never auto-confirms a product match Claude is unsure about.</span></span></label></div>
     ${full && !window.HOSTED ? `<div class="bopts"><label><input type="checkbox" data-bo="history" checked> <span><b>Use our past orders</b><br><span class="hint">Claude also checks each supplier's past orders for extra matches and shows when we last bought an item. Sign in to each supplier in the Claude app's browser for this to work.</span></span></label></div>` : ""}
     <div class="actions savebar"><button class="btn pri grow" type="button" id="bStart">Start updating ${list.length} item${list.length === 1 ? "" : "s"}</button></div>`);
   document.querySelectorAll("[data-bo]").forEach(el => el.onchange = () => { B.opts[el.dataset.bo] = el.type === "checkbox" ? el.checked : el.value; if (el.dataset.bo === "autoName" || el.dataset.bo === "autoSave") { try { localStorage.setItem("tdc.batchAuto", JSON.stringify({ autoName: B.opts.autoName, autoSave: B.opts.autoSave })); } catch {} } });
-  $("#bPhotoOnly") && ($("#bPhotoOnly").onclick = () => {
-    document.querySelectorAll('.bopts input[type=checkbox][data-bo]').forEach(el => { if (!["autoName", "autoSave", "history"].includes(el.dataset.bo)) { el.checked = false; B.opts[el.dataset.bo] = false; } });
-    const ph = $('[data-bo="photo"]'); if (ph && ph.value === "never") { ph.value = "missing"; B.opts.photo = "missing"; }
-    toast("Only photos will be updated");
-  });
+  const syncPhoto = () => { const on = $("#bPhotoOn")?.checked; const mode = document.querySelector('input[name="bpm"]:checked')?.value || "missing";
+    B.opts.photo = on ? mode : "never"; const box = $("#bPhotoMode"); if (box) { box.classList.toggle("off", !on); box.querySelectorAll("input").forEach(r => r.disabled = !on); } };
+  $("#bPhotoOn") && ($("#bPhotoOn").onchange = syncPhoto);
+  document.querySelectorAll('input[name="bpm"]').forEach(r => r.onchange = syncPhoto);
   $("#bStart").onclick = () => batchStep();
   return true;
 }
