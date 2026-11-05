@@ -158,6 +158,12 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .hrow:first-child{border-top:0}
 .hrow b{font-weight:600}
 .hrow .hint{font-size:12.5px}
+.logtools{display:grid;gap:10px}
+.logfilt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.logfilt label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--muted)}
+.logfilt select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;font:inherit;font-size:14.5px;color:var(--fg);max-width:260px}
+.logfilt #logExport{margin-left:auto}
+@media (max-width:520px){.logfilt label{flex:1 1 100%}.logfilt select{flex:1;max-width:none}.logfilt #logExport{margin-left:0;flex:1}}
 .hord{border-top:1px solid var(--line)}
 .hord:first-child{border-top:0}
 .hord summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-areas:"sup cnt" "when cnt";align-items:center;gap:2px 12px;padding:12px 44px 12px 16px;position:relative;min-height:56px}
@@ -2215,24 +2221,35 @@ function histHtml(){
       <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}</li>`).join("")}</ul></details>`;
   }).join("")}</div>`;
 }
+let logType = "", logWho = "";   /* Activity log filters: kind of activity and initials */
 function logRows(){
   const q = keyOf($("#q").value);
-  return q ? logs.filter(e => keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)) : logs;
+  return logs.filter(e => (!logType || e.action === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
 }
 function logHtml(){
   const rows = logRows();
-  const tool = `<div class="toolbar"><p>Every count, order, receipt and edit, newest first. Use the search box to filter by initials or item.</p>${downloads ? `<button class="btn" id="logExport" type="button">Export activity</button>` : ""}</div>`;
+  const kinds = new Map(), who = new Map();
+  logs.forEach(e => { if (e.action) kinds.set(e.action, (kinds.get(e.action) || 0) + 1); if (e.initials) who.set(e.initials, (who.get(e.initials) || 0) + 1); });
+  const kOpts = [...kinds.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => `<option value="${esc(k)}" ${k === logType ? "selected" : ""}>${esc(k)} (${n})</option>`).join("");
+  const wOpts = [...who.keys()].sort().map(k => `<option value="${esc(k)}" ${k === logWho ? "selected" : ""}>${esc(k)}</option>`).join("");
+  const tool = `<div class="toolbar logtools"><p>Every count, order, receipt and edit, newest first. Pick a kind of activity or a person to narrow it down; the search box filters by item too.</p>
+    <div class="logfilt"><label>Activity <select id="logType"><option value="">All activity (${logs.length})</option>${kOpts}</select></label><label>By <select id="logWho"><option value="">Everyone</option>${wOpts}</select></label>${logType || logWho ? `<button class="btn sm" id="logClear" type="button">Show all</button>` : ""}
+    ${downloads ? `<button class="btn" id="logExport" type="button">Export ${rows.length === logs.length ? "all" : rows.length} (.csv)</button>` : ""}</div></div>`;
   if (!rows.length) return tool + `<div class="list"><div class="empty">${logs.length ? "Nothing matches that search." : "No activity yet. Changes show up here with the date, time and initials."}</div></div>`;
   const days = new Map();
   rows.forEach(e => { const k = new Date(e.at).toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" }); if (!days.has(k)) days.set(k, []); days.get(k).push(e); });
   return tool + [...days.entries()].map(([d, es]) => `<div class="daywrap"><h3>${esc(d)}</h3><div class="list">${es.map(e => `<div class="arow"><span class="init">${esc(e.initials || "–")}</span><div><div class="t">${esc(e.action)}${e.name ? " · " + esc(e.name) : ""}</div>${e.detail ? `<div class="d">${esc(e.detail)}</div>` : ""}</div><time>${esc(new Date(e.at).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }))}</time></div>`).join("")}</div></div>`).join("");
 }
 function wireLog(){
+  $("#logType") && ($("#logType").onchange = e => { logType = e.target.value; render(); });
+  $("#logWho") && ($("#logWho").onchange = e => { logWho = e.target.value; render(); });
+  $("#logClear") && ($("#logClear").onclick = () => { logType = ""; logWho = ""; render(); });
   const b = $("#logExport"); if (!b) return;
   b.onclick = async () => {
     const rows = logRows().slice().reverse();
     const csv = "Date,Time,Initials,Action,Item,Detail\n" + rows.map(e => { const d = new Date(e.at); return [d.toLocaleDateString(), d.toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }), e.initials, e.action, e.name, e.detail].map(csvCell).join(","); }).join("\n");
-    try { await downloads.save({ filename: "TDC supply activity.csv", data: csv }); toast("Exported"); } catch(e) { if (e?.code !== "declined") toast("Export isn't available here."); }
+    const tag = [logType, logWho].filter(Boolean).join(" ").replace(/[^\w\s-]+/g, "").trim();
+    try { await downloads.save({ filename: `TDC supply activity${tag ? " - " + tag : ""} ${new Date().toLocaleDateString("en-CA")}.csv`, data: csv }); toast("Exported"); } catch(e) { if (e?.code !== "declined") toast("Export isn't available here."); }
   };
 }
 
