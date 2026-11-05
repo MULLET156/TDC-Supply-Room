@@ -81,7 +81,7 @@ function tools(): array {
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id')] + $itemProps + ['photo_url' => $s('Direct address of a new product photo')] + $who, 'required' => ['id']]],
         ['name' => 'set_count', 'description' => 'Record a new on-hand count for an item.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('Counted on hand')] + $who, 'required' => ['id', 'qty']]],
-        ['name' => 'add_to_order_list', 'description' => 'Put an item on the To order list by hand (even if stock looks fine), or change how many to order. qty 0 takes it off.',
+        ['name' => 'add_to_order_list', 'description' => 'Put an item on the Order list by hand (even if stock looks fine), or change how many to order. qty 0 takes it off.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many to order')] + $who, 'required' => ['id', 'qty']]],
         ['name' => 'mark_ordered', 'description' => 'Mark items as ordered (moves them to On order). qty defaults to the suggested order amount.',
          'inputSchema' => ['type' => 'object', 'properties' => ['items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many were ordered')], 'required' => ['id']]]] + $who, 'required' => ['items']]],

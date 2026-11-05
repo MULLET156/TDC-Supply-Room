@@ -597,7 +597,7 @@ function derive(array $it, int $expDays = 60): array {
     $need = ($short || $manual) && !$onOrder;
     $oq = 0;
     if ($need) $oq = max($short && $des !== null ? $des - $q : 0, $short && $is911 ? $urg - $q + 1 : 0, $manual ? numv($it['orderReq']) : 0, 1);
-    if ($need && (numv($it['orderAmt'] ?? null) ?? 0) > 0) $oq = numv($it['orderAmt']);   // amount set with Order +/- on the To order list
+    if ($need && (numv($it['orderAmt'] ?? null) ?? 0) > 0) $oq = numv($it['orderAmt']);   // amount set with Order +/- on the Order list
     $exp = parse_exp((string)($it['exp'] ?? ''));
     $days = $exp ? (int)round(($exp - strtotime('today')) / 86400) : null;
     return ['need' => $need, 'orderQty' => round((float)$oq, 2), 'is911' => $is911, 'onOrder' => $onOrder,

@@ -900,7 +900,15 @@ body[data-view="products"] .pgrid td.gneed input{color:inherit;font-weight:inher
 body[data-view="products"] .ptools .stlegend{display:none}
 body[data-view="products"] .ptools .ptitle,body[data-view="products"] .ptools .ptitle + .hint{display:none}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
-body[data-view="need"]{--pg:var(--red);--pg-soft:var(--red-soft);--pg-ink:var(--red)}
+/* Order list: navy (the logo's dark color); red is kept for 911 / urgent */
+:root{--navy:#1f3a5f;--navy-soft:#e2e8f1;--navy-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--navy:#9fbbe3;--navy-soft:#1a2639;--navy-fg:#0c1626}}
+:root[data-theme="dark"]{--navy:#9fbbe3;--navy-soft:#1a2639;--navy-fg:#0c1626}
+.tabs-main .tab.t-need{background:var(--navy-soft)!important;border-color:var(--navy)!important;color:var(--navy)!important}
+.tabs-main .tab.t-need .n{color:var(--navy)!important}
+.tabs-main .tab.t-need[aria-selected="true"]{background:var(--navy)!important;border-color:var(--navy)!important;color:var(--navy-fg)!important}
+.tabs-main .tab.t-need[aria-selected="true"] .n{color:var(--navy-fg)!important}
+body[data-view="need"]{--pg:var(--navy);--pg-soft:var(--navy-soft);--pg-ink:var(--navy)}
 body[data-view="ordered"]{--pg:var(--ordc);--pg-soft:var(--ordc-soft);--pg-ink:var(--ordc)}
 body[data-view="exp"]{--pg:var(--warn);--pg-soft:var(--warn-soft);--pg-ink:var(--warn)}
 body[data-view="sups"],body[data-view="cats"],body[data-view="locs"]{--pg:var(--accent);--pg-soft:var(--accent-soft);--pg-ink:var(--accent)}
@@ -1256,7 +1264,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
     </div>
     <div role="tablist" aria-label="Orders" class="tabs-main">
       <button class="tab big allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
-      <button class="tab big t-need" role="tab" data-t="need" aria-selected="true">To order <span class="n" id="n-need">–</span></button>
+      <button class="tab big t-need" role="tab" data-t="need" aria-selected="true">Order list <span class="n" id="n-need">–</span></button>
       <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false">On order <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false">Expiring <span class="n" id="n-exp">–</span></button>
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><span class="n" aria-hidden="true">🔢</span><span class="cl">Inventory counter</span></button>
@@ -1513,7 +1521,7 @@ function derive(it){
   it.manual = (num(it.orderReq) || 0) > 0;
   it.onOrder = !!it.ordered;
   it.need = (short || it.manual) && !it.ordered;
-  /* orderAmt: the amount someone set with the To order list's Order +/- (overrides the suggested amount until it's ordered) */
+  /* orderAmt: the amount someone set with the Order list's Order +/- (overrides the suggested amount until it's ordered) */
   const pick = localOrd.has(it.id) ? localOrd.get(it.id) : num(it.orderAmt);
   it.orderQty = it.need && pick > 0 ? pick : it.need ? +Math.max(short && it.desired != null ? it.desired - it.qty : 0, short && it.is911 ? it.urgent - it.qty + 1 : 0, it.manual ? num(it.orderReq) : 0, 1).toFixed(2) : 0;
   const d = parseExp(it.exp), t0 = new Date(); t0.setHours(0, 0, 0, 0);
@@ -1817,7 +1825,7 @@ document.addEventListener("change", e => {
   document.getElementById(s.value)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   s.value = "";
 });
-/* To order list: how many to order, with +/-, and where stock ends up after that order (on hand + order / desired reserve) */
+/* Order list: how many to order, with +/-, and where stock ends up after that order (on hand + order / desired reserve) */
 const afterHtml = i => `${fmtQ((i.qty ?? 0) + i.orderQty)}<small>/${fmtQ(i.desired)}</small>`;
 const afterCls = i => { const a = (i.qty ?? 0) + i.orderQty, d = i.desired ?? 0; return "after " + (a > d ? "ok" : a === d ? "met" : "low"); };
 function ordStep(i){
@@ -1923,7 +1931,7 @@ function pageHead(){
   const n = f => items.filter(f).length, s = k => `${k} item${k === 1 ? "" : "s"}`;
   const P = {
     all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list."],
-    need: ["To order", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
+    need: ["Order list", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
@@ -1933,10 +1941,10 @@ function pageHead(){
   h.hidden = !P; if (!P) return;
   $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1]; $("#phSub").textContent = P[2];
 }
-/* On To order / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
+/* On Order list / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
-  /* To order and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
+  /* Order list and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
   const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
   if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
@@ -3315,7 +3323,7 @@ function batchStepNamesOnly(it, r, head){
 let C = null;
 function cartStart(sup, list){
   if (!needMe()) return;
-  if (!mcp) { openPanel(`<div class="ph"><h2>Add to ${esc(sup)} cart</h2><button class="iconbtn" data-close type="button">Close</button></div><div class="notice">${window.HOSTED ? `<b>Fill the cart from Claude</b><span class="hint">In the Claude desktop app, with the Supply Room connector on, ask: "Add the ${esc(sup)} items on our To order list to my ${esc(sup)} cart." Claude opens ${esc(sup)} in your signed-in browser and adds them. Or use Copy order list and order on the supplier's site.</span>` : `<b>Open this page in the Claude desktop app</b><span class="hint">Adding items to a supplier's cart uses the desktop app's built-in browser, signed in to ${esc(sup)}. In a regular browser, use Copy order list and order on the supplier's site.</span>`}</div>`); return; }
+  if (!mcp) { openPanel(`<div class="ph"><h2>Add to ${esc(sup)} cart</h2><button class="iconbtn" data-close type="button">Close</button></div><div class="notice">${window.HOSTED ? `<b>Fill the cart from Claude</b><span class="hint">In the Claude desktop app, with the Supply Room connector on, ask: "Add the ${esc(sup)} items on our Order list to my ${esc(sup)} cart." Claude opens ${esc(sup)} in your signed-in browser and adds them. Or use Copy order list and order on the supplier's site.</span>` : `<b>Open this page in the Claude desktop app</b><span class="hint">Adding items to a supplier's cart uses the desktop app's built-in browser, signed in to ${esc(sup)}. In a regular browser, use Copy order list and order on the supplier's site.</span>`}</div>`); return; }
   const rows = list.map(i => ({ it: i, qty: Math.max(1, Math.ceil(i.orderQty || num(i.orderedQty) || 1)), ok: !!clean(i.link) }));
   const can = rows.filter(r => r.ok);
   openPanel(`<div class="ph"><div><h2>Add to ${esc(sup)} cart <span class="beta">Beta</span></h2><div class="lastby">In the Claude app's browser — you check out yourself. Still being tested: it may not work every time, so check the cart before checking out.</div></div><button class="iconbtn" data-close type="button">Close</button></div>
@@ -3672,7 +3680,7 @@ async function openItem(it, prefill){
   /* Ordering starts closed; it stays open only if you had it open (e.g. after a save) */
   const ordOpen = keepOpen ? keepOpen.includes("sec-ord") : false;
   const isOpen = (id, dflt) => keepOpen ? keepOpen.includes(id) : dflt;
-  /* The big button fits the list you came from (To order → Mark ordered, On order → Mark received,
+  /* The big button fits the list you came from (Order list → Mark ordered, On order → Mark received,
      Expiring → Replaced, anywhere else → Save count). Save count is always there, in the same spot. */
   const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">Mark received</button>`;
   const ordBtn = big => `<button class="btn${big ? " pri big" : ""}${it.is911 && big ? " urgent" : ""}" id="ordBtn" type="button">Mark ordered (${fmtQ(it.orderQty)})</button>`;
@@ -3683,7 +3691,7 @@ async function openItem(it, prefill){
   else if (tab === "exp" && it.expiring) main = expBtn;
   else if (it.onOrder) side = rcvBtn(false);
   else if (it.need) side = ordBtn(false);
-  /* opened from To order or On order, the item is about ordering/receiving: no Save count there (a changed count still saves with Save changes) */
+  /* opened from Order list or On order, the item is about ordering/receiving: no Save count there (a changed count still saves with Save changes) */
   const countB = (tab === "need" || tab === "ordered") && main ? "" : `<button class="btn${main ? " cntsec" : " pri big"}" id="countBtn" type="button">Save count</button>`;
   const primary = `<div class="iact main${main ? "" : " countfirst"}">${main ? main + countB : countB + side}</div>
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
@@ -3973,7 +3981,7 @@ function buildAddPage(){
       ${inp("e-sku", "SKU / catalog #", f.sku, 'class="mono" autocapitalize="characters"')}
       ${inp("e-units", "Unit / package size", f.units, 'placeholder="e.g. Box of 100"')}
     </div><div class="addmatch" id="addMatch" hidden></div></section>
-    <section class="addcard"><h3>How many</h3>${countBoxes(f.qty, f.desired, f.urgent)}<p class="hint" style="margin:0">It shows on To order when on hand drops below the desired reserve, and is flagged 🚨 911 (order right away) when it reaches the 911 amount. Leave 911 at 0 to turn it off.</p></section>
+    <section class="addcard"><h3>How many</h3>${countBoxes(f.qty, f.desired, f.urgent)}<p class="hint" style="margin:0">It shows on the Order list when on hand drops below the desired reserve, and is flagged 🚨 911 (order right away) when it reaches the 911 amount. Leave 911 at 0 to turn it off.</p></section>
     <section class="addcard"><h3>Where it goes</h3><div class="fields">
       ${inp("e-cat", "Category", f.cat, 'list="dl-cat"')}
       ${inp("e-sub", "Subcategory", f.sub, 'list="dl-sub" placeholder="Optional"')}
@@ -4559,7 +4567,7 @@ function setupHtml(){
   const teamSec = `<div class="sechead" id="sec-team"><h2>Team initials</h2></div><p class="secnote">Pick yours next to "Logging as" at the top. Every count, order, receipt and edit is stamped with them.</p>
     <div class="list"><div class="chips listpad" id="teamChips">${team.map(i => `<span class="chip">${esc(i)}<button type="button" data-rm="${esc(i)}" aria-label="Remove ${esc(i)}">×</button></span>`).join("") || '<span class="hint">No initials yet.</span>'}</div>
     <form class="addline" id="teamForm"><div class="f"><label for="newInit">Add initials</label><input id="newInit" maxlength="4" style="width:100px;text-transform:uppercase" autocomplete="off"></div><button class="btn pri" type="submit">Add</button></form></div>`;
-  const ruleSec = `<div class="sechead" id="sec-alerts"><h2>Alerts</h2></div><p class="secnote">How far ahead an expiration date puts an item on the Expiring tab. Items land on To order when on hand drops below the desired reserve.</p>
+  const ruleSec = `<div class="sechead" id="sec-alerts"><h2>Alerts</h2></div><p class="secnote">How far ahead an expiration date puts an item on the Expiring tab. Items land on the Order list when on hand drops below the desired reserve.</p>
     <div class="list"><div class="setrow two"><label for="expDays">Warn before expiration</label><span class="actions"><input id="expDays" type="number" min="0" max="365" value="${rules.expDays ?? 60}" style="width:80px;font-family:var(--f-mono)"><span class="hint">days</span></span></div></div>`;
   const C = stockColors();
   const thm = getThemePref();
@@ -4569,7 +4577,7 @@ function setupHtml(){
     <div class="list">${[["ok","Above desired reserve"],["low","At or below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
-  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in on To order, On order and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
+  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On order and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
     <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these items">${g.n} item${g.n>1?"s":""} ›</button>` : "0 items"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
@@ -4582,7 +4590,7 @@ function setupHtml(){
   const allSups = orderedSuppliers();
   const repVolume = id => allSups.filter(g => supReps[keyOf(g.name)] === id).reduce((n, g) => n + g.n, 0);
   const repsByVolume = () => reps.slice().sort((a, b) => (repVolume(b.id) - repVolume(a.id)) || a.name.localeCompare(b.name));
-  const repSec = `<div class="sechead" id="sec-reps"><h2>Reps</h2><span class="hint">${reps.length}</span></div><p class="secnote">Your sales reps, busiest first by how many of our items they supply. Tap Edit to change a rep or assign suppliers; they show on To order, the item panel and copied order lists.</p>
+  const repSec = `<div class="sechead" id="sec-reps"><h2>Reps</h2><span class="hint">${reps.length}</span></div><p class="secnote">Your sales reps, busiest first by how many of our items they supply. Tap Edit to change a rep or assign suppliers; they show on the Order list, the item panel and copied order lists.</p>
     <div class="replist">${repsByVolume().map(r => { const ed = editReps.has(r.id), sups = Object.entries(supReps).filter(([,v]) => v === r.id).map(([k]) => [k, allSups.find(g => keyOf(g.name) === k)?.name || k]);
       if (!ed) return `<div class="repcard static" data-rid="${esc(r.id)}"><div class="rephead"><div><b>${esc(r.name)}</b>${r.company ? ` <span class="repco">${esc(r.company)}</span>` : ""}</div><span class="vol">${repVolume(r.id)} item${repVolume(r.id) === 1 ? "" : "s"}</span></div>
         <div class="repinfo">${r.cell ? `<a href="${esc(telHref(r.cell))}">📱 ${esc(r.cell)}</a>` : ""}${r.phone ? `<a href="${esc(telHref(r.phone))}">☎ ${esc(r.phone)}</a>` : ""}${r.email ? `<a href="mailto:${esc(r.email)}">✉ ${esc(r.email)}</a>` : ""}${!r.cell && !r.phone && !r.email ? `<span class="hint">No contact info yet</span>` : ""}</div>
@@ -4855,7 +4863,7 @@ function supDetail(name){
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
-  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show 🛒 Add to cart icon on the To order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show 🛒 Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){

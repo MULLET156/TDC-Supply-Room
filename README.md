@@ -1,6 +1,6 @@
 # TDC Supply Room
 
-Supply inventory for Toledo Dental Care: counts, reorder points (desired reserve and 911 levels), the To order / On order / Expiring lists, suppliers, reps, product photos and an activity log. Staff sign in with one office password; everything is stored in a MySQL database on Hostinger.
+Supply inventory for Toledo Dental Care: counts, reorder points (desired reserve and 911 levels), the Order list / On order / Expiring lists, suppliers, reps, product photos and an activity log. Staff sign in with one office password; everything is stored in a MySQL database on Hostinger.
 
 New products can be added from a supplier's product link: the server reads the page and Claude (through an Anthropic API key) fills in the name, SKU, price, package size, description and photo. A connector lets Claude (claude.ai or the Claude apps) look up and update the inventory directly.
 
@@ -83,7 +83,7 @@ The same token is the fallback for any other supplier site that blocks the serve
 ### 7. Connect Claude (optional)
 1. Put a long random key in `config.php` as `MCP_KEY` (40 or more letters and numbers; a password manager's generator works).
 2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: `https://<your site>/mcp.php?key=<your MCP_KEY>`.
-3. In a chat, turn the connector on and ask things like "What's on our To order list?", "We got the glove order, mark it received" or "Add this to the supply room: <product link>".
+3. In a chat, turn the connector on and ask things like "What's on our Order list?", "We got the glove order, mark it received" or "Add this to the supply room: <product link>".
 
 Anyone with the full connector URL can read and change the inventory, so keep it private. To disconnect everything, change or empty `MCP_KEY`.
 
