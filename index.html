@@ -595,6 +595,8 @@ body{margin:0}
 .pgrid th.gpic .gpich{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--pink,var(--accent));text-align:center}
 .gopen{position:relative;cursor:pointer;box-shadow:0 0 0 1.5px var(--line);transition:box-shadow .12s,transform .12s}
 .gopen::after{content:"";position:absolute;right:-1px;bottom:-1px;width:15px;height:15px;border-radius:5px 0 7px 0;background:var(--pink,var(--accent)) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3h7v7M13 3 6.5 9.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/10px no-repeat}
+#pgrid td.gpic.dropon{background:color-mix(in srgb,var(--pink,var(--accent)) 25%,var(--surface))!important;outline:2px dashed var(--pink,var(--accent));outline-offset:-3px}
+#pgrid td.gpic.busy .gopen{opacity:.4}
 .gopen:hover,.gopen:focus-visible{box-shadow:0 0 0 2.5px var(--pink,var(--accent));transform:scale(1.06);outline:none}
 .pgrid td input:not([type=checkbox]){padding-top:6px!important;padding-bottom:6px!important}
 .pgrid th{white-space:normal}
@@ -2162,7 +2164,7 @@ function productsHtml(all){
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
     <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n ? "" : "disabled"} title="${n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">✨ Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">🗑 Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"><span class="gpich">Open</span></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
-    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details)" aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
 }
 function mergeDialog(A, Bi){
@@ -3660,6 +3662,37 @@ function wirePhoto(onPick, onRemove){
 let reopen = null;
 $("#photoIn").addEventListener("change", e => { const f = e.target.files?.[0]; if (f && photoTarget) photoTarget(f); });
 async function uploadPhoto(file){ const blob = await shrink(file); return assets.upload(blob, { type: blob.type && /^image\/(jpeg|png|webp|gif)$/.test(blob.type) ? blob.type : "image/jpeg" }); }
+/* Editor: drag a picture (a file, or an image from another browser tab) onto a product's photo to make it the photo */
+async function dropPhoto(it, file, cell){
+  if (!assets || !needMe()) return;
+  cell?.classList.add("busy"); sync("busy", "Uploading photo…");
+  try {
+    const up = await uploadPhoto(file), old = it.photo;
+    await write(it.id, { photo: up.id }); it.photo = up.id;
+    logIt(old ? "Photo replaced" : "Photo added", it, "dragged into the Editor");
+    if (old) assets.delete(old).catch(() => {});
+    sync("ok", "Saved"); toast(`Photo saved for ${it.name}`); render();
+  } catch(e) { sync("err", "Not saved"); toast(e?.code ? dbErr(e) : photoErr(e)); }
+  finally { cell?.classList.remove("busy"); }
+}
+const photoCell = e => e.target.closest?.("#pgrid td.gpic");
+document.addEventListener("dragover", e => { const c = photoCell(e); if (!c || readOnly) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; document.querySelectorAll("#pgrid td.gpic.dropon").forEach(x => x !== c && x.classList.remove("dropon")); c.classList.add("dropon"); });
+document.addEventListener("dragleave", e => { const c = photoCell(e); if (c && !c.contains(e.relatedTarget)) c.classList.remove("dropon"); });
+document.addEventListener("drop", async e => {
+  const c = photoCell(e); if (!c || readOnly) return;
+  e.preventDefault(); c.classList.remove("dropon");
+  const it = byId(c.closest("tr.row")?.dataset.id); if (!it) return;
+  const f = [...(e.dataTransfer.files || [])].find(x => /^image\//.test(x.type));
+  if (f) { dropPhoto(it, f, c); return; }
+  /* an image dragged from a web page arrives as its address */
+  const html = e.dataTransfer.getData("text/html") || "", m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  const url = (m && m[1]) || (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain") || "").split(/\s+/)[0];
+  if (!/^https?:\/\//i.test(url || "")) { toast("Drop a picture file or an image from a web page"); return; }
+  if (!window.HOSTED) { toast("Save the picture to your computer first, then drag the file here"); return; }
+  c.classList.add("busy"); toast("Getting that picture…");
+  try { const b = await TDC.fetchPhoto(url, ""); c.classList.remove("busy"); dropPhoto(it, new File([b], "photo." + ((b.type || "").split("/")[1] || "jpg"), { type: b.type || "image/jpeg" }), c); }
+  catch(err) { c.classList.remove("busy"); toast("Couldn't get that picture: " + (err?.message || "try saving it and dragging the file")); }
+});
 async function setItemPhoto(it, file, pre, field = "photo"){
   if (!assets || !needMe()) return;
   sync("busy", "Uploading photo…"); toast("Uploading photo…");
