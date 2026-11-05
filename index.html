@@ -909,6 +909,9 @@ body[data-view="products"] .pgrid tr.row:has(.chk:checked) > td{background:color
 body[data-view="products"] .pgrid td.gneed input{color:inherit;font-weight:inherit}
 body[data-view="products"] .ptools .stlegend{display:none}
 body[data-view="products"] .ptools .ptitle,body[data-view="products"] .ptools .ptitle + .hint{display:none}
+body[data-view="products"] .ptools{justify-content:flex-start}
+body[data-view="products"] .ptools > div:first-child:not(:has(:not(.ptitle):not(.hint):not(.stlegend))){display:none}
+body[data-view="products"] .ptools > .actions{justify-content:flex-start;width:100%}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
 /* Order list: navy (the logo's dark color); red is kept for 911 / urgent */
 :root{--navy:#1f3a5f;--navy-soft:#e2e8f1;--navy-fg:#ffffff}
