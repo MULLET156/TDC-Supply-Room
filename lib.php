@@ -363,7 +363,7 @@ function parse_json_reply(string $t) {
 
 /* ---------- reading a product page ---------- */
 function page_facts(string $html, string $base): array {
-    $f = ['title' => '', 'description' => '', 'images' => [], 'jsonld' => [], 'text' => ''];
+    $f = ['title' => '', 'description' => '', 'images' => [], 'primary' => [], 'jsonld' => [], 'text' => ''];
     // Some supplier pages aren't valid UTF-8; clean them so the text tools below don't fail.
     if (!mb_check_encoding($html, 'UTF-8')) {
         $cs = preg_match('/<meta[^>]+charset=["\']?([A-Za-z0-9_-]+)/i', $html, $cm) ? strtoupper($cm[1]) : 'Windows-1252';
@@ -399,6 +399,7 @@ function page_facts(string $html, string $base): array {
             }
         }
     }
+    $f['primary'] = array_values(array_unique(array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u))));
     // Large product-looking <img> tags, in page order.
     if (preg_match_all('/<img\s[^>]*>/i', $html, $ms)) {
         foreach ($ms[0] as $tag) {
@@ -501,7 +502,8 @@ function read_product_link(string $url, array $ctx = [], bool $quick = false): a
             . (!empty($ctx['name']) ? "The office calls it: \"{$ctx['name']}\"\n" : '')
             . (!empty($ctx['sku']) ? "Expected SKU: {$ctx['sku']}\n" : '')
             . "Structured product data on the page: " . mb_substr($ld ?: '[]', 0, 6000) . "\n"
-            . "Pictures on the page (index: address):\n" . ($imgs ?: '(none)') . "\n\n"
+            . "Pictures on the page (index: address):\n" . ($imgs ?: '(none)') . "\n"
+            . (!empty($f['primary']) ? "The page itself marks these as the product picture: " . implode(', ', array_slice($f['primary'], 0, 4)) . "\n" : '') . "\n"
             . "Page text:\n" . $f['text'] . "\n\n"
             . (!empty($ctx['nameRule']) ? $ctx['nameRule'] . "\n\n" : '')
             . "Reply with one JSON object: {\"names\": [up to 3 short inventory names, best first], \"sku\": \"the supplier's item / catalog number\", "
@@ -520,8 +522,10 @@ function read_product_link(string $url, array $ctx = [], bool $quick = false): a
         }
     }
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
-    $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $f['images']) : ($pick < 0 ? [] : $f['images']);
-    foreach (array_slice(array_values(array_unique($order)), 0, 6) as $u) {
+    // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
+    $primary = $f['primary'] ?? [];
+    $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $primary, $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
+    foreach (array_slice(array_values(array_unique($order)), 0, 8) as $u) {
         $im = fetch_image($u);
         if ($im) { $res['photo'] = ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]; break; }
     }
@@ -620,6 +624,7 @@ function amazon_facts(string $url): array {
         'title' => (string)$it['title'],
         'description' => is_string($it['description'] ?? null) ? $it['description'] : '',
         'images' => array_values(array_unique($imgs)),
+        'primary' => array_values(array_unique($imgs)),
         'jsonld' => [['name' => (string)$it['title'], 'sku' => (string)($it['asin'] ?? ''), 'description' => is_string($it['description'] ?? null) ? $it['description'] : '',
                       'offers' => is_numeric($pv) ? ['price' => (float)$pv] : null]],
         'text' => mb_substr("Amazon product data:\n" . $text, 0, 24000),
