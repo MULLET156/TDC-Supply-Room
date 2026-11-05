@@ -856,7 +856,7 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]){display:none}
 body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
-#dockAll #dockAllAdd{flex:1.4;min-width:0}#dockAll #dockAllCnt{flex:1;min-width:0}
+#dockAll #dockAllAdd{flex:1;min-width:0}
 #dockAll button:disabled{opacity:.55}
 @media (max-width:520px){#dockAll button{font-size:14px;padding:8px 6px}}
 .dockexp #dockExpDate{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:0 10px;min-height:50px;font:inherit;font-size:15px;min-width:0;flex:0 1 170px}
@@ -1240,7 +1240,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted">✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn" id="scanBtn" type="button">Scan to count</button>
-  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled>Add to order list</button><button class="btn" id="dockAllCnt" type="button" disabled>Mark counted</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
+  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
   <div class="dockord dockexp" id="dockExp" hidden><label class="sr" for="dockExpDate">New expiration date</label><input type="date" id="dockExpDate"><button class="btn pri" id="dockExpGo" type="button" disabled>Set new date</button><button class="btn" id="dockExpClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
@@ -1867,7 +1867,7 @@ function pageHead(){
   document.body.dataset.view = tab;
   const n = f => items.filter(f).length, s = k => `${k} item${k === 1 ? "" : "s"}`;
   const P = {
-    all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list or mark them counted."],
+    all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list."],
     need: ["To order", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Tick what you've replaced and set the new date.`],
@@ -1886,7 +1886,7 @@ function updateOrdFloat(){
   const dx = $("#dockExp"), ex = tab === "exp" && !readOnly;
   if (dx) { dx.hidden = !ex; const g = $("#dockExpGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Set new date for ${selected.size}` : "Tick items, then set new date"; $("#dockExpClear").hidden = !selected.size; }
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
-  if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllCnt").disabled = !n; $("#dockAllAdd").textContent = n ? `Add ${n} to order list` : "Tick items, then Add to order list"; $("#dockAllCnt").textContent = n ? `Mark ${n} counted` : "Mark counted"; $("#dockAllClear").hidden = !n; }
+  if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").textContent = n ? `Add ${n} to order list` : "Tick items, then Add to order list"; $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
   if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} counted` : "Tick items, then Mark counted"; $("#dockCntClear").hidden = !selected.size; }
   const on = false;
@@ -1921,7 +1921,6 @@ $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockExpClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockAllClear").addEventListener("click", () => { selected.clear(); render(); });
-$("#dockAllCnt").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockAllAdd").addEventListener("click", async () => {
   if (!needMe()) return;
   const list = [...selected].map(byId).filter(Boolean);
@@ -2066,7 +2065,7 @@ function renderInner(){
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p class="intro">Tick items, then use the buttons at the bottom to add them to the order list or mark them counted.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
+    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p class="intro">Tick items, then use the button at the bottom to add them to the order list.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     $("#selShown") && ($("#selShown").onclick = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
 
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
