@@ -889,6 +889,7 @@ body[data-view="all"] main,body[data-view="need"] main,body[data-view="ordered"]
 .ordstep .ostep .q{min-width:40px}
 .ordstep .after{font-family:var(--f-mono);font-size:19px;font-weight:800;white-space:nowrap;border-radius:9px;padding:5px 10px;border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok);line-height:1.1}
 .ordstep .after.low{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
+.ordstep .after.met{border-color:var(--yel);background:var(--yel-soft);color:var(--yel-ink)}
 .ordstep .after small{font-size:14px;font-weight:600;opacity:.8}
 .ordstep .after .arr{margin-right:4px;font-family:var(--f-ui);font-weight:800}
 .ordstep .otop{display:contents}
@@ -1779,7 +1780,7 @@ document.addEventListener("change", e => {
 });
 /* To order list: how many to order, with +/-, and where stock ends up after that order (on hand + order / desired reserve) */
 const afterHtml = i => `${fmtQ((i.qty ?? 0) + i.orderQty)}<small>/${fmtQ(i.desired)}</small>`;
-const afterCls = i => "after " + ((i.qty ?? 0) + i.orderQty >= (i.desired ?? 0) ? "ok" : "low");
+const afterCls = i => { const a = (i.qty ?? 0) + i.orderQty, d = i.desired ?? 0; return "after " + (a > d ? "ok" : a === d ? "met" : "low"); };
 function ordStep(i){
   return `<div class="ordstep"><span class="otop"><span class="olab">Order</span><span class="${afterCls(i)}" title="On hand after this order arrives / desired reserve (now ${fmtQ(i.qty)} on hand)"><span class="arr" aria-hidden="true">→</span>${afterHtml(i)}</span></span><div class="step ostep" id="os-${esc(i.id)}"><button type="button" data-od="-1" aria-label="Order one less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.orderQty)}</span><button type="button" data-od="1" aria-label="Order one more" ${readOnly ? "disabled" : ""}>+</button></div></div>`;
 }
