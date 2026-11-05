@@ -823,9 +823,12 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .countmodes input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:420px){.countmodes .cmlabel{display:none}.countmodes label span{font-size:13.5px}}
 .dock .wrap{grid-template-columns:1fr!important}
-.dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]){display:none}
-body:has(#scanBtn[hidden]):has(#dockOrd[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
-body:has(#scanBtn[hidden]):has(#dockOrd[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]){display:none}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.dockexp #dockExpDate{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:0 10px;min-height:50px;font:inherit;font-size:15px;min-width:0;flex:0 1 170px}
+.dockexp #dockExpGo{flex:1;min-width:0}
+.dockexp #dockExpGo:disabled{opacity:.55}
 .dockord{display:flex;gap:8px}
 .dockord #dockOrdGo{flex:1}
 .dockord #dockOrdGo:disabled{opacity:.55}
@@ -1170,6 +1173,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted">✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn pri" id="scanBtn" type="button">Scan to count</button>
+  <div class="dockord dockexp" id="dockExp" hidden><label class="sr" for="dockExpDate">New expiration date</label><input type="date" id="dockExpDate"><button class="btn pri" id="dockExpGo" type="button" disabled>Set new date</button><button class="btn" id="dockExpClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div></div>
 
@@ -1771,6 +1775,8 @@ function updateOrdFloat(){
   /* To order and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
   const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
   if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
+  const dx = $("#dockExp"), ex = tab === "exp" && !readOnly;
+  if (dx) { dx.hidden = !ex; const g = $("#dockExpGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Set new date for ${selected.size}` : "Tick items, then set new date"; $("#dockExpClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
@@ -1801,6 +1807,22 @@ $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#mark
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
+$("#dockExpClear").addEventListener("click", () => { selected.clear(); render(); });
+$("#dockExpGo").addEventListener("click", async () => {
+  if (!needMe()) return;
+  const list = [...selected].map(byId).filter(Boolean); if (!list.length) return;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($("#dockExpDate").value || "");
+  if (!m) { toast("Pick the new expiration date first"); $("#dockExpDate").focus(); try { $("#dockExpDate").showPicker?.(); } catch {} return; }
+  const exp = `${+m[2]}/${+m[3]}/${m[1]}`, btn = $("#dockExpGo"); btn.disabled = true; sync("busy", "Saving…");
+  let ok = 0;
+  for (const it of list) {
+    try { await write(it.id, { exp }); logIt("Expiration updated", it, `${it.exp || "none"} → ${exp}`); ok++; }
+    catch(err) { toast(dbErr(err)); break; }
+  }
+  sync(ok === list.length ? "ok" : "err", ok === list.length ? "Saved" : "Not all saved");
+  if (ok) { selected.clear(); $("#dockExpDate").value = ""; toast(`${ok} item${ok !== 1 ? "s" : ""} now expire ${exp}`); }
+  render();
+});
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#bulkForm").addEventListener("submit", async e => {
@@ -1905,7 +1927,10 @@ function renderInner(){
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "exp") {
     const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
-    v.innerHTML = banner + (list.length ? `<p class="hint">Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap <b>Replaced</b> under it and enter the new box's date.</p><div class="list">${list.map(i=>rowHtml(i,false) + (readOnly ? "" : `<div class="exprep" data-expid="${esc(i.id)}">${expEditor(i)}</div>`)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
+    selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
+    const allX = list.length && list.every(i => selected.has(i.id));
+    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p>Expired or expiring within ${rules.expDays ?? 60} days. Replaced some? Tick them, pick the new date at the bottom and press <b>Set new date</b>. Or tap <b>Replaced</b> under one item.</p>${readOnly ? "" : `<div class="actions"><button class="btn" id="selAllExp" type="button">${allX ? "Clear all" : "Select all"}</button></div>`}</div><div class="list">${list.map(i=>rowHtml(i,!readOnly) + (readOnly ? "" : `<div class="exprep" data-expid="${esc(i.id)}">${expEditor(i)}</div>`)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
+    $("#selAllExp") && ($("#selAllExp").onclick = () => { if (allX) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
   } else {
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
