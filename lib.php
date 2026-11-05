@@ -459,11 +459,22 @@ function abs_url(string $u, string $base): string {
     return $root . $dir . $u;
 }
 function fetch_image(string $url, string $referer = '', ?string &$why = null): ?array {
-    $h = ['Accept: image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8'];
+    // Ask for formats we can store; some image servers (Henry Schein's) send AVIF to anyone who lists it or image/*.
+    $h = ['Accept: image/jpeg,image/png,image/webp;q=0.9,image/gif;q=0.8'];
     if ($referer !== '') $h[] = 'Referer: ' . $referer;
     $r = http_get($url, MAX_BLOB, 20, $h);
     if (!$r['ok']) { $why = $r['error'] ?: 'no answer'; return null; }
     $mime = sniff_mime($r['body']) ?? strtolower(trim(explode(';', $r['type'])[0]));
+    if ($mime === 'image/avif' || $mime === 'image/heic') {
+        $r2 = http_get($url, MAX_BLOB, 20, array_merge(['Accept: image/jpeg'], array_slice($h, 1)));
+        $m2 = $r2['ok'] ? (sniff_mime($r2['body']) ?? strtolower(trim(explode(';', $r2['type'])[0]))) : '';
+        if (in_array($m2, IMG_TYPES, true)) { $r = $r2; $mime = $m2; }
+        elseif ($mime === 'image/avif' && function_exists('imagecreatefromavif')) {
+            $tmp = tempnam(sys_get_temp_dir(), 'av'); file_put_contents($tmp, $r['body']);
+            $gd = @imagecreatefromavif($tmp); @unlink($tmp);
+            if ($gd) { ob_start(); imagejpeg($gd, null, 88); $r['body'] = (string)ob_get_clean(); imagedestroy($gd); $mime = 'image/jpeg'; }
+        }
+    }
     if (!in_array($mime, IMG_TYPES, true)) { $why = 'not a picture (' . ($mime ?: 'unknown') . ')'; return null; }
     if (strlen($r['body']) < 2500) { $why = 'too small (' . strlen($r['body']) . ' bytes)'; return null; }   // tiny = icon or tracking pixel
     return ['type' => $mime, 'bytes' => $r['body']];
