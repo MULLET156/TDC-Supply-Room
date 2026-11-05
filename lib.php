@@ -447,17 +447,30 @@ function fetch_image(string $url): ?array {
  * names[], sku, mfrNumber, price, units, description, supplier, url, photo (type + base64), note.
  */
 function read_product_link(string $url, array $ctx = []): array {
-    $page = http_get($url);
-    if (!$page['ok']) {
-        $blocked = in_array($page['code'] ?? 0, [401, 403, 429, 503], true);
-        return ['ok' => false, 'error' => $blocked ? 'blocked' : 'unreachable',
-                'message' => $blocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
+    $am = amazon_url($url);
+    if ($am !== null && apify_ready()) {
+        // Amazon blocks servers from reading its pages, so Amazon links go through Apify's Amazon scraper.
+        $got = amazon_facts($am);
+        if (!$got['ok']) return $got;
+        $f = $got['facts']; $finalUrl = $got['url'];
+    } else {
+        $page = http_get($url);
+        if (!$page['ok']) {
+            $blocked = in_array($page['code'] ?? 0, [401, 403, 429, 503], true);
+            return ['ok' => false, 'error' => $blocked ? 'blocked' : 'unreachable',
+                    'message' => $blocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
+        }
+        if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
+            return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
+        }
+        $f = page_facts($page['body'], $page['url']);
+        $finalUrl = $page['url'];
+        // Amazon's "Continue shopping" robot check instead of the product
+        if ($am !== null && (stripos($page['body'], 'captcha') !== false || stripos($page['body'], 'Continue shopping') !== false) && stripos($page['body'], 'productTitle') === false) {
+            return ['ok' => false, 'error' => 'blocked', 'message' => 'Amazon didn\'t let the server read that page. Add APIFY_TOKEN to config.php to read Amazon links.'];
+        }
     }
-    if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
-        return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
-    }
-    $f = page_facts($page['body'], $page['url']);
-    $res = ['url' => $page['url'], 'pageTitle' => $f['title'], 'names' => [], 'sku' => '', 'mfrNumber' => '', 'price' => null,
+    $res = ['url' => $finalUrl, 'pageTitle' => $f['title'], 'names' => [], 'sku' => '', 'mfrNumber' => '', 'price' => null,
             'units' => '', 'description' => $f['description'], 'supplier' => '', 'note' => '', 'photo' => null, 'photoNote' => ''];
     // Without Claude: use what the page states in its product data.
     foreach ($f['jsonld'] as $p) {
@@ -474,7 +487,7 @@ function read_product_link(string $url, array $ctx = []): array {
         $ld = json_encode(array_slice($f['jsonld'], 0, 4), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $imgs = implode("\n", array_map(fn($i, $u) => "$i: $u", array_keys($f['images']), $f['images']));
         $prompt = "You are adding a product to a dental office's supply inventory from a supplier's product web page.\n"
-            . "Page address: {$page['url']}\nPage title: {$f['title']}\n"
+            . "Page address: {$finalUrl}\nPage title: {$f['title']}\n"
             . (!empty($ctx['name']) ? "The office calls it: \"{$ctx['name']}\"\n" : '')
             . (!empty($ctx['sku']) ? "Expected SKU: {$ctx['sku']}\n" : '')
             . "Structured product data on the page: " . mb_substr($ld ?: '[]', 0, 6000) . "\n"
@@ -496,6 +509,7 @@ function read_product_link(string $url, array $ctx = []): array {
             $res['note'] = $a['message'] ?? '';
         }
     }
+    if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $f['images']) : ($pick < 0 ? [] : $f['images']);
     foreach (array_slice(array_values(array_unique($order)), 0, 6) as $u) {
         $im = fetch_image($u);
@@ -537,3 +551,67 @@ function parse_exp(string $v): ?int {
     $t = strtotime($v); return $t ?: null;
 }
 function today_str(): string { return date('n/j/Y'); }
+
+/* ---------- Amazon, through Apify (apify.com, actor junglee/amazon-crawler) ---------- */
+function apify_ready(): bool { return trim((string)cfg('APIFY_TOKEN')) !== ''; }
+// Returns a clean https://www.amazon.<tld>/dp/<ASIN> for Amazon product links (short a.co / amzn.to links are kept as given).
+function amazon_url(string $url): ?string {
+    $p = parse_url(preg_match('#^https?://#i', $url) ? $url : 'https://' . $url);
+    $host = strtolower($p['host'] ?? '');
+    if (in_array($host, ['a.co', 'amzn.to', 'amzn.com', 'www.amzn.com'], true)) return 'https://' . $host . ($p['path'] ?? '');
+    if (!preg_match('/(^|\.)amazon\.([a-z.]{2,6})$/', $host, $hm)) return null;
+    if (preg_match('#/(?:dp|gp/product|gp/aw/d|product)/([A-Z0-9]{10})(?:[/?]|$)#i', ($p['path'] ?? '') . '/', $m)) return 'https://www.amazon.' . $hm[2] . '/dp/' . strtoupper($m[1]);
+    return 'https://' . $host . ($p['path'] ?? '');
+}
+function amazon_facts(string $url): array {
+    @set_time_limit(200);
+    $actor = (string)cfg('APIFY_ACTOR', 'junglee~amazon-crawler');
+    $input = [
+        'categoryOrProductUrls' => [['url' => $url]],
+        'maxItemsPerStartUrl' => 1,
+        'maxOffers' => 0,
+        'maxProductVariantsAsSeparateResults' => 0,
+        'scrapeSellers' => false,
+        'scrapeProductVariantPrices' => false,
+        'scrapeProductDetails' => true,
+        'proxyCountry' => 'AUTO_SELECT_PROXY_COUNTRY',
+    ];
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=150&format=json&clean=true');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 170, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
+    ]);
+    $res = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code < 200 || $code >= 300 || !is_array($j)) {
+        $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
+        error_log("tdc apify: $code $m");
+        $msg = $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
+             : ($code === 402 || stripos($m, 'credit') !== false || stripos($m, 'usage') !== false ? 'The Apify account is out of monthly credit.'
+             : ($code === 408 ? 'Amazon took too long to answer. Try again.' : 'Apify couldn\'t read that Amazon page' . ($m ? ": $m" : '.')));
+        return ['ok' => false, 'error' => 'unavailable', 'message' => $msg];
+    }
+    $it = (array_is_list($j) ? ($j[0] ?? null) : $j);
+    if (!is_array($it) || empty($it['title'])) return ['ok' => false, 'error' => 'no_match', 'message' => 'Apify didn\'t find a product at that Amazon link.'];
+    // Biggest picture first; Amazon image addresses carry a size code (._AC_SX300_.) that can be dropped for the full size.
+    $imgs = [];
+    foreach (['highResolutionImages', 'galleryThumbnails', 'images'] as $k) foreach ((array)($it[$k] ?? []) as $u) if (is_string($u)) $imgs[] = $u;
+    if (!empty($it['thumbnailImage']) && is_string($it['thumbnailImage'])) { $imgs[] = preg_replace('/\._[A-Za-z0-9,_-]+_\.(jpg|jpeg|png|webp)$/i', '.$1', $it['thumbnailImage']); $imgs[] = $it['thumbnailImage']; }
+    $price = $it['price'] ?? null;
+    $pv = is_array($price) ? ($price['value'] ?? null) : $price;
+    $keep = array_intersect_key($it, array_flip(['title', 'asin', 'brand', 'price', 'listPrice', 'description', 'features', 'breadCrumbs', 'productOverview', 'attributes', 'variantAttributes', 'manufacturer', 'url']));
+    $text = json_encode($keep, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    return ['ok' => true, 'url' => (string)($it['url'] ?? $url), 'facts' => [
+        'title' => (string)$it['title'],
+        'description' => is_string($it['description'] ?? null) ? $it['description'] : '',
+        'images' => array_values(array_unique($imgs)),
+        'jsonld' => [['name' => (string)$it['title'], 'sku' => (string)($it['asin'] ?? ''), 'description' => is_string($it['description'] ?? null) ? $it['description'] : '',
+                      'offers' => is_numeric($pv) ? ['price' => (float)$pv] : null]],
+        'text' => mb_substr("Amazon product data:\n" . $text, 0, 24000),
+    ]];
+}

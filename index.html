@@ -2796,7 +2796,7 @@ ${hist.text}` : ""}`, { images: sendImgs, modelTier: "default" });
 async function hostedScrape(it, status){
   const link = clean(it.link);
   if (!link) throw { code: "no_match", message: "Add the product's web link first. (To look a product up by SKU, ask Claude through the Supply Room connector.)" };
-  status("Reading the product page…");
+  status(/(^|\.)(amazon\.[a-z.]+|a\.co|amzn\.to)(\/|$)/i.test(link.replace(/^https?:\/\//, "")) ? "Reading the Amazon page… this can take up to a minute." : "Reading the product page…");
   let r;
   try { r = await TDC.readLink(webHref(link), { name: it.name === "__add" ? "" : it.name, sku: it.sku || "", nameRule: NAME_RULE }); }
   catch(e) {

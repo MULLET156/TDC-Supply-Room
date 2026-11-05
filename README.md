@@ -47,6 +47,7 @@ define('DB_NAME', 'u123456789_supplies');   // from step 2
 define('DB_USER', 'u123456789_supplies');   // from step 2
 define('DB_PASS', 'the database password');
 define('ANTHROPIC_API_KEY', 'sk-ant-…');    // step 6
+define('APIFY_TOKEN', 'apify_api_…');       // step 6b (Amazon links)
 define('MCP_KEY', 'a long random key');     // step 7
 ```
 
@@ -63,6 +64,15 @@ At [console.anthropic.com](https://console.anthropic.com) create an API key (**A
 With the key set, these work again: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
 
 The server reads product pages without signing in to your supplier accounts, so prices that only show after signing in (common at Henry Schein, Patterson and Benco) come back empty or as list price. Some supplier sites also block servers entirely. For those, add the product from Claude instead (step 7), which uses your signed-in browser.
+
+### 6b. Amazon links (optional)
+Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and add it to `config.php`:
+
+```php
+define('APIFY_TOKEN', 'apify_api_…');
+```
+
+Apify's free plan includes $5 of usage a month; one Amazon product costs well under a cent. Reading an Amazon link takes 20–60 seconds. Without the token, Amazon links only fill in the SKU (ASIN).
 
 ### 7. Connect Claude (optional)
 1. Put a long random key in `config.php` as `MCP_KEY` (40 or more letters and numbers; a password manager's generator works).

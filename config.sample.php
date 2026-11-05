@@ -22,6 +22,11 @@ define('ANTHROPIC_API_KEY', '');
 // define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');        // product pages, photos
 // define('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5');   // quick suggestions
 
+// Amazon links: Amazon blocks servers from reading its pages, so they go through
+// Apify (apify.com → Settings → API & Integrations → Personal API token).
+// Leave empty and Amazon links fill in only the SKU (ASIN).
+define('APIFY_TOKEN', '');
+
 // Connector for Claude (mcp.php). Make up a long random key (40+ letters and
 // numbers). The connector address is https://<your site>/mcp.php?key=<this key>.
 // Leave empty to turn the connector off.
