@@ -1760,10 +1760,10 @@ function render(){ renderInner(); updateBulk(); try { syncFToggle(); } catch {} 
 /* On To order / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
-  /* To order has its Mark ordered button in the bottom bar all the time; On order uses the pop-up bar */
-  const dk = $("#dockOrd"), need = tab === "need" && !readOnly;
-  if (dk) { dk.hidden = !need; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ordered` : "Tick items, then Mark ordered"; $("#dockOrdClear").hidden = !selected.size; }
-  const on = tab === "ordered" && selected.size > 0 && !readOnly;
+  /* To order and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
+  const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
+  if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
+  const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
   $("#ofN").textContent = `${selected.size} ticked`;
@@ -1791,7 +1791,7 @@ function fillBulkList(){
 $("#bulkField").addEventListener("change", () => { $("#bulkVal").value = ""; fillBulkList(); });
 $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
-$("#dockOrdGo").addEventListener("click", () => { const b = $("#markOrd"); if (b && !b.disabled) b.click(); });
+$("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
