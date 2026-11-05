@@ -651,6 +651,9 @@ body.on-products .filters{display:none!important}
 .ptools .actions .bulkbar.inline input{flex:0 1 150px}
 .ptools .actions .bulkbar.inline .btn{padding:7px 12px}
 .ptools .actions .bulkbar.none .in{opacity:.6}
+.ptools .actions .bulkbar.inline .in{flex-wrap:nowrap}
+@media (max-width:1240px){.ptools .actions .bulkbar.inline select{max-width:130px}.ptools .actions .bulkbar.inline input{flex-basis:110px;max-width:120px}.ptools .actions .bulkbar.inline .in b{display:none}}
+@media (max-width:640px){.ptools .actions .bulkbar.inline .in{flex-wrap:wrap}}
 .counts.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .counts.three .cbox{align-content:start}
 .counts.three .cbox .step{align-self:start}
