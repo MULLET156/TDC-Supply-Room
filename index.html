@@ -2880,12 +2880,12 @@ function startBatch(list){
   const full = !!mcp || !!window.HOSTED;
   /* the two speed-up toggles are remembered on this device */
   let auto = {}; try { auto = JSON.parse(localStorage.getItem("tdc.batchAuto") || "{}") || {}; } catch {}
-  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
+  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, name: true, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
   openPanel(`<div class="ph"><div><h2>Update ${list.length} item${list.length === 1 ? "" : "s"} from supplier pages</h2><div class="lastby">One at a time — you approve each</div></div><button class="iconbtn" data-close type="button">Close</button></div>
     ${full ? `<p class="hint">${window.HOSTED ? "For each item, the server opens its reorder link (or searches the web for it by SKU and name when there's no link) and Claude reads the page and suggests a proper name." : "For each item, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name."} Pick the name, check the filled-in details, then save and move to the next one.${window.HOSTED ? " Prices that only show when signed in to a supplier account won't come through." : " The app may ask you to allow each supplier's website the first time."}</p>`
       : `<div class="notice"><b>Names only in this browser</b><span class="hint">Reading supplier pages (price, package size, photo, description, SKU) only works when this page is open in the Claude desktop app. Here, Claude can still suggest a proper name for each item.</span></div>`}
-    ${full ? `<div class="bopts"><b>Fill in</b>
-      ${[["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" checked> ${l}</label>`).join("")}
+    ${full ? `<div class="bopts"><b>Fill in</b> <button type="button" class="btn sm" id="bPhotoOnly">📷 Photos only</button>
+      ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" checked> ${l}</label>`).join("")}
       <label>Photo <select data-bo="photo"><option value="missing">only if the item has none</option><option value="always">replace existing photos</option><option value="never">don't pull photos</option></select></label></div>` : ""}
     <div class="bopts"><b>Go faster</b>
       <label><input type="checkbox" data-bo="autoName" ${B.opts.autoName ? "checked" : ""}> <span>Use the suggested name automatically<span class="hint">Skips the name step. You'll still be asked when Claude isn't sure it found the right product.</span></span></label>
@@ -2893,6 +2893,11 @@ function startBatch(list){
     ${full && !window.HOSTED ? `<div class="bopts"><label><input type="checkbox" data-bo="history" checked> <span><b>Use our past orders</b><br><span class="hint">Claude also checks each supplier's past orders for extra matches and shows when we last bought an item. Sign in to each supplier in the Claude app's browser for this to work.</span></span></label></div>` : ""}
     <div class="actions savebar"><button class="btn pri grow" type="button" id="bStart">Start updating ${list.length} item${list.length === 1 ? "" : "s"}</button></div>`);
   document.querySelectorAll("[data-bo]").forEach(el => el.onchange = () => { B.opts[el.dataset.bo] = el.type === "checkbox" ? el.checked : el.value; if (el.dataset.bo === "autoName" || el.dataset.bo === "autoSave") { try { localStorage.setItem("tdc.batchAuto", JSON.stringify({ autoName: B.opts.autoName, autoSave: B.opts.autoSave })); } catch {} } });
+  $("#bPhotoOnly") && ($("#bPhotoOnly").onclick = () => {
+    document.querySelectorAll('.bopts input[type=checkbox][data-bo]').forEach(el => { if (!["autoName", "autoSave", "history"].includes(el.dataset.bo)) { el.checked = false; B.opts[el.dataset.bo] = false; } });
+    const ph = $('[data-bo="photo"]'); if (ph && ph.value === "never") { ph.value = "missing"; B.opts.photo = "missing"; }
+    toast("Only photos will be updated");
+  });
   $("#bStart").onclick = () => batchStep();
   return true;
 }
@@ -2939,6 +2944,8 @@ async function batchStep(next){
   const chose = name => batchReview(it, r, clean(name) || it.name, head);
   document.querySelectorAll("[data-bn]").forEach(b => b.onclick = () => chose(opts[+b.dataset.bn][0]));
   $("#bOwnGo").onclick = () => chose($("#bOwn").value);
+  /* names turned off: keep the current name and go straight to the details (still ask when the match is uncertain) */
+  if (!B.opts.name && !ask) { chose(it.name); return; }
   /* auto-pick the suggested name, unless Claude asked whether this is even the right product */
   if (B.opts.autoName && !ask) { const sug = opts.find(o => o[1] === "Suggested"); chose(sug ? sug[0] : it.name); return; }
   if (B.opts.autoSave && !ask) { const k = opts.findIndex(o => o[1] === "Suggested"); autoCountdown(document.querySelector(`[data-bn="${k >= 0 ? k : 0}"]`), "", "Picking this name"); }
@@ -2967,14 +2974,17 @@ function batchReview(it, r, name, head){
     desc: o.desc && clean(r.description) ? clean(r.description) : it.desc || "",
     link: o.link && r.url && (!clean(it.link) || r.cand?.i > 0) ? r.url : it.link || "" };
   const usePhoto = r.photo && (o.photo === "always" || (o.photo === "missing" && !it.photo));
+  const photoOnly = !o.name && !["price", "units", "sku", "supplier", "desc", "link"].some(k => o[k]);
+  if (photoOnly) { ["unitCost", "units", "sku", "supplier", "desc", "link"].forEach(k => { f[k] = it[k] || ""; }); }
+  if (photoOnly && !usePhoto) { B.skipped++; B.i++; toast(`No photo found for ${it.name}. Skipped.`); batchStep(); return; }
   const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
   const purl = usePhoto ? URL.createObjectURL(r.photo) : "";
-  openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">🧾 <b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">Step 2 — check the details, then save</span>
+  openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">🧾 <b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
     ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label></div>` : ""}
-    <div class="fields">${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
+    <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
     ${r.url ? `<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page Claude read ↗</a>` : ""}
-    <div class="actions savebar"><button class="btn" type="button" id="bBack">← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">Save &amp; next</button></div>`);
+    <div class="actions savebar"><button class="btn" type="button" id="bBack"${o.name ? "" : " hidden"}>← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">${photoOnly ? "Save photo &amp; next" : "Save &amp; next"}</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
   $("#bSkip").onclick = () => { B.skipped++; B.i++; batchStep(); };
   $("#bBack").onclick = () => { batchStepFromResult(it, r, head); };
