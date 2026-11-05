@@ -324,7 +324,8 @@ function ai_json(string $prompt, array $images = [], string $tier = ''): array {
     $body = json_encode([
         'model' => $model, 'max_tokens' => 4096,
         'messages' => [['role' => 'user', 'content' => $content]],
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The page text couldn\'t be sent to Claude.'];
     $ch = curl_init('https://api.anthropic.com/v1/messages');
     curl_setopt_array($ch, [
         CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 90,
@@ -363,6 +364,12 @@ function parse_json_reply(string $t) {
 /* ---------- reading a product page ---------- */
 function page_facts(string $html, string $base): array {
     $f = ['title' => '', 'description' => '', 'images' => [], 'jsonld' => [], 'text' => ''];
+    // Some supplier pages aren't valid UTF-8; clean them so the text tools below don't fail.
+    if (!mb_check_encoding($html, 'UTF-8')) {
+        $cs = preg_match('/<meta[^>]+charset=["\']?([A-Za-z0-9_-]+)/i', $html, $cm) ? strtoupper($cm[1]) : 'Windows-1252';
+        $conv = @mb_convert_encoding($html, 'UTF-8', in_array($cs, mb_list_encodings(), true) ? $cs : 'Windows-1252');
+        $html = is_string($conv) && mb_check_encoding($conv, 'UTF-8') ? $conv : mb_scrub($html, 'UTF-8');
+    }
     if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) $f['title'] = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
     if (preg_match_all('/<meta\s+[^>]*>/i', $html, $ms)) {
         foreach ($ms[0] as $tag) {
@@ -403,11 +410,11 @@ function page_facts(string $html, string $base): array {
     }
     $f['images'] = array_values(array_unique(array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u))));
     $f['images'] = array_slice($f['images'], 0, 25);
-    $t = preg_replace('/<(script|style|noscript|svg|template|iframe)\b.*?<\/\1>/is', ' ', $html);
-    $t = preg_replace('/<(br|\/p|\/div|\/li|\/tr|\/h\d)[^>]*>/i', "\n", $t);
+    $t = preg_replace('/<(script|style|noscript|svg|template|iframe)\b.*?<\/\1>/is', ' ', $html) ?? $html;
+    $t = preg_replace('/<(br|\/p|\/div|\/li|\/tr|\/h\d)[^>]*>/i', "\n", $t) ?? $t;
     $t = html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5);
-    $t = preg_replace("/[ \t\x{00A0}]+/u", ' ', $t);
-    $t = preg_replace("/\s*\n\s*/", "\n", $t);
+    $t = preg_replace("/[ \t\x{00A0}]+/u", ' ', $t) ?? $t;
+    $t = preg_replace("/\s*\n\s*/", "\n", $t) ?? $t;
     $f['text'] = mb_substr(trim($t), 0, 24000);
     return $f;
 }
@@ -484,7 +491,7 @@ function read_product_link(string $url, array $ctx = []): array {
     }
     $pick = 0;
     if (ai_ready()) {
-        $ld = json_encode(array_slice($f['jsonld'], 0, 4), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $ld = json_encode(array_slice($f['jsonld'], 0, 4), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         $imgs = implode("\n", array_map(fn($i, $u) => "$i: $u", array_keys($f['images']), $f['images']));
         $prompt = "You are adding a product to a dental office's supply inventory from a supplier's product web page.\n"
             . "Page address: {$finalUrl}\nPage title: {$f['title']}\n"

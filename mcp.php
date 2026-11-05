@@ -273,8 +273,8 @@ switch ($m) {
             rpc_out($id, $res);
         } catch (Throwable $e) {
             if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-            if (!($e instanceof RuntimeException)) error_log('tdc mcp: ' . $e->getMessage());
-            rpc_out($id, text_result($e instanceof RuntimeException ? $e->getMessage() : 'The server had a problem. Try again.', true));
+            if (!($e instanceof RuntimeException)) error_log('tdc mcp: ' . $e->getMessage() . ' @' . basename($e->getFile()) . ':' . $e->getLine());
+            rpc_out($id, text_result($e instanceof RuntimeException ? $e->getMessage() : 'The server had a problem (' . get_class($e) . ': ' . mb_substr($e->getMessage(), 0, 200) . ' at ' . basename($e->getFile()) . ':' . $e->getLine() . '). Try again.', true));
         }
     }
     default:
