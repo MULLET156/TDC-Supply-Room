@@ -4090,10 +4090,11 @@ async function runImport(){
 function csvCell(v){ v = v == null ? "" : String(v); if (/^[=+\-@\t]/.test(v) && !/^-?\d/.test(v)) v = "'" + v; /* stop spreadsheets running text as a formula */ return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 $("#exportBtn").onclick = async () => {
   const cols = [["Item Name","name"],["SKU","sku"],["Category","cat"],["Subcategory","sub"],["Expiration Date","exp"],["Location","loc"],["Notes","notes"],["Unit / Package Size","units"],["Quantity on Hand","qty"],["Desired Quantity","desired"],["911 Level","urgent"],["Order Quantity","orderQty"],["Ordered","ordered"],["Price","unitCost"],["Supplier","supplier"],["Description","desc"],["Rep","repName"],["Rep phone","repPhone"],["Rep email","repEmail"],["Link","link"]];
-  const rows = items.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => { const r = repOf(i.supplier) || {}; const x = { ...i, repName: r.name || "", repPhone: r.phone || "", repEmail: r.email || "" }; return cols.map(([,k]) => csvCell(x[k])).join(","); });
+  const src = tab === "products" ? items.filter(pMatch) : items;   /* from the Editor, export what its filters show */
+  const rows = src.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => { const r = repOf(i.supplier) || {}; const x = { ...i, repName: r.name || "", repPhone: r.phone || "", repEmail: r.email || "" }; return cols.map(([,k]) => csvCell(x[k])).join(","); });
   const csv = cols.map(c=>c[0]).join(",") + "\n" + rows.join("\n");
   const d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
-  try { await downloads.save({ filename: `TDC supply inventory ${stamp}.csv`, data: csv }); toast("Exported"); }
+  try { await downloads.save({ filename: `TDC supply inventory${src.length < items.length ? " (filtered)" : ""} ${stamp}.csv`, data: csv }); toast("Exported"); }
   catch(e) { if (e?.code !== "declined") toast("Export isn't available here."); }
 };
 
