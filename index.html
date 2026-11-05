@@ -853,15 +853,12 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .dock .wrap > #scanBtn{flex:0 1 38%}
 .dockord #dockCntGo{flex:1;min-width:0}
 .dockord #dockCntGo:disabled{opacity:.55}
-.dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]){display:none}
-body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
-body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dockAll[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.dock:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockAll[hidden]){display:none}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockAll[hidden]){padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockAll[hidden]) .bulkbar{bottom:calc(8px + env(safe-area-inset-bottom,0px))}
 #dockAll #dockAllAdd{flex:1;min-width:0}
 #dockAll button:disabled{opacity:.55}
 @media (max-width:520px){#dockAll button{font-size:14px;padding:8px 6px}}
-.dockexp #dockExpDate{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:0 10px;min-height:50px;font:inherit;font-size:15px;min-width:0;flex:0 1 170px}
-.dockexp #dockExpGo{flex:1;min-width:0}
-.dockexp #dockExpGo:disabled{opacity:.55}
 /* ===== which page you're on: page color, title, selected tile ===== */
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
 body[data-view="need"]{--pg:var(--red);--pg-soft:var(--red-soft);--pg-ink:var(--red)}
@@ -1242,7 +1239,6 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   <button class="btn" id="scanBtn" type="button">Scan to count</button>
   <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
-  <div class="dockord dockexp" id="dockExp" hidden><label class="sr" for="dockExpDate">New expiration date</label><input type="date" id="dockExpDate"><button class="btn pri" id="dockExpGo" type="button" disabled>Set new date</button><button class="btn" id="dockExpClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div></div>
 
@@ -1870,7 +1866,7 @@ function pageHead(){
     all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list."],
     need: ["To order", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
-    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Tick what you've replaced and set the new date.`],
+    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
     count: ["Inventory counter", `${n(i => i.countedAt)} of ${s(items.length)} counted`, "Count by supplier, category or location. Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
@@ -1883,8 +1879,6 @@ function updateOrdFloat(){
   /* To order and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
   const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
   if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
-  const dx = $("#dockExp"), ex = tab === "exp" && !readOnly;
-  if (dx) { dx.hidden = !ex; const g = $("#dockExpGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Set new date for ${selected.size}` : "Tick items, then set new date"; $("#dockExpClear").hidden = !selected.size; }
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
   if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").textContent = n ? `Add ${n} to order list` : "Tick items, then Add to order list"; $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
@@ -1919,40 +1913,6 @@ $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#mark
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
-$("#dockExpClear").addEventListener("click", () => { selected.clear(); render(); });
-$("#dockAllClear").addEventListener("click", () => { selected.clear(); render(); });
-$("#dockAllAdd").addEventListener("click", async () => {
-  if (!needMe()) return;
-  const list = [...selected].map(byId).filter(Boolean);
-  const add = list.filter(i => !i.need && !i.onOrder), skip = list.length - add.length;
-  if (!add.length) { toast(skip ? "Those are already on the To order or On order list" : "Tick items first"); return; }
-  sync("busy", "Saving…"); let ok = 0;
-  for (const it of add) {
-    const q = Math.max(1, Math.ceil((num(it.desired) || 0) - (num(it.qty) || 0)) || 1);
-    try { await write(it.id, { orderReq: q, orderAmt: 0 }); logIt("Added to order list", it, `order ${fmtQ(q)}${it.units ? " × " + it.units : ""}`); ok++; }
-    catch(e) { toast(dbErr(e)); break; }
-  }
-  sync(ok === add.length ? "ok" : "err", ok === add.length ? "Saved" : "Not all saved");
-  selected.clear(); render();
-  toast(`Added ${ok} to the order list${skip ? ` (${skip} already on order or to order)` : ""}. Change amounts with Order − / + on To order.`);
-});
-$("#dockCntClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
-$("#dockCntGo").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
-$("#dockExpGo").addEventListener("click", async () => {
-  if (!needMe()) return;
-  const list = [...selected].map(byId).filter(Boolean); if (!list.length) return;
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($("#dockExpDate").value || "");
-  if (!m) { toast("Pick the new expiration date first"); $("#dockExpDate").focus(); try { $("#dockExpDate").showPicker?.(); } catch {} return; }
-  const exp = `${+m[2]}/${+m[3]}/${m[1]}`, btn = $("#dockExpGo"); btn.disabled = true; sync("busy", "Saving…");
-  let ok = 0;
-  for (const it of list) {
-    try { await write(it.id, { exp }); logIt("Expiration updated", it, `${it.exp || "none"} → ${exp}`); ok++; }
-    catch(err) { toast(dbErr(err)); break; }
-  }
-  sync(ok === list.length ? "ok" : "err", ok === list.length ? "Saved" : "Not all saved");
-  if (ok) { selected.clear(); $("#dockExpDate").value = ""; toast(`${ok} item${ok !== 1 ? "s" : ""} now expire ${exp}`); }
-  render();
-});
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#bulkForm").addEventListener("submit", async e => {
@@ -2057,10 +2017,7 @@ function renderInner(){
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "exp") {
     const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
-    selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
-    const allX = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">Expired or expiring within ${rules.expDays ?? 60} days. Replaced some? Tick them, pick the new date at the bottom and press <b>Set new date</b>. Or tap <b>Replaced</b> on one item.</p>${readOnly ? "" : `<div class="actions"><button class="btn" id="selAllExp" type="button">${allX ? "Clear all" : "Select all"}</button></div>`}</div><div class="list">${list.map(i=>rowHtml(i,!readOnly)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
-    $("#selAllExp") && ($("#selAllExp").onclick = () => { if (allX) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
+    v.innerHTML = banner + (list.length ? `<div class="list">${list.map(i=>rowHtml(i,false)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
   } else {
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
