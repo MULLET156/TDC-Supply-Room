@@ -310,25 +310,27 @@ function http_get(string $url, int $max = 4194304, int $timeout = 20, array $hea
 
 /* ---------- Claude (Anthropic API) ---------- */
 function ai_ready(): bool { return trim((string)cfg('ANTHROPIC_API_KEY')) !== ''; }
-// $images: list of ['type' => mime, 'data' => base64]
-function ai_json(string $prompt, array $images = [], string $tier = ''): array {
+// $images: list of ['type' => mime, 'data' => base64]; PDFs ('application/pdf') are sent as documents
+// $opt: maxFiles (default 4), maxTokens (default 4096), timeout in seconds (default 90)
+function ai_json(string $prompt, array $images = [], string $tier = '', array $opt = []): array {
     if (!ai_ready()) return ['ok' => false, 'error' => 'no_key', 'message' => 'Claude isn\'t set up on this server yet: add ANTHROPIC_API_KEY to config.php.'];
     $model = $tier === 'quick' ? (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5') : (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
     $content = [];
-    foreach (array_slice($images, 0, 4) as $im) {
+    foreach (array_slice($images, 0, (int)($opt['maxFiles'] ?? 4)) as $im) {
         $mime = strtolower((string)($im['type'] ?? ''));
-        if (!in_array($mime, IMG_TYPES, true) || !is_string($im['data'] ?? null)) continue;
-        $content[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
+        if (!is_string($im['data'] ?? null)) continue;
+        if ($mime === 'application/pdf') $content[] = ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
+        elseif (in_array($mime, IMG_TYPES, true)) $content[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
     }
     $content[] = ['type' => 'text', 'text' => $prompt . "\n\nReply with only the JSON, no other text."];
     $body = json_encode([
-        'model' => $model, 'max_tokens' => 4096,
+        'model' => $model, 'max_tokens' => (int)($opt['maxTokens'] ?? 4096),
         'messages' => [['role' => 'user', 'content' => $content]],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
     if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The page text couldn\'t be sent to Claude.'];
     $ch = curl_init('https://api.anthropic.com/v1/messages');
     curl_setopt_array($ch, [
-        CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 90,
+        CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => (int)($opt['timeout'] ?? 90),
         CURLOPT_HTTPHEADER => ['content-type: application/json', 'anthropic-version: 2023-06-01', 'x-api-key: ' . cfg('ANTHROPIC_API_KEY')],
     ]);
     $res = curl_exec($ch);
@@ -751,3 +753,82 @@ function apify_search(string $query): array {
     }
     return ['ok' => true, 'results' => $out];
 }
+
+/* ---------- reading invoices, packing slips, order confirmations and screenshots ---------- */
+// $files: list of ['type' => mime, 'data' => base64] (pictures or PDFs). Matches each product line to the inventory.
+function read_document(PDO $pdo, array $files, array $ctx = []): array {
+    $files = array_values(array_filter($files, fn($f) => is_array($f) && is_string($f['data'] ?? null)
+        && (in_array(strtolower((string)($f['type'] ?? '')), IMG_TYPES, true) || strtolower((string)($f['type'] ?? '')) === 'application/pdf')));
+    if (!$files) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'Add a photo, screenshot or PDF first.'];
+    if (count($files) > 8) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'Up to 8 files at a time.'];
+    @set_time_limit(240);
+    $items = all_docs($pdo, 'items');
+    $cat = [];
+    foreach ($items as $id => $it) {
+        $name = trim((string)($it['name'] ?? '')); if ($name === '') continue;
+        $cat[] = $id . ' | ' . $name . ' | ' . trim((string)($it['sku'] ?? '')) . ' | ' . trim((string)($it['supplier'] ?? '')) . ' | ' . trim((string)($it['units'] ?? ''));
+    }
+    $nameRule = mb_substr(trim((string)($ctx['nameRule'] ?? '')), 0, 1500);
+    $prompt = <<<P
+These pictures or PDFs come from a dental office's supply ordering: an invoice, packing slip, order confirmation, quote, catalog page or a screenshot of a supplier's product or order page. Read every product line and match each one to our inventory below.
+
+Reply with one JSON object:
+{"kind": "invoice" | "packing_slip" | "order_confirmation" | "quote" | "product_page" | "order_history" | "other",
+ "supplier": "the supplier/seller's name as we'd write it (for example Henry Schein, Patterson, Benco, Amazon, Net32), or empty",
+ "date": "the document's order/invoice/ship date as YYYY-MM-DD, or empty",
+ "number": "invoice or order number, or empty",
+ "lines": [{
+   "desc": "the product description as printed, shortened to under 120 characters",
+   "sku": "the supplier's item/catalog number on the line, or empty",
+   "mfr": "the manufacturer's part number if separately shown, or empty",
+   "qty": number of packs on this line (for invoices and packing slips the quantity SHIPPED; for orders and confirmations the quantity ordered; for product pages and quotes 0 unless a quantity is shown),
+   "backordered": true if the line says backordered / not shipped / cancelled,
+   "pack": "the selling unit or package size the price and quantity refer to (for example Box of 100, Case of 10 boxes, Each), or empty",
+   "price": price for ONE of that selling unit after discounts, as a number, or null (never the line total unless qty is 1),
+   "match": "the id of our inventory item that is this same product, or empty if none is",
+   "sure": "yes" when the SKU matches or the name, maker and size clearly match; "maybe" when it's probably the same product; "no" when there is no good match,
+   "packDiffers": true if this line's selling unit is clearly different from the matched item's units (for example a case vs a box),
+   "name": "when there is no match: a short, clear inventory name for it; otherwise empty"
+ }],
+ "notes": "anything the office should check, in one short sentence, or empty"}
+
+Rules: skip shipping, tax, fees, discounts, totals and other non-product lines. Combine the same product listed twice on one document. Match by SKU first (ignore spaces, dashes and leading zeros), then by maker, product, size and shade. Different sizes, shades, gauges or strengths are different products. If several pages are of one document, treat them as one. Only use what the documents show; leave a field empty rather than guess.
+$nameRule
+
+OUR INVENTORY (id | name | SKU | supplier | units):
+P;
+    $prompt .= "\n" . implode("\n", $cat);
+    $r = ai_json($prompt, $files, '', ['maxFiles' => 8, 'maxTokens' => 16000, 'timeout' => 200]);
+    if (!$r['ok']) return $r;
+    $v = is_array($r['value']) ? $r['value'] : [];
+    $lines = [];
+    foreach ((array)($v['lines'] ?? []) as $l) {
+        if (!is_array($l)) continue;
+        $m = (string)($l['match'] ?? '');
+        if ($m !== '' && !isset($items[$m])) $m = '';
+        $price = numv($l['price'] ?? null);
+        $qty = numv($l['qty'] ?? null);
+        $lines[] = [
+            'desc' => mb_substr(trim((string)($l['desc'] ?? '')), 0, 200),
+            'sku' => mb_substr(trim((string)($l['sku'] ?? '')), 0, 60),
+            'mfr' => mb_substr(trim((string)($l['mfr'] ?? '')), 0, 60),
+            'qty' => $qty !== null && $qty >= 0 ? $qty : 0,
+            'backordered' => !empty($l['backordered']),
+            'pack' => mb_substr(trim((string)($l['pack'] ?? '')), 0, 80),
+            'price' => $price !== null && $price >= 0 ? round($price, 2) : null,
+            'match' => $m,
+            'sure' => $m === '' ? 'no' : (in_array($l['sure'] ?? '', ['yes', 'maybe'], true) ? $l['sure'] : 'maybe'),
+            'packDiffers' => $m !== '' && !empty($l['packDiffers']),
+            'name' => mb_substr(trim((string)($l['name'] ?? '')), 0, 160),
+        ];
+    }
+    $kinds = ['invoice', 'packing_slip', 'order_confirmation', 'quote', 'product_page', 'order_history', 'other'];
+    return ['ok' => true,
+        'kind' => in_array($v['kind'] ?? '', $kinds, true) ? $v['kind'] : 'other',
+        'supplier' => mb_substr(trim((string)($v['supplier'] ?? '')), 0, 80),
+        'date' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($v['date'] ?? '')) ? $v['date'] : '',
+        'number' => mb_substr(trim((string)($v['number'] ?? '')), 0, 60),
+        'notes' => mb_substr(trim((string)($v['notes'] ?? '')), 0, 400),
+        'lines' => $lines];
+}
+

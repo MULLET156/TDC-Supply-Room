@@ -848,6 +848,28 @@ body.has-ordfloat{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 .addpick{display:grid;gap:10px}
 .pickcard{display:flex;gap:14px;align-items:flex-start;text-align:left;width:100%;padding:14px 16px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;min-height:64px}
 .pickcard:hover,.pickcard:focus-visible{border-color:var(--accent);background:var(--accent-soft);outline:none}
+.docdrop{display:flex;gap:14px;align-items:flex-start;padding:16px;border:2px dashed var(--line);border-radius:12px;background:var(--surface);cursor:pointer}
+.docdrop.over,.docdrop:hover{border-color:var(--accent);background:var(--accent-soft)}
+.docdrop small{display:block;color:var(--muted);font-weight:400;margin-top:2px}
+.docfiles{display:grid;gap:6px;margin-top:10px}
+.docfile{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.docfile img,.docfile .pdfic{width:44px;height:44px;object-fit:cover;border-radius:6px;flex:none}
+.docfile .pdfic{display:grid;place-items:center;background:var(--sunk);font-size:11px;font-weight:700}
+.docfile span:not(.pdfic){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doclines{display:grid;gap:8px;margin:8px 0 12px}
+.docline{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.docline.off{opacity:.55}
+.docline .dchk{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--accent)}
+.docline .dmain{flex:1;min-width:0;display:grid;gap:6px}
+.docline .ddesc{font-weight:600;overflow-wrap:anywhere}
+.docline .ddesc .hint{display:block;font-weight:400;margin:2px 0 0}
+.docline select,.docline .dnums input{border:1px solid var(--line);background:var(--sunk);color:var(--fg);border-radius:8px;padding:8px 10px;font:inherit;font-size:14px;min-width:0}
+.docline select{width:100%;max-width:100%}
+.docline .dnums{display:flex;gap:10px;flex-wrap:wrap}
+.docline .dnums label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.docline .dnums input{width:90px}
+.docline .dchg{margin:0}
+.docline .dwarn{color:var(--warn,#b45309)}
 .pickcard .pk-ic{font-size:26px;line-height:1.1;flex:none}
 .pickcard b{display:block;font-size:16px;margin-bottom:3px}
 .pickcard small{display:block;color:var(--muted);font-size:13.5px;line-height:1.4}
@@ -1263,11 +1285,12 @@ window.TDC = (function(){
     const j = await call("findproduct", { q, ctx: ctx || {} });
     return { ...j, photo: j.photo && j.photo.data ? unb64(j.photo.data, j.photo.type) : null };
   }
+  async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -1787,11 +1810,12 @@ function renderInner(){
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
+    const docBtn = window.HOSTED && sample && !readOnly ? `<button class="btn" type="button" data-docimp>📄 Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p>${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
-      <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button></div></div>
+      <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp">${esc(s)}<span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
-      : `<div class="list"><div class="empty">No open orders.</div></div>`) + histHtml();
+      : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
     if (list.length) {
       $("#markRcv").onclick = () => markReceivedMany(list.filter(i=>selected.has(i.id)));
       $("#selAllRcv").onclick = () => { if (selected.size === list.length) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); };
@@ -3844,14 +3868,184 @@ function askNewSupplier(fromPage, link){
   };
 }
 /* "Add item" first asks how: by link, from a SKU photo, or by hand. Each opens an Add page laid out for that path. */
+/* ---------- import an invoice, packing slip, order confirmation or screenshot (photos, screenshots, PDFs) ---------- */
+let docFiles = [];
+const DOC_MODES = { receive: "Mark received (add to stock)", ordered: "Mark ordered", prices: "Only update prices and details" };
+async function docPrep(file){
+  const t = (file.type || "").toLowerCase();
+  if (t === "application/pdf" || /\.pdf$/i.test(file.name || "")) {
+    if (file.size > 12 * 1024 * 1024) throw new Error(`${file.name || "That PDF"} is too big (over 12 MB).`);
+    return { type: "application/pdf", data: await TDC.b64(file), label: file.name || "PDF", pdf: true };
+  }
+  if (!/^image\//.test(t) && !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name || "")) throw new Error(`${file.name || "That file"} isn't a photo, screenshot or PDF.`);
+  let blob = file;
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.86)) || file;
+  } catch {}
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(blob.type)) throw new Error(`${file.name || "That picture"} couldn't be read. Try a JPEG or PNG.`);
+  return { type: blob.type, data: await TDC.b64(blob), label: file.name || "Picture", url: URL.createObjectURL(blob) };
+}
+function openDocImport(){
+  if (!needMe()) return;
+  if (!sample || !window.TDC?.readDoc) { toast("Reading documents needs Claude, which isn't set up on this server"); return; }
+  docFiles = [];
+  openPanel(`<div class="ph"><div><h2>Import invoice or screenshot</h2><div class="lastby">Invoices, packing slips, order confirmations, quotes or screenshots of a supplier page</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
+    <label class="docdrop" id="docDrop"><input type="file" id="docIn" accept="image/*,application/pdf,.pdf" multiple hidden><span class="pk-ic">📄</span><span><b>Choose photos, screenshots or PDFs</b><small>Or drag them here, or paste a screenshot (Ctrl/⌘+V). Up to 8 files; several pages of one invoice are fine.</small></span></label>
+    <div class="docfiles" id="docList"></div>
+    <p class="hint" id="docStat" role="status"></p>
+    <div class="actions"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="docGo" type="button" disabled>Read with Claude</button></div>`);
+  const add = async list => {
+    for (const f of list) {
+      if (docFiles.length >= 8) { toast("Up to 8 files at a time"); break; }
+      try { docFiles.push(await docPrep(f)); } catch(e) { toast(e.message); }
+    }
+    drawDocFiles();
+  };
+  $("#docIn").onchange = e => { add([...(e.target.files || [])]); e.target.value = ""; };
+  const drop = $("#docDrop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); add([...(e.dataTransfer?.files || [])]); });
+  const onPaste = e => { if (!$("#docDrop")) { document.removeEventListener("paste", onPaste); return; } const fs = [...(e.clipboardData?.files || [])]; if (fs.length) { e.preventDefault(); add(fs); } };
+  document.addEventListener("paste", onPaste);
+  $("#docGo").onclick = runDocRead;
+}
+function drawDocFiles(){
+  const el = $("#docList"); if (!el) return;
+  el.innerHTML = docFiles.map((f, k) => `<div class="docfile">${f.url ? `<img src="${f.url}" alt="">` : `<span class="pdfic">PDF</span>`}<span>${esc(f.label)}</span><button type="button" class="iconbtn" data-docrm="${k}" aria-label="Remove ${esc(f.label)}">×</button></div>`).join("");
+  el.querySelectorAll("[data-docrm]").forEach(b => b.onclick = () => { docFiles.splice(+b.dataset.docrm, 1); drawDocFiles(); });
+  const go = $("#docGo"); if (go) go.disabled = !docFiles.length;
+}
+async function runDocRead(){
+  const go = $("#docGo"), stat = $("#docStat");
+  go.disabled = true; go.textContent = "Reading…";
+  stat.textContent = `Claude is reading ${docFiles.length > 1 ? "the files" : "it"} and matching each line to your items. This can take up to a minute${docFiles.some(f => f.pdf) ? " or two for long PDFs" : ""}.`;
+  try {
+    const r = await TDC.readDoc(docFiles.map(f => ({ type: f.type, data: f.data })), { nameRule: NAME_RULE });
+    if (!r.lines?.length) { stat.textContent = "Claude didn't find any product lines. Try a clearer photo, or a screenshot of the whole order."; go.disabled = false; go.textContent = "Read with Claude"; return; }
+    docReview(r);
+  } catch(e) {
+    stat.textContent = e?.code === "rate_limited" ? "Claude is busy right now. Try again in a minute." : (e?.message || "Couldn't read that. Try again.");
+    go.disabled = false; go.textContent = "Read with Claude";
+  }
+}
+function docReview(r){
+  const mode0 = ["invoice", "packing_slip"].includes(r.kind) ? "receive" : r.kind === "order_confirmation" ? "ordered" : "prices";
+  const kindName = { invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
+  const sup = clean(r.supplier), supK = keyOf(sup);
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const mine = items.filter(i => i.name && supK && keyOf(i.supplier) === supK).sort(byName), rest = items.filter(i => i.name && !(supK && keyOf(i.supplier) === supK)).sort(byName);
+  const opt = i => `<option value="${esc(i.id)}">${esc(i.name)}${i.units ? " · " + esc(i.units) : ""}</option>`;
+  const itemOpts = (mine.length ? `<optgroup label="${esc(sup)}">${mine.map(opt).join("")}</optgroup><optgroup label="Other items">` : "<optgroup label=\"Your items\">") + rest.map(opt).join("") + "</optgroup>";
+  const D = r.lines.map(l => ({ ...l }));
+  const head = [kindName, sup, r.number ? "#" + r.number : "", r.date ? new Date(r.date + "T12:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : ""].filter(Boolean).join(" · ");
+  openPanel(`<div class="ph"><div><h2>Check what Claude found</h2><div class="lastby">${esc(head)}</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
+    ${r.notes ? `<div class="notice"><span class="hint">⚠ ${esc(r.notes)}</span></div>` : ""}
+    <div class="f full"><label for="docMode">What should this do?</label><select id="docMode">${Object.entries(DOC_MODES).map(([k, v]) => `<option value="${k}" ${k === mode0 ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
+    <p class="hint">Ticked lines are applied. Prices and missing SKUs are updated either way. Change the item if Claude matched the wrong one.</p>
+    <div class="doclines">${D.map((l, k) => `<div class="docline" data-k="${k}">
+      <input type="checkbox" class="dchk" data-on aria-label="Apply this line">
+      <div class="dmain">
+        <div class="ddesc">${esc(l.desc || l.name || "Line " + (k + 1))}<span class="hint">${[l.sku ? "SKU " + esc(l.sku) : "", l.pack ? esc(l.pack) : "", l.backordered ? "<b>backordered</b>" : ""].filter(Boolean).join(" · ")}</span></div>
+        <select data-pick aria-label="Inventory item for this line"><option value="__new">➕ Add as a new item${l.name || l.desc ? ": " + esc(l.name || l.desc) : ""}</option>${itemOpts}</select>
+        <div class="dnums"><label>Qty <input data-qty inputmode="decimal" value="${l.qty ? fmtQ(l.qty) : ""}"></label><label>Price <input data-price inputmode="decimal" value="${l.price != null ? "$" + l.price.toFixed(2) : ""}" placeholder="$0.00"></label></div>
+        <div class="dchg hint" data-chg></div>
+      </div></div>`).join("")}</div>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="docApply" type="button">Apply</button></div>`);
+  const rows = [...document.querySelectorAll(".docline")];
+  rows.forEach((row, k) => {
+    const l = D[k], pick = row.querySelector("[data-pick]");
+    pick.value = l.match && byId(l.match) ? l.match : "__new";
+    row.querySelector("[data-on]").checked = l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind);
+    row.addEventListener("input", () => docChg(row, l, sup));
+    row.addEventListener("change", () => docChg(row, l, sup));
+  });
+  const all = () => rows.forEach(row => docChg(row, D[+row.dataset.k], sup));
+  $("#docMode").onchange = all; all();
+  $("#docApply").onclick = () => docApply(rows, D, r, sup);
+}
+function docChg(row, l, sup){
+  const mode = $("#docMode")?.value || "prices", id = row.querySelector("[data-pick]").value, it = id === "__new" ? null : byId(id);
+  const q = num(row.querySelector("[data-qty]").value), pr = num(row.querySelector("[data-price]").value), on = row.querySelector("[data-on]").checked;
+  const bits = [], warn = [];
+  if (it) {
+    if (mode === "receive" && q > 0) bits.push(`+${fmtQ(q)} → ${fmtQ((it.qty ?? 0) + q)} on hand${it.onOrder ? ", off the On order list" : ""}`);
+    if (mode === "ordered" && q > 0) bits.push(`On order: ${fmtQ(q)}${it.units ? " × " + esc(it.units) : ""}`);
+    const cur = num(it.unitCost);
+    if (pr != null && pr > 0 && (cur == null || Math.abs(cur - pr) >= 0.005)) bits.push(`price ${cur == null ? "" : "$" + cur.toFixed(2) + " → "}$${pr.toFixed(2)}`);
+    if (l.sku && !clean(it.sku)) bits.push("adds SKU " + esc(l.sku));
+    if (id === l.match && l.sure === "maybe") warn.push("Claude isn't sure this is the same product");
+    if (id === l.match && l.packDiffers) warn.push(`This line is per ${esc(l.pack || "a different pack")}; you count it in ${esc(it.units || "other units")}. Adjust Qty and Price to match`);
+    if (mode !== "prices" && !(q > 0)) warn.push("No quantity");
+  } else {
+    bits.push(`new item${sup ? " from " + esc(sup) : ""}${l.pack ? " · " + esc(l.pack) : ""}${pr != null ? " · $" + pr.toFixed(2) : ""}${mode === "receive" && q > 0 ? ` · ${fmtQ(q)} on hand` : mode === "ordered" && q > 0 ? ` · ${fmtQ(q)} on order` : ""}`);
+  }
+  if (l.backordered && mode !== "prices") warn.push("Backordered, so it hasn't arrived");
+  row.classList.toggle("off", !on);
+  row.querySelector("[data-chg]").innerHTML = (bits.length ? bits.join(" · ") : "Nothing to change") + (warn.length ? `<br><span class="dwarn">⚠ ${warn.join(". ")}.</span>` : "");
+}
+async function docApply(rows, D, r, sup){
+  if (!needMe()) return;
+  const mode = $("#docMode").value, btn = $("#docApply");
+  const src = [{ invoice: "invoice", packing_slip: "packing slip", order_confirmation: "order confirmation", quote: "quote", product_page: "product page", order_history: "order history" }[r.kind] || "import", r.number ? "#" + r.number : ""].filter(Boolean).join(" ");
+  const ordDate = r.date ? (() => { const [y, m, d] = r.date.split("-").map(Number); return `${m}/${d}/${y}`; })() : today();
+  const work = rows.filter(row => row.querySelector("[data-on]").checked);
+  if (!work.length) { toast("Tick at least one line"); return; }
+  btn.disabled = true; btn.textContent = "Saving…"; sync("busy", "Saving…");
+  let ok = 0, added = 0, recv = 0, ordd = 0; const orderLines = [];
+  try {
+    for (const row of work) {
+      const l = D[+row.dataset.k], id = row.querySelector("[data-pick]").value, it = id === "__new" ? null : byId(id);
+      const q = num(row.querySelector("[data-qty]").value), pr = num(row.querySelector("[data-price]").value);
+      const price = pr != null && pr > 0 ? "$" + pr.toFixed(2) : "";
+      if (it) {
+        const patch = {}, said = [];
+        if (price && num(it.unitCost) !== pr) { patch.unitCost = price; said.push(`price ${it.unitCost || "–"} → ${price}`); }
+        if (l.sku && !clean(it.sku)) { patch.sku = l.sku; said.push("SKU " + l.sku); }
+        if (mode === "receive" && q > 0) { Object.assign(patch, { qty: (it.qty ?? 0) + q, ordered: "", orderedQty: 0, lastReceived: today() }); }
+        if (mode === "ordered" && q > 0) { Object.assign(patch, { ordered: ordDate, orderedQty: q, orderReq: 0 }); }
+        if (!Object.keys(patch).length) continue;
+        await write(it.id, patch);
+        if (mode === "receive" && q > 0) { logIt("Received", it, `+${fmtQ(q)}, now ${fmtQ((it.qty ?? 0) + q)} on hand (from ${src})`); recv++; }
+        else if (mode === "ordered" && q > 0) { logIt("Ordered", it, `${fmtQ(q)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""} (from ${src})`); ordd++; orderLines.push({ id: it.id, name: it.name, qty: q, units: it.units || "", supplier: it.supplier || "" }); }
+        if (said.length) logIt("Edited", it, `${said.join(", ")} (from ${src})`);
+        ok++;
+      } else {
+        const name = clean(l.name) || clean(l.desc); if (!name) continue;
+        const doc = { name, sku: l.sku || "", supplier: sup, units: l.pack || "", unitCost: price, link: "", desc: "", cat: "", sub: "", loc: "", notes: "", exp: "", photo: "", skuPhoto: "",
+          qty: mode === "receive" && q > 0 ? q : 0, desired: null, urgent: null,
+          ordered: mode === "ordered" && q > 0 ? ordDate : "", orderedQty: mode === "ordered" && q > 0 ? q : 0,
+          lastReceived: mode === "receive" && q > 0 ? today() : "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() };
+        const ref = await db.collection("items").add(doc);
+        logIt("Added", { id: ref.id, name }, `From ${src}${sup ? " · " + sup : ""}`);
+        if (doc.ordered) orderLines.push({ id: ref.id, name, qty: q, units: doc.units, supplier: sup });
+        ok++; added++;
+      }
+    }
+    if (orderLines.length) { try { await db.collection("orders").add({ at: Date.now(), initials: me(), lines: orderLines }); } catch {} }
+    sync("ok", "Saved");
+    if (recv) Sfx.play("receive"); else if (ordd) Sfx.play("order");
+    closePanel(); render();
+    toast(ok ? [recv ? `${recv} received` : "", ordd ? `${ordd} marked ordered` : "", added ? `${added} new item${added !== 1 ? "s" : ""} added` : "", !recv && !ordd && ok - added ? `${ok - added} updated` : ""].filter(Boolean).join(", ") || `${ok} updated` : "Nothing needed changing");
+  } catch(e) {
+    sync("err", "Not all saved"); toast(dbErr(e) + (ok ? ` (${ok} saved before that)` : "")); btn.disabled = false; btn.textContent = "Apply";
+  }
+}
+document.addEventListener("click", e => { if (e.target.closest?.("[data-docimp]")) { e.preventDefault(); openDocImport(); } });
 function addChooser(){
   openPanel(`<div class="ph"><div><h2>Add an item</h2><div class="lastby">How do you want to add it?</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
     <div class="addpick">
       <button type="button" class="pickcard" data-addmode="link"><span class="pk-ic">🔗</span><span><b>Add using a product link</b><small>Paste the product page link. Claude fills in the name, SKU, price, size, description and photo.</small></span></button>
       <button type="button" class="pickcard" data-addmode="sku"><span class="pk-ic">📷</span><span><b>Add using a SKU photo</b><small>Snap the SKU, catalog # or barcode on the box. Claude finds the product online and fills it in.</small></span></button>
+      <button type="button" class="pickcard" data-docimp hidden><span class="pk-ic">📄</span><span><b>Add from an invoice or screenshot</b><small>Photos, screenshots or PDFs of an invoice, order or supplier page. Claude adds new products and updates the ones you have.</small></span></button>
       <button type="button" class="pickcard" data-addmode="manual"><span class="pk-ic">✍️</span><span><b>Add manually</b><small>Type in the details yourself, with optional photos.</small></span></button>
     </div>`);
   document.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => openNew({ mode: b.dataset.addmode }));
+  const di = $("#overlay [data-docimp]"); if (di) di.hidden = !(window.HOSTED && sample);
 }
 
 $("#cam").addEventListener("change", e => { const f = e.target.files?.[0]; if (f) scanFile(f); });

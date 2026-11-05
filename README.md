@@ -65,6 +65,8 @@ With the key set, these work again: filling in a new item from its link, reading
 
 The server reads product pages without signing in to your supplier accounts, so prices that only show after signing in (common at Henry Schein, Patterson and Benco) come back empty or as list price. Some supplier sites also block servers entirely. For those, add the product from Claude instead (step 7), which uses your signed-in browser.
 
+**Importing invoices and screenshots.** Under **Add item → Add from an invoice or screenshot**, or **On order → Receive from invoice**, pick photos, screenshots or PDFs of an invoice, packing slip, order confirmation, quote or supplier page (up to 8 files). Claude reads every product line and matches it to your items. You check the matches, then choose whether to mark them received, mark them ordered, or only update prices; new products can be added in the same step. A screenshot of a supplier page you're signed in to brings in your account price. Each import costs a few cents (more for long PDFs).
+
 ### 6b. Amazon links (optional)
 Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and add it to `config.php`:
 

@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'method', 'Use POST.');
 // Only the Supply Room page sends this header; a form on another site cannot.
 if (($_SERVER['HTTP_X_TDC'] ?? '') !== '1') fail(400, 'bad_request', 'Missing request header.');
 $raw = file_get_contents('php://input');
-if ($raw === false || strlen($raw) > 12 * 1024 * 1024) fail(413, 'too_large', 'Request too large.');
+if ($raw === false || strlen($raw) > 24 * 1024 * 1024) fail(413, 'too_large', 'Request too large.');
 $req = json_decode($raw, true);
 if (!is_array($req) || !isset($req['op']) || !is_string($req['op'])) fail(400, 'bad_request', 'Bad request.');
 $op = $req['op'];
@@ -188,6 +188,14 @@ try {
             $ctx = is_array($req['ctx'] ?? null) ? $req['ctx'] : [];
             $r = find_product_page($q, $ctx);
             if (!$r['ok']) fail(502, $r['error'] ?? 'no_match', $r['message']);
+            out(200, $r);
+        }
+
+        case 'readdoc': {
+            $files = is_array($req['files'] ?? null) ? $req['files'] : [];
+            $ctx = is_array($req['ctx'] ?? null) ? $req['ctx'] : [];
+            $r = read_document($pdo, $files, $ctx);
+            if (!$r['ok']) fail($r['error'] === 'no_key' ? 409 : ($r['error'] === 'invalid_argument' ? 400 : 502), $r['error'], $r['message']);
             out(200, $r);
         }
 
