@@ -1027,7 +1027,7 @@ header .top{flex-wrap:wrap!important;align-items:flex-start}
 header .topright{display:grid!important;justify-items:end;justify-content:end;gap:8px;margin-left:auto;flex:0 0 auto}
 header .toolrow,header .toolrow2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 header .menubtn{display:none!important}
-header .topright .tooltabs{display:flex!important;position:static;flex-direction:row;flex-wrap:wrap;gap:8px;min-width:0;padding:0;margin:0;background:none;border:0;box-shadow:none;flex-basis:auto}
+header .topright .tooltabs{display:flex!important;position:static;z-index:auto;flex-direction:row;flex-wrap:wrap;gap:8px;min-width:0;padding:0;margin:0;background:none;border:0;box-shadow:none;flex-basis:auto}
 header .topright .tooltabs .tab{min-height:36px;font-size:14px;padding:6px 14px;border-radius:999px;justify-content:center}
 .hdrbtn{width:36px;height:36px;padding:0;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;display:inline-grid;place-items:center;cursor:pointer}
 .hdrbtn:hover{border-color:var(--accent)}
@@ -3370,7 +3370,7 @@ async function openItem(it, prefill){
       <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">🔎 Look up ▾</button><button class="btn sm" type="button" id="editBtn">✏️ Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
       <button type="button" class="pmi" data-autoscrape>🔄 Update from supplier page <span class="aitag">✨ Claude</span></button>
-      <button type="button" class="pmi" data-pfill hidden id="pfillHidden">📋 Copy-and-paste update</button>
+      <button type="button" class="pmi" data-pfill id="pfillHidden">📋 Paste page text (your prices) <span class="aitag">✨ Claude</span></button>
       <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">🔎 Search supplier ↗</a>
       <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">💲 Compare prices ↗</a>
       <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">🖼 Find photo online ↗</a>
