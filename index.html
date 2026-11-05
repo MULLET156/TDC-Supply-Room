@@ -841,12 +841,13 @@ body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dock
 .ordstep .olab{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--warn)}
 .ordstep .ostep{background:var(--surface);border-color:var(--warn)}
 .ordstep .ostep .q{min-width:40px}
-.ordstep .after{font-family:var(--f-mono);font-size:15px;font-weight:600;white-space:nowrap;color:var(--fg)}
-.ordstep .after small{font-size:12.5px;font-weight:400;color:var(--muted)}
-.ordstep .after .arr{color:var(--muted);margin-right:3px;font-family:var(--f-ui)}
+.ordstep .after{font-family:var(--f-mono);font-size:19px;font-weight:800;white-space:nowrap;border-radius:9px;padding:5px 10px;border:2px solid var(--ok);background:color-mix(in srgb,var(--ok) 14%,var(--surface));color:var(--ok);line-height:1.1}
+.ordstep .after.low{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}
+.ordstep .after small{font-size:14px;font-weight:600;opacity:.8}
+.ordstep .after .arr{margin-right:4px;font-family:var(--f-ui);font-weight:800}
 .ordstep .otop{display:contents}
 .ordstep .olab{order:1}.ordstep .ostep{order:2}.ordstep .after{order:3}
-@media (max-width:520px){.ordstep{flex-direction:column;align-items:stretch;gap:3px}.ordstep .otop{display:flex;justify-content:space-between;align-items:baseline;gap:6px}.ordstep .olab{font-size:11.5px}.ordstep .after{font-size:14px}.ordstep .ostep button{width:38px}.ordstep .ostep .q{min-width:34px}}
+@media (max-width:520px){.ordstep{flex-direction:column;align-items:stretch;gap:3px}.ordstep .otop{display:flex;justify-content:space-between;align-items:baseline;gap:6px}.ordstep .olab{font-size:11.5px}.ordstep .after{font-size:16px;padding:3px 8px}.ordstep .ostep button{width:38px}.ordstep .ostep .q{min-width:34px}}
 .dockord{display:flex;gap:8px}
 .dockord #dockOrdGo{flex:1}
 .dockord #dockOrdGo:disabled{opacity:.55}
@@ -1728,8 +1729,9 @@ document.addEventListener("change", e => {
 });
 /* To order list: how many to order, with +/-, and where stock ends up after that order (on hand + order / desired reserve) */
 const afterHtml = i => `${fmtQ((i.qty ?? 0) + i.orderQty)}<small>/${fmtQ(i.desired)}</small>`;
+const afterCls = i => "after " + ((i.qty ?? 0) + i.orderQty >= (i.desired ?? 0) ? "ok" : "low");
 function ordStep(i){
-  return `<div class="ordstep"><span class="otop"><span class="olab">Order</span><span class="after" title="On hand after this order arrives / desired reserve (now ${fmtQ(i.qty)} on hand)"><span class="arr" aria-hidden="true">→</span>${afterHtml(i)}</span></span><div class="step ostep" id="os-${esc(i.id)}"><button type="button" data-od="-1" aria-label="Order one less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.orderQty)}</span><button type="button" data-od="1" aria-label="Order one more" ${readOnly ? "disabled" : ""}>+</button></div></div>`;
+  return `<div class="ordstep"><span class="otop"><span class="olab">Order</span><span class="${afterCls(i)}" title="On hand after this order arrives / desired reserve (now ${fmtQ(i.qty)} on hand)"><span class="arr" aria-hidden="true">→</span>${afterHtml(i)}</span></span><div class="step ostep" id="os-${esc(i.id)}"><button type="button" data-od="-1" aria-label="Order one less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.orderQty)}</span><button type="button" data-od="1" aria-label="Order one more" ${readOnly ? "disabled" : ""}>+</button></div></div>`;
 }
 function bumpOrd(it, d){
   if (!needMe()) return;
@@ -1737,7 +1739,7 @@ function bumpOrd(it, d){
   if (n === from) return;
   localOrd.set(it.id, n); derive(it);
   const os = document.getElementById("os-" + it.id);
-  if (os) { os.querySelector(".q").textContent = fmtQ(n); os.className = "step ostep saving"; const af = os.closest(".ordstep").querySelector(".after"); if (af) af.innerHTML = `<span class="arr" aria-hidden="true">→</span>${afterHtml(it)}`; }
+  if (os) { os.querySelector(".q").textContent = fmtQ(n); os.className = "step ostep saving"; const af = os.closest(".ordstep").querySelector(".after"); if (af) { af.innerHTML = `<span class="arr" aria-hidden="true">→</span>${afterHtml(it)}`; af.className = afterCls(it); } }
   if (!ordTimers.has(it.id)) ordTimers.set(it.id, { from, t: 0 });
   const tm = ordTimers.get(it.id); clearTimeout(tm.t);
   tm.t = setTimeout(async () => {
