@@ -801,7 +801,11 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .viewrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr);gap:8px;align-items:stretch}
 .viewrow .tabs.seg{margin:0}
 .viewrow{grid-template-columns:minmax(0,1fr)!important}
-.tabs-main{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.tabs-main{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+.tab.big.allbtn{border-width:2px;border-radius:14px;min-height:60px;font-size:17px;padding:8px 6px;flex-direction:column;gap:0;line-height:1.15}
+.tab.big.allbtn .n{font-size:22px;font-weight:800;font-family:var(--f-ui);order:-1;opacity:1}
+@media (max-width:640px){.tab.big.allbtn{min-height:58px;font-size:14.5px}.tab.big.allbtn .n{font-size:20px}}
+@media (max-width:520px){.tabs-main{grid-template-columns:repeat(6,minmax(0,1fr))!important}.tabs-main > .tab{grid-column:span 2}.tabs-main > .tab.t-exp,.tabs-main > .tab.cntbtn{grid-column:span 3}.tab.big.allbtn{flex-direction:row;min-height:44px;gap:6px;font-size:14px;padding:4px 6px;border-radius:11px}.tab.big.allbtn .n{font-size:17px}}
 .tab.big.cntbtn{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .tab.big.cntbtn .cl{white-space:normal;text-align:center;line-height:1.1}
 .tab.big.cntbtn .n{font-size:18px}
@@ -1135,13 +1139,11 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
       </div>
     </div>
     <div role="tablist" aria-label="Orders" class="tabs-main">
+      <button class="tab big allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
       <button class="tab big t-need" role="tab" data-t="need" aria-selected="true">To order <span class="n" id="n-need">–</span></button>
       <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false">On order <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false">Expiring <span class="n" id="n-exp">–</span></button>
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><span class="n" aria-hidden="true">🔢</span><span class="cl">Inventory counter</span></button>
-    </div>
-    <div class="viewrow" role="tablist" aria-label="Views">
-    <button class="tab allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
     </div>
     <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
