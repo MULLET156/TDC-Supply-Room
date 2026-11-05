@@ -529,6 +529,7 @@ body{margin:0}
 .bphoto{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center}
 .bphoto img{width:120px;height:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:10px}
 .bphoto label{display:flex;gap:8px;align-items:center}
+.bpopts{display:grid;gap:8px;justify-items:start}
 .f textarea{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:9px 10px;width:100%;font:inherit;resize:vertical}
 .pastord{border-radius:var(--r);padding:10px 12px;background:var(--accent-soft);color:var(--fg);font-size:14px}
 .bopts label span .hint{display:block;margin-top:2px}
@@ -1289,12 +1290,13 @@ window.TDC = (function(){
     const j = await call("findproduct", { q, ctx: ctx || {} });
     return { ...j, photo: j.photo && j.photo.data ? unb64(j.photo.data, j.photo.type) : null };
   }
+  async function fetchPhoto(url, page){ const j = await call("fetchphoto", { url, page: page || "" }); return unb64(j.photo.data, j.photo.type); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -2316,6 +2318,24 @@ document.addEventListener("click", e => {
   if (!q) { e.preventDefault(); toast("Enter the item name first"); return; }
   a.href = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent(q);
 }, true);
+/* "Show another photo": the next picture from the same product page (hosted only). Returns a File or null. */
+async function nextPhoto(r){
+  while (r && Array.isArray(r.morePhotos) && r.morePhotos.length) {
+    const u = r.morePhotos.shift();
+    try { const b = await TDC.fetchPhoto(u, r.pageUrl || r.url || ""); return new File([b], "product." + ((b.type || "").split("/")[1] || "jpg"), { type: b.type || "image/jpeg" }); } catch {}
+  }
+  return null;
+}
+const hasMorePhotos = r => !!(window.HOSTED && r && Array.isArray(r.morePhotos) && r.morePhotos.length);
+let addAltPhotos = null;   /* the other pictures from the page the Add item form was filled from */
+document.addEventListener("click", async e => {
+  const b = e.target.closest?.("[data-altphoto]"); if (!b || !addAltPhotos) return;
+  b.disabled = true; const label = b.textContent; b.textContent = "Getting another photo…";
+  const f = await nextPhoto(addAltPhotos);
+  if (f) { setAddPhoto(f, "prod"); toast("Showing another photo from the page"); }
+  else toast("No other photos on that page");
+  b.disabled = false; b.textContent = label; b.hidden = !hasMorePhotos(addAltPhotos);
+});
 /* ---- pull a product photo from the reorder page via the Claude desktop app's browser ---- */
 let mcp = null, pulling = false;
 const HB = "host:claude_browser";
@@ -2509,10 +2529,13 @@ async function pullPhoto(btn){
     try {
       const r = await TDC.readLink(webHref(link), { name: clean($("#e-name")?.value) || "", sku: clean($("#e-sku")?.value) || "" });
       if (!r.photo) { pullMsg(`<b>Couldn't get a photo from that page</b><span class="hint">${esc(r.photoNote || "")} Open the link, right-click the picture → Copy image, then press Ctrl+V (⌘+V on a Mac) here.</span><div class="actions"><button class="btn" type="button" data-pc-close>OK</button></div>`); return; }
-      const file = new File([r.photo], "product." + ((r.photo.type || "").split("/")[1] || "jpg"), { type: r.photo.type || "image/jpeg" });
-      const url = URL.createObjectURL(file);
-      const card = pullMsg(`<b>Use this photo?</b><img src="${url}" alt="Photo from the product page" class="pullimg"><div class="actions"><button class="btn pri" type="button" data-pc-use>Use this photo</button><button class="btn" type="button" data-pc-close>No thanks</button></div>`);
+      let file = new File([r.photo], "product." + ((r.photo.type || "").split("/")[1] || "jpg"), { type: r.photo.type || "image/jpeg" });
+      const card = pullMsg(`<b>Use this photo?</b><img src="${URL.createObjectURL(file)}" alt="Photo from the product page" class="pullimg"><div class="actions"><button class="btn pri" type="button" data-pc-use>Use this photo</button><button class="btn" type="button" data-pc-next ${hasMorePhotos(r) ? "" : "hidden"}>No, show another</button><button class="btn" type="button" data-pc-close>No thanks</button></div>`);
       card.querySelector("[data-pc-use]").onclick = () => { card.remove(); if (forItem && $("#overlay .panel")) setItemPhoto(curItem, file); else if (tab === "add") { setAddPhoto(file, "prod"); toast("Product photo added"); } };
+      const nx = card.querySelector("[data-pc-next]");
+      nx.onclick = async () => { nx.disabled = true; nx.textContent = "Getting another…"; const f = await nextPhoto(r);
+        if (f) { file = f; card.querySelector(".pullimg").src = URL.createObjectURL(f); } else toast("No other photos on that page");
+        nx.disabled = false; nx.textContent = "No, show another"; nx.hidden = !hasMorePhotos(r); };
     } catch(e) {
       pullMsg(`<b>Couldn't pull the photo</b><span class="hint">${esc(e?.code === "blocked" ? "The supplier's site didn't let the server read that page. Open the link, right-click the picture → Copy image, then press Ctrl+V here." : (e?.message || "Try again."))}</span><div class="actions"><button class="btn" type="button" data-pc-close>OK</button></div>`);
     } finally { pulling = false; btn.disabled = false; btn.textContent = label; }
@@ -2842,7 +2865,7 @@ async function hostedSearch(it, status){
   const names = Array.isArray(r.names) ? r.names.map(v => withShade(v, r.pageTitle, "", it.name)) : [];
   return { same: true, pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
     description: r.description || "", supplier: r.supplier || "", note: [r.note, r.priceNote].filter(Boolean).join(" "), url: r.url || "",
-    photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "" };
+    photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "", morePhotos: wantPhoto ? (r.morePhotos || []) : [], pageUrl: r.pageUrl || r.url || "" };
 }
 /* Hosted: the Supply Room server opens the product link and Claude (API) reads it. */
 async function hostedScrape(it, status){
@@ -2860,7 +2883,7 @@ async function hostedScrape(it, status){
   const names = Array.isArray(r.names) ? r.names.map(v => withShade(v, r.pageTitle, "", it.name)) : [];
   return { same: true, pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
     description: r.description || "", supplier: r.supplier || "", note: [r.note, r.priceNote].filter(Boolean).join(" "), url: r.url || link,
-    photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "" };
+    photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "", morePhotos: wantPhoto ? (r.morePhotos || []) : [], pageUrl: r.pageUrl || r.url || "" };
 }
 function batchErr(e){
   const c = e?.code;
@@ -2985,13 +3008,16 @@ function batchReview(it, r, name, head){
   const purl = usePhoto ? URL.createObjectURL(r.photo) : "";
   openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">🧾 <b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
-    ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label></div>` : ""}
+    ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div></div>` : ""}
     <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
     ${r.url ? `<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page Claude read ↗</a>` : ""}
     <div class="actions savebar"><button class="btn" type="button" id="bBack"${o.name ? "" : " hidden"}>← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">${photoOnly ? "Save photo &amp; next" : "Save &amp; next"}</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
   $("#bSkip").onclick = () => { B.skipped++; B.i++; batchStep(); };
   $("#bBack").onclick = () => { batchStepFromResult(it, r, head); };
+  $("#bNextPhoto") && ($("#bNextPhoto").onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = "Getting another…"; const f = await nextPhoto(r);
+    if (f) { r.photo = f; $("#overlay .bphoto img").src = URL.createObjectURL(f); $("#bf-photo").checked = true; } else toast("No other photos on that page");
+    b.disabled = false; b.textContent = "Show another photo"; b.hidden = !hasMorePhotos(r); });
   $("#bSave").onclick = async e => {
     const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Saving…";
     const patch = {}; ["name","unitCost","units","sku","supplier","desc","link"].forEach(k => { const v = clean(document.getElementById("bf-" + k)?.value); if (v !== clean(it[k])) patch[k] = v; });
@@ -3574,6 +3600,7 @@ async function quickAdd({ link = "", sku = "", hint = "" }){
       if (!have && (link || r.url)) askNewSupplier(rs, link || r.url); }
     put("e-link", r.url, "link", true); $("#view #e-link")?.dispatchEvent(new Event("input"));
     if (r.photo) { addNoRead = true; try { setAddPhoto(new File([r.photo], "product.png", { type: r.photo.type || "image/png" }), "prod"); done.push("photo"); } finally { addNoRead = false; } }
+    addAltPhotos = r.photo && hasMorePhotos(r) ? r : null;
     /* best-fit category and subcategory from your list */
     try {
       const tree = catTree();
@@ -3589,7 +3616,7 @@ Reply with only one JSON object: {"category": "exact name from the list, or empt
     const warn = [r.same === false && it.name ? "This page may be a different product than you expected." : "", clean(r.note)].filter(Boolean).join(" ");
     const noPhoto = !r.photo ? (r.photoNote ? ` ${esc(r.photoNote)}` : ` No photo found on the page; use <b>Pull from link</b> under Photos to try again, or paste a picture.`) : (r.photoNote ? ` ${esc(r.photoNote)}` : "");
     const why = (r.paneTip ? `<br>${esc(r.paneTip)}` : "") + (!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : "");
-    qaStat(`✓ Filled in ${done.join(", ") || "what it could find"}.${noPhoto} Pick the name, set the counts and storage location, then press <b>Save item</b>.${warn ? `<br>⚠ ${esc(warn)}` : ""}${why}`, "ok");
+    qaStat(`✓ Filled in ${done.join(", ") || "what it could find"}.${noPhoto}${addAltPhotos ? ` <button class="btn sm" type="button" data-altphoto>Wrong photo? Show another</button>` : ""} Pick the name, set the counts and storage location, then press <b>Save item</b>.${warn ? `<br>⚠ ${esc(warn)}` : ""}${why}`, "ok");
     showAddMatch(g("e-sku"));
     ($("#qaSup") || $("#e-name")?.closest(".addcard"))?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch(e) {

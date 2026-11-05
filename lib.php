@@ -555,13 +555,23 @@ function read_product_link(string $url, array $ctx = [], bool $quick = false): a
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
     $primary = $f['primary'] ?? [];
     $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $primary, $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
+    // Front-of-box shots first (Henry Schein names them ..._front_01), back/side shots last; Claude's pick leads its group.
+    $rank = fn($u) => preg_match('/front|main|hero|primary/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 0 : (preg_match('/back|side|top|bottom|label|detail|group|lifestyle|spec/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 2 : 1);
+    $order = array_values(array_unique($order));
+    $pos = array_flip($order);
+    usort($order, fn($a, $b) => [$rank($a), $pos[$a]] <=> [$rank($b), $pos[$b]]);
+    // the same picture is often listed twice (7770454_US_Top_05.jpg and 7770454_US_Top_05_-Name.jpg)
+    $seen = []; $order = array_values(array_filter($order, function($u) use (&$seen) { $k = strtolower(preg_replace('/_-[^\/]*(\.\w+)(\?.*)?$/', '$1', $u)); if (isset($seen[$k])) return false; return $seen[$k] = true; }));
     $tried = [];
-    foreach (array_slice(array_values(array_unique($order)), 0, 10) as $u) {
+    $order = array_slice($order, 0, 12);
+    foreach ($order as $k => $u) {
         $why = '';
         $im = fetch_image($u, $url, $why);
-        if ($im) { $res['photo'] = ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]; break; }
+        if ($im) { $res['photo'] = ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]; $res['photoUrl'] = $u; $res['morePhotos'] = array_slice($order, $k + 1, 10); break; }
         $tried[] = mb_substr($u, 0, 160) . ' → ' . $why;
+        if (count($tried) >= 10) break;
     }
+    $res['pageUrl'] = $url;
     if (!$res['photo']) {
         $res['photoNote'] = 'The server couldn\'t download a product photo from that page.';
         $res['photoDiag'] = $tried ? 'Pictures tried: ' . implode('; ', $tried) : 'The page didn\'t list any product pictures the server could see (they may be loaded by the page\'s scripts).';
@@ -885,3 +895,11 @@ P;
         'lines' => $lines];
 }
 
+// One more picture from a product page, for "Show another photo". $referer is the product page.
+function fetch_photo(string $u, string $referer = ''): array {
+    if (!preg_match('#^https?://#i', $u)) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'Bad picture address.'];
+    $why = '';
+    $im = fetch_image($u, preg_match('#^https?://#i', $referer) ? $referer : '', $why);
+    if (!$im) return ['ok' => false, 'error' => 'no_photo', 'message' => 'That picture couldn\'t be downloaded (' . $why . ').'];
+    return ['ok' => true, 'photo' => ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]];
+}

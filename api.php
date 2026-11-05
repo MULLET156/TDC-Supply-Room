@@ -191,6 +191,12 @@ try {
             out(200, $r);
         }
 
+        case 'fetchphoto': {
+            $r = fetch_photo(trim((string)($req['url'] ?? '')), trim((string)($req['page'] ?? '')));
+            if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);
+            out(200, $r);
+        }
+
         case 'readdoc': {
             $files = is_array($req['files'] ?? null) ? $req['files'] : [];
             $ctx = is_array($req['ctx'] ?? null) ? $req['ctx'] : [];
