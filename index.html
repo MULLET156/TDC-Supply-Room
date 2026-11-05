@@ -795,11 +795,14 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 :root[data-theme="dark"]{--teal:#4fc3d4;--teal-soft:#123a40;--teal-fg:#06262b}
 .viewrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr);gap:8px;align-items:stretch}
 .viewrow .tabs.seg{margin:0}
-.viewrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
-.tab.cntbtn{justify-content:center;border:2px solid var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:17px;border-radius:12px;min-height:44px;padding:6px 10px;letter-spacing:.01em}
-.tab.cntbtn:hover{border-color:var(--accent)}
-.tab.cntbtn[aria-selected="true"]{background:var(--accent);color:var(--accent-fg)}
-@media (max-width:520px){.tab.cntbtn{font-size:15px;padding:4px 6px;line-height:1.1}}
+.viewrow{grid-template-columns:minmax(0,1fr)!important}
+.tabs-main{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.tab.big.cntbtn{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.tab.big.cntbtn .cl{white-space:normal;text-align:center;line-height:1.1}
+.tab.big.cntbtn .n{font-size:18px}
+.tab.big.cntbtn:hover{border-color:var(--accent)}
+.tab.big.cntbtn[aria-selected="true"]{background:var(--accent);color:var(--accent-fg)}
+@media (max-width:640px){.tab.big.cntbtn .n{display:none}}
 .countmodes{display:flex;align-items:center;gap:4px;background:var(--accent-soft);border-radius:12px;padding:3px}
 .countmodes .cmlabel{padding:0 10px 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .countmodes label{flex:1;min-width:0;cursor:pointer}
@@ -1118,10 +1121,10 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
       <button class="tab big t-need" role="tab" data-t="need" aria-selected="true">To order <span class="n" id="n-need">–</span></button>
       <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false">On order <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false">Expiring <span class="n" id="n-exp">–</span></button>
+      <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><span class="n" aria-hidden="true">🔢</span><span class="cl">Inventory counter</span></button>
     </div>
     <div class="viewrow" role="tablist" aria-label="Views">
     <button class="tab allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
-    <button class="tab cntbtn" role="tab" data-t="count" aria-selected="false">Inventory counter</button>
     </div>
     <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
