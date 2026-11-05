@@ -795,6 +795,24 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 :root[data-theme="dark"]{--teal:#4fc3d4;--teal-soft:#123a40;--teal-fg:#06262b}
 .viewrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,3fr);gap:8px;align-items:stretch}
 .viewrow .tabs.seg{margin:0}
+.viewrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+.tab.cntbtn{justify-content:center;border:2px solid var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:17px;border-radius:12px;min-height:44px;padding:6px 10px;letter-spacing:.01em}
+.tab.cntbtn:hover{border-color:var(--accent)}
+.tab.cntbtn[aria-selected="true"]{background:var(--accent);color:var(--accent-fg)}
+@media (max-width:520px){.tab.cntbtn{font-size:15px;padding:4px 6px;line-height:1.1}}
+.countmodes{display:flex;align-items:center;gap:4px;background:var(--accent-soft);border-radius:12px;padding:3px}
+.countmodes .cmlabel{padding:0 10px 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.countmodes label{flex:1;min-width:0;cursor:pointer}
+.countmodes input{position:absolute;opacity:0;width:1px;height:1px}
+.countmodes label span{display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:9px;font-weight:700;font-size:14.5px;color:var(--slate,var(--fg));padding:6px 4px;white-space:nowrap}
+.countmodes label span::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid currentColor;margin-right:7px;flex:none;box-sizing:border-box}
+.countmodes input:checked + span{background:var(--accent);color:var(--accent-fg)}
+.countmodes input:checked + span::before{background:currentColor;box-shadow:inset 0 0 0 2px var(--accent)}
+.countmodes input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:420px){.countmodes .cmlabel{display:none}.countmodes label span{font-size:13.5px}}
+.dock .wrap:has(#scanBtn[hidden]){grid-template-columns:1fr}
+:root[data-skin="retro80"] .cntbtn{font-family:"Orbitron",var(--f-ui);letter-spacing:.04em}
+:root[data-skin="club90"] .cntbtn{font-family:"Bungee",var(--f-ui);font-weight:400;letter-spacing:.02em}
 .tab.allbtn{justify-content:center;border:2px solid var(--teal);background:var(--teal-soft);color:var(--teal);font-weight:800;font-size:17px;border-radius:12px;min-height:44px;padding:6px 10px;letter-spacing:.01em}
 .tab.allbtn .n{color:var(--teal);opacity:.85;font-size:13.5px}
 .tab.allbtn:hover{border-color:var(--teal)}
@@ -1103,11 +1121,12 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
     </div>
     <div class="viewrow" role="tablist" aria-label="Views">
     <button class="tab allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
-    <div class="tabs seg" id="tabs"><span class="seglabel" aria-hidden="true">Inventory Counter</span>
-      <button class="tab" role="tab" data-t="sups" aria-selected="false"><span class="by">By</span>Supplier</button>
-      <button class="tab" role="tab" data-t="cats" aria-selected="false"><span class="by">By</span>Category</button>
-      <button class="tab" role="tab" data-t="locs" aria-selected="false"><span class="by">By</span>Location</button>
+    <button class="tab cntbtn" role="tab" data-t="count" aria-selected="false">Inventory counter</button>
     </div>
+    <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
+      <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
+      <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
+      <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
     </div>
     <div id="alertSlot"></div>
     <div class="filters">
@@ -4850,8 +4869,20 @@ function filterBar(){
 const FKEYS = ["#q","#fLoc","#fSup","#fCat"], tabFilters = {};
 const readF = () => Object.fromEntries(FKEYS.map(k => [k, $(k).value]));
 const writeF = f => FKEYS.forEach(k => { const el = $(k); el.value = (f && f[k]) || ""; if (el.tagName === "SELECT" && el.value !== ((f && f[k]) || "")) el.value = ""; });
-function setTab(t){ if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
-$("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; closeToolMenu(); setTab(b.dataset.t); });
+function setTab(t){ if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
+$("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); });
+/* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
+const CNT_MODES = ["sups", "cats", "locs"];
+function cntMode(){ try { const v = localStorage.getItem("tdc-cntmode"); if (CNT_MODES.includes(v)) return v; } catch {} return "sups"; }
+document.querySelectorAll('#countModes input[name="cmode"]').forEach(r => r.addEventListener("change", () => { if (r.checked) setTab(r.value); }));
+function syncCounter(t){
+  const on = CNT_MODES.includes(t);
+  $('[data-t="count"]')?.setAttribute("aria-selected", String(on));
+  const box = $("#countModes"); if (box) box.hidden = !on;
+  if (on) { document.querySelectorAll('#countModes input[name="cmode"]').forEach(r => { r.checked = r.value === t; }); try { localStorage.setItem("tdc-cntmode", t); } catch {} }
+  const sb = $("#scanBtn"); if (sb) sb.hidden = !on;   /* Scan to count only while counting */
+}
+try { syncCounter(tab); } catch { const sb = $("#scanBtn"); if (sb) sb.hidden = true; }
 /* phone: Editor / Activity log / Setup sit behind a ☰ menu */
 function closeToolMenu(){ $("#toolTabs")?.classList.remove("open"); $("#menuBtn")?.setAttribute("aria-expanded", "false"); }
 $("#menuBtn").addEventListener("click", e => { e.stopPropagation(); const o = !$("#toolTabs").classList.contains("open"); $("#toolTabs").classList.toggle("open", o); $("#menuBtn").setAttribute("aria-expanded", String(o)); });
