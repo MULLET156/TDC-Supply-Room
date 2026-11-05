@@ -817,6 +817,15 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 
 .grp.cathead{flex-wrap:wrap;gap:6px 10px}
 .grp .gn{font-weight:600;color:var(--muted);font-size:12px;margin-left:4px}
+/* group names (supplier / category / location) big and bold so they stand out from the items */
+.grp.cathead{background:var(--surface);border-left:6px solid var(--pg,var(--accent));border-top:2px solid var(--line);padding-top:12px;padding-bottom:10px}
+.grp.cathead > span:first-child{font-size:19px;font-weight:800;color:var(--fg);letter-spacing:0;text-transform:none;line-height:1.2}
+.grp.cathead .grprep{font-size:13px;font-weight:600;color:var(--muted);margin-left:8px}
+.grp.cathead .gn{font-size:13px;font-weight:700;color:var(--muted);background:var(--sunk);border-radius:99px;padding:1px 8px;margin-left:6px;vertical-align:2px}
+.grp.subhead{font-size:15px;font-weight:800;color:var(--fg);border-left:6px solid color-mix(in srgb,var(--pg,var(--accent)) 45%,transparent);padding-top:8px;padding-bottom:8px}
+.grp.subhead .gn{font-size:12px}
+.grp:not(.cathead):not(.subhead){font-size:15px;color:var(--fg);letter-spacing:.03em;font-weight:800;padding-top:12px;padding-bottom:10px;border-left:6px solid var(--pg,var(--accent))}
+@media (max-width:520px){.grp.cathead > span:first-child{font-size:17px}.grp.cathead .grprep{display:block;margin:2px 0 0}}
 .grptools{display:inline-flex;align-items:center;gap:8px;margin-left:auto;text-transform:none;letter-spacing:0}
 .grpcnt{font-size:12px;font-weight:600;color:var(--muted)}
 .grpcnt.ok{color:var(--ok)}
