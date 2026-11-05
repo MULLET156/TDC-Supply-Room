@@ -4328,8 +4328,8 @@ function addChooser(){
   openPanel(`<div class="ph"><div><h2>Add an item</h2><div class="lastby">How do you want to add it?</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
     <div class="addpick">
       <button type="button" class="pickcard" data-addmode="link"><span class="pk-ic">🔗</span><span><b>Add using a product link</b><small>Paste the product page link. Claude fills in the name, SKU, price, size, description and photo.</small></span></button>
-      <button type="button" class="pickcard" data-addmode="sku"><span class="pk-ic">📷</span><span><b>Add using a SKU photo</b><small>Snap the SKU, catalog # or barcode on the box. Claude finds the product online and fills it in.</small></span></button>
       <button type="button" class="pickcard" data-docimp hidden><span class="pk-ic">📄</span><span><b>Add from an invoice or screenshot</b><small>Photos, screenshots or PDFs of an invoice, order or supplier page. Claude adds new products and updates the ones you have.</small></span></button>
+      <button type="button" class="pickcard" data-addmode="sku"><span class="pk-ic">📷</span><span><b>Add using a SKU photo</b><small>Snap the SKU, catalog # or barcode on the box. Claude finds the product online and fills it in.</small></span></button>
       <button type="button" class="pickcard" data-addmode="manual"><span class="pk-ic">✍️</span><span><b>Add manually</b><small>Type in the details yourself, with optional photos.</small></span></button>
     </div>`);
   document.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => openNew({ mode: b.dataset.addmode }));
