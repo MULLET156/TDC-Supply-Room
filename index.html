@@ -2935,7 +2935,7 @@ function startBatch(list){
       <label>Photo <select data-bo="photo"><option value="missing">only if the item has none</option><option value="always">replace existing photos</option><option value="never">don't pull photos</option></select></label></div>` : ""}
     <div class="bopts"><b>Go faster</b>
       <label><input type="checkbox" data-bo="autoName" ${B.opts.autoName ? "checked" : ""}> <span>Use the suggested name automatically<span class="hint">Skips the name step. You'll still be asked when Claude isn't sure it found the right product.</span></span></label>
-      <label><input type="checkbox" data-bo="autoSave" ${B.opts.autoSave ? "checked" : ""}> <span>Accept automatically after 7 seconds<span class="hint">Each time it asks you to choose (the name, then the details), it picks the suggested choice after 7 seconds unless you tap or type something first. It never auto-confirms a product match Claude is unsure about.</span></span></label></div>
+      <label><input type="checkbox" data-bo="autoSave" ${B.opts.autoSave ? "checked" : ""}> <span>Accept automatically after 10 seconds<span class="hint">Each time it asks you to choose (the name, then the details), it picks the suggested choice after 10 seconds unless you tap or type something first. It never auto-confirms a product match Claude is unsure about.</span></span></label></div>
     ${full && !window.HOSTED ? `<div class="bopts"><label><input type="checkbox" data-bo="history" checked> <span><b>Use our past orders</b><br><span class="hint">Claude also checks each supplier's past orders for extra matches and shows when we last bought an item. Sign in to each supplier in the Claude app's browser for this to work.</span></span></label></div>` : ""}
     <div class="actions savebar"><button class="btn pri grow" type="button" id="bStart">Start updating ${list.length} item${list.length === 1 ? "" : "s"}</button></div>`);
   document.querySelectorAll("[data-bo]").forEach(el => el.onchange = () => { B.opts[el.dataset.bo] = el.type === "checkbox" ? el.checked : el.value; if (el.dataset.bo === "autoName" || el.dataset.bo === "autoSave") { try { localStorage.setItem("tdc.batchAuto", JSON.stringify({ autoName: B.opts.autoName, autoSave: B.opts.autoSave })); } catch {} } });
@@ -2997,7 +2997,7 @@ async function batchStep(next){
   if (B.opts.autoSave && !ask) { const k = opts.findIndex(o => o[1] === "Suggested"); autoCountdown(document.querySelector(`[data-bn="${k >= 0 ? k : 0}"]`), "", "Picking this name"); }
 }
 /* Auto-accept countdown: presses `btn` after AUTO_SECS unless you tap or type in the window first. */
-const AUTO_SECS = 7;
+const AUTO_SECS = 10;
 function autoCountdown(btn, label, what){
   if (!btn || !B) return;
   const panel = $("#overlay .panel"), runNow = B.run; let left = AUTO_SECS;
@@ -3047,7 +3047,7 @@ function batchReview(it, r, name, head){
       B.i++; batchStep();
     } catch(err) { btn.disabled = false; btn.textContent = "Save & next"; toast(err?.code ? dbErr(err) : photoErr(err)); }
   };
-  /* accept automatically after 7 seconds, unless you tap or type anything in the window first */
+  /* accept automatically after 10 seconds, unless you tap or type anything in the window first */
   if (o.autoSave) autoCountdown($("#bSave"), "Save & next", "Saving");
 }
 function batchStepFromResult(it, r, head){ // re-show the name picker without re-scraping
