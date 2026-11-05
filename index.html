@@ -630,6 +630,14 @@ body.on-products .filters{display:none!important}
 .bulkbar.inline .in{max-width:none;box-shadow:none;background:var(--accent-soft);color:var(--fg);border:1px solid var(--accent)}
 .bulkbar.inline select,.bulkbar.inline input{border:1px solid var(--line)}
 .bulkbar.inline .btn.ghost{color:var(--accent)}
+#bulkSlot{display:contents}
+.ptools .actions .bulkbar.inline{display:inline-flex}
+.ptools .actions .bulkbar.inline .in{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 6px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.ptools .actions .bulkbar.inline .in b{font-size:13px;padding:0 4px;white-space:nowrap}
+.ptools .actions .bulkbar.inline select,.ptools .actions .bulkbar.inline input{min-height:36px;padding:0 8px;font-size:14px;max-width:170px}
+.ptools .actions .bulkbar.inline input{flex:0 1 150px}
+.ptools .actions .bulkbar.inline .btn{padding:7px 12px}
+.ptools .actions .bulkbar.none .in{opacity:.6}
 .counts.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .counts.three .cbox{align-content:start}
 .counts.three .cbox .step{align-self:start}
@@ -1959,13 +1967,15 @@ function updateOrdFloat(){
 }
 function updateBulk(){
   updateOrdFloat();
-  const show = tab === "products" && selected.size > 0 && !readOnly;   /* the Inventory counter has Mark counted in the bottom bar */
+  const show = tab === "products" && !readOnly;   /* in the Editor the "change a field" bar stays put next to Batch Update */   /* the Inventory counter has Mark counted in the bottom bar */
   const bar = $("#bulkBar"), slot = $("#bulkSlot");
   if (tab === "products" && slot) { if (bar.parentElement !== slot) slot.append(bar); bar.classList.add("inline"); }
   else if (bar.parentElement !== document.body) { document.body.insertBefore(bar, $(".dock")); bar.classList.remove("inline"); }
   bar.hidden = !show; document.body.classList.toggle("has-bulk", show && tab !== "products");
   if (!show) return;
   $("#bulkN").textContent = `${selected.size} selected`;
+  bar.classList.toggle("none", !selected.size);
+  bar.querySelectorAll("select, input, button[type=submit], #bulkClear").forEach(x => x.disabled = !selected.size);
   /* outside the Editor the bar only marks items counted; changing category/location/supplier for many items lives in the Editor */
   bar.classList.toggle("countonly", tab !== "products");
   fillBulkList();
@@ -2134,8 +2144,8 @@ function productsHtml(all){
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
-    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n ? "" : "disabled"} title="${n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">✨ Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them">Merge 2</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">🗑 Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid">Export</button></div></div>
-    ${pFilterBar()}<div id="bulkSlot"></div><div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
+    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n ? "" : "disabled"} title="${n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">✨ Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them">Merge 2</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">🗑 Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid">Export</button><div id="bulkSlot"></div></div></div>
+    ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
 }
