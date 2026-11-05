@@ -1,0 +1,6 @@
+config.php
+*.sqlite
+*.sql
+*.backup.json
+.DS_Store
+dev/
