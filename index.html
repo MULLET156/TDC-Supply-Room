@@ -2159,7 +2159,16 @@ function mergeDialog(A, Bi){
     <label class="madd"><input type="checkbox" id="mAdd" checked> Add the on-hand counts together (${fmtQ((num(A.qty) || 0) + (num(Bi.qty) || 0))})</label>
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" type="button" id="mGo">Merge</button></div>`);
   $("#mGo").onclick = async e => {
-    const b = e.currentTarget; if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Tap again to merge"; return; }
+    const b = e.currentTarget;
+    if (!b.classList.contains("armed")) {
+      const kA = document.querySelector('input[name="mkeep"]:checked')?.value === "a", keep = kA ? A : Bi, gone = kA ? Bi : A;
+      b.classList.add("armed"); b.textContent = "Yes, merge";
+      const bar = b.closest(".savebar"); bar.querySelector(".mconfirm")?.remove();
+      bar.insertAdjacentHTML("beforebegin", `<div class="notice err mconfirm" role="alert"><b>Are you sure?</b><span class="hint">"${esc(gone.name)}" will be deleted and its details merged into "${esc(keep.name)}". This can't be undone. Press <b>Yes, merge</b> to go ahead, or Cancel.</span></div>`);
+      document.querySelectorAll('input[name="mkeep"], #mAdd').forEach(x => x.addEventListener("change", () => { b.classList.remove("armed"); b.textContent = "Merge"; document.querySelector(".mconfirm")?.remove(); }, { once: true }));
+      b.closest(".panel")?.scrollTo({ top: 1e6, behavior: "smooth" });
+      return;
+    }
     b.disabled = true; b.textContent = "Merging…";
     const keepA = document.querySelector('input[name="mkeep"]:checked').value === "a", K = keepA ? A : Bi, O = keepA ? Bi : A, add = $("#mAdd").checked;
     const patch = {};
