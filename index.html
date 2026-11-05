@@ -158,6 +158,25 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .hrow:first-child{border-top:0}
 .hrow b{font-weight:600}
 .hrow .hint{font-size:12.5px}
+.hord{border-top:1px solid var(--line)}
+.hord:first-child{border-top:0}
+.hord summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-areas:"sup cnt" "when cnt";align-items:center;gap:2px 12px;padding:12px 44px 12px 16px;position:relative;min-height:56px}
+.hord summary::-webkit-details-marker{display:none}
+.hord summary::after{content:"▾";position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--muted);transition:transform .15s}
+.hord[open] summary::after{transform:translateY(-50%) rotate(180deg)}
+.hord summary:hover{background:var(--sunk)}
+.hord .hsup{grid-area:sup;font-size:18px;font-weight:800;line-height:1.2}
+.hord .hwhen{grid-area:when;font-family:var(--f-mono);font-size:13.5px;color:var(--muted)}
+.hord .hcnt{grid-area:cnt;font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap}
+.hord[open] summary{background:var(--sunk)}
+.hlines{list-style:none;margin:0;padding:4px 16px 12px}
+.hlines li{display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px dashed var(--line);font-size:17px;line-height:1.3}
+.hlines li:last-child{border-bottom:0}
+.hlines .hq{flex:none;min-width:2.6em;text-align:right;font-family:var(--f-mono);font-weight:800;font-size:18px;color:var(--accent)}
+.hlines .hq::after{content:" ×";font-weight:400;color:var(--muted);font-size:15px}
+.hlines .hn{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.hlines .hn small{display:block;font-size:13.5px;font-weight:400;color:var(--muted)}
+.hlines .hs{flex:none;font-size:12.5px;color:var(--muted)}
 .btn.danger{color:var(--bad);border-color:var(--bad)}
 .btn.danger.armed{background:var(--bad);color:var(--surface)}
 .lastby{font-size:12px;color:var(--muted)}
@@ -2191,7 +2210,9 @@ function histHtml(){
   return `<h3 class="sec">Order history</h3><div class="list hist">${orders.slice(0, 15).map(o => {
     const sups = [...new Set((o.lines||[]).map(l=>l.supplier).filter(Boolean))];
     const by = o.initials || "";
-    return `<div class="hrow"><b>${esc(when(o.at))}${sups.length ? " · " + esc(sups.join(", ")) : ""}</b><span class="hint">${(o.lines||[]).map(l => esc(l.name) + " × " + fmtQ(l.qty)).join("; ")}</span>${by ? `<span class="hint">Marked by <span class="init">${esc(by)}</span></span>` : ""}</div>`;
+    const L = o.lines || [];
+    return `<details class="hord"><summary><span class="hwhen">${esc(when(o.at))}</span><span class="hsup">${esc(sups.join(", ") || "Order")}</span><span class="hcnt">${L.length} item${L.length === 1 ? "" : "s"}${by ? ` · <span class="init">${esc(by)}</span>` : ""}</span></summary>
+      <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}</li>`).join("")}</ul></details>`;
   }).join("")}</div>`;
 }
 function logRows(){
