@@ -870,14 +870,20 @@ body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockAll[hidden]) .bulkbar{
 #dockAll button:disabled{opacity:.55}
 @media (max-width:520px){#dockAll button{font-size:14px;padding:8px 6px}}
 /* ===== which page you're on: page color, title, selected tile ===== */
-:root{--pink:#c2185b;--pink-soft:#fce4ef;--pink-fg:#ffffff}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pink:#ff7eb6;--pink-soft:#3d1a2c;--pink-fg:#2a0a1a}}
-:root[data-theme="dark"]{--pink:#ff7eb6;--pink-soft:#3d1a2c;--pink-fg:#2a0a1a}
+:root{--pink:#0891b2;--pink-soft:#dff6fb;--pink-fg:#ffffff}   /* Editor color (cyan) */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--pink:#4dd9f0;--pink-soft:#113740;--pink-fg:#04232a}}
+:root[data-theme="dark"]{--pink:#4dd9f0;--pink-soft:#113740;--pink-fg:#04232a}
 header .topright .tooltabs .tab[data-t="products"]{border-color:var(--pink);background:var(--pink-soft);color:var(--pink)}
 header .topright .tooltabs .tab[data-t="products"]:hover{border-color:var(--pink)}
 header .topright .tooltabs .tab[data-t="products"][aria-selected="true"]{background:var(--pink);border-color:var(--pink);color:var(--pink-fg)}
 body[data-view="products"]{--pg:var(--pink);--pg-soft:var(--pink-soft);--pg-ink:var(--pink)}
-body[data-view="products"] main{background:color-mix(in srgb,var(--pink-soft) 55%,var(--bg));border-top:4px solid var(--pink);min-height:60vh}
+body[data-view="products"] main{background:var(--surface);border-top:4px solid var(--pink);min-height:60vh}
+body[data-view="products"]{background:var(--surface)}
+/* Editor grid: plain white rows, no stock colors */
+body[data-view="products"] .pgrid tr.row,body[data-view="products"] .pgrid tr.row > td{background:var(--surface)!important}
+body[data-view="products"] .pgrid tr.row:hover > td{background:var(--sunk)!important}
+body[data-view="products"] .pgrid td.gneed input{color:inherit;font-weight:inherit}
+body[data-view="products"] .ptools .stlegend{display:none}
 body[data-view="products"] .ptools .ptitle,body[data-view="products"] .ptools .ptitle + .hint{display:none}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
 body[data-view="need"]{--pg:var(--red);--pg-soft:var(--red-soft);--pg-ink:var(--red)}
