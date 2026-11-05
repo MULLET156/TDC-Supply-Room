@@ -163,6 +163,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .hrow b{font-weight:600}
 .hrow .hint{font-size:12.5px}
 .logtools{display:grid;gap:10px}
+.setrow select#oldAge{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:4px 6px;font:inherit;width:auto;display:inline-block}
+.setrow.dangerrow{background:var(--bad-soft)}
 .logfilt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .logfilt label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--muted)}
 .logfilt select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;font:inherit;font-size:14.5px;color:var(--fg);max-width:260px}
@@ -4652,8 +4654,13 @@ function setupHtml(){
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
     <div class="list" id="locList">${gs.map((g, ix) => `<div class="setrow locrow" data-loc="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix + 1}</span><button type="button" class="grip" data-lgrip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="${field}" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="${title} name"><span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="${field}" data-v="${esc(keyOf(g.name))}" title="Show these items">${g.n} item${g.n>1?"s":""} ›</button>` : "0 items"}</span><button type="button" class="rmbtn" data-rmloc="${esc(g.name)}" data-n="${g.n}" aria-label="Remove location ${esc(g.name)}">Remove</button></div>`).join("")}</div><form class="addrow" id="locAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newLoc" placeholder="New location name" autocomplete="off" aria-label="New storage location name"><button class="btn pri" type="submit">Add location</button></form>`; };
   const backup = `<div class="sechead" id="sec-backup"><h2>Backup &amp; import</h2></div><div class="list">${downloads ? `<div class="setrow two"><span>Download the whole supply list as a spreadsheet file</span><button class="btn" id="setupExport" type="button">Export CSV</button></div>` : ""}
-    <div class="setrow two"><span>Import a spreadsheet (CSV) to add new items or update existing ones. Use the same columns as Export. You'll see what will change before anything is saved.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>Import CSV<input type="file" id="importCsv" accept=".csv,text/csv"></label></div>${window.HOSTED ? `
-    <div class="setrow two"><span>Full backup: every item, supplier, rep, setting, the activity log and all photos, in one file. Keep it somewhere safe; it includes supplier logins.</span><button class="btn" id="fullBackup" type="button">Full backup (.json)</button></div>
+    <div class="setrow two"><span>Import a spreadsheet (CSV) to add new items or update existing ones. Use the same columns as Export. You'll see what will change before anything is saved.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>Import CSV<input type="file" id="importCsv" accept=".csv,text/csv"></label></div>
+    ${downloads ? `<div class="setrow two"><span>Full backup: every item, supplier, rep, setting, the activity log and all photos, in one file. Keep it somewhere safe; it includes supplier logins.</span><button class="btn" id="fullBackup" type="button">Full backup (.json)</button></div>
+    <div class="setrow two"><span>Order history: every order with its date, supplier, items, quantities and who marked it ordered.</span><button class="btn" id="expOrders" type="button">Export orders (CSV)</button></div>
+    <div class="setrow two"><span>All product photos in one .zip file, named after each product.</span><button class="btn" id="zipPhotos" type="button">Download photos (.zip)</button></div>` : ""}
+    ${readOnly ? "" : `<div class="setrow two"><span>Start a new count cycle: every item goes back to "not counted yet" so the Inventory counter shows what's left to count. Quantities don't change.</span><button class="btn" id="newCycle" type="button">New count cycle…</button></div>
+    <div class="setrow two"><span>Clear old activity: delete Activity log entries older than <select id="oldAge"><option value="182">6 months</option><option value="365" selected>1 year</option><option value="730">2 years</option></select>.</span><button class="btn" id="clearOld" type="button">Clear old activity…</button></div>
+    <div class="setrow two dangerrow"><span><b>Delete all products.</b> Removes every item from the supply list (suppliers, reps, settings and the activity log stay). You'll download a full backup first, which Restore can bring back.</span><button class="btn danger" id="delAll" type="button">Delete all products…</button></div>`}${window.HOSTED ? `
     <div class="setrow two"><span>Restore from a full backup file. Items and settings in the file replace the ones with the same id here; nothing else is deleted.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>Restore…<input type="file" id="restoreFile" accept=".json,application/json"></label></div>
     <div class="setrow two"><span>Sign this device out of the Supply Room.</span><button class="btn" id="signOut" type="button">Sign out</button></div>` : ""}</div>`;
   const allSups = orderedSuppliers();
@@ -5228,7 +5235,7 @@ async function fullBackup(btn){
     for (const c of BACKUP_COLS) { btn.textContent = "Saving " + c + "…"; const snap = await db.collection(c).get(); collections[c] = Object.fromEntries(snap.docs.map(d => [d.id, d.data()])); }
     const ids = [...new Set(Object.values(collections.items).flatMap(i => [i.photo, i.skuPhoto]).filter(x => /^[a-f0-9]{32}$/.test(x || "")))];
     const blobs = {};
-    for (let k = 0; k < ids.length; k++) { btn.textContent = `Photos ${k + 1}/${ids.length}…`; try { const b = await TDC.blobBytes(ids[k]); if (b) blobs[ids[k]] = b; } catch {} }
+    for (let k = 0; k < ids.length; k++) { btn.textContent = `Photos ${k + 1}/${ids.length}…`; try { const bl = await photoBlob(ids[k]); if (bl) blobs[ids[k]] = { type: bl.type, data: await docB64(bl) }; } catch {} }
     const stamp = new Date().toISOString().slice(0, 10);
     await downloads.save({ filename: `TDC supply room ${stamp}.backup.json`, data: JSON.stringify({ app: "tdc-supply-room", version: 1, exportedAt: Date.now(), collections, blobs }) });
     toast("Backup saved");
@@ -5261,6 +5268,106 @@ document.addEventListener("click", e => {
   if (e.target.closest?.("#signOut")) TDC.logout();
 });
 document.addEventListener("change", e => { if (e.target.id === "restoreFile" && e.target.files[0]) { restoreBackup(e.target.files[0]); e.target.value = ""; } });
+
+/* ---------- Setup › Backup & import: more tools ---------- */
+async function photoBlob(id){
+  if (!id) return null;
+  const r = await fetch(window.HOSTED ? "blob.php?id=" + encodeURIComponent(id) : "/_blob/" + encodeURIComponent(id), { credentials: "same-origin" });
+  return r.ok ? await r.blob() : null;
+}
+async function bulkWrite(col, writes, tick){   /* writes: [{ id, data } to merge, or { id, del: true }] */
+  if (window.HOSTED) {
+    for (let i = 0; i < writes.length; i += 200) { await TDC.call("batch", { writes: writes.slice(i, i + 200).map(w => w.del ? { op: "delete", col, id: w.id } : { op: "update", col, id: w.id, data: w.data }) }); tick?.(Math.min(i + 200, writes.length)); }
+  } else {
+    let k = 0; for (const w of writes) { if (w.del) await db.doc(col + "/" + w.id).delete(); else await db.doc(col + "/" + w.id).update(w.data); if (++k % 10 === 0) tick?.(k); }
+  }
+}
+const stampDate = () => new Date().toLocaleDateString("en-CA");
+document.addEventListener("click", async e => {
+  const t = e.target.closest?.("#expOrders, #zipPhotos, #newCycle, #clearOld, #delAll"); if (!t) return;
+  if (t.id === "expOrders") {
+    t.disabled = true;
+    try {
+      const snap = await db.collection("orders").get(), rows = [];
+      snap.docs.map(d => d.data()).sort((a, b) => (a.at || 0) - (b.at || 0)).forEach(o => (o.lines || []).forEach(l => { const d = new Date(o.at || 0); rows.push([d.toLocaleDateString(), d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), o.initials || "", l.supplier || "", l.name || "", l.qty ?? "", l.units || ""]); }));
+      if (!rows.length) { toast("No orders yet"); return; }
+      await downloads.save({ filename: `TDC order history ${stampDate()}.csv`, data: "Date,Time,Marked by,Supplier,Item,Qty,Package size\n" + rows.map(r => r.map(csvCell).join(",")).join("\n") });
+      toast(`Exported ${rows.length} order line${rows.length === 1 ? "" : "s"}`);
+    } catch(err) { toast("Export failed: " + (err?.message || err)); } finally { t.disabled = false; }
+    return;
+  }
+  if (t.id === "zipPhotos") {
+    const list = items.flatMap(i => [[i, i.photo, ""], [i, i.skuPhoto, " (SKU)"]]).filter(x => x[1]);
+    if (!list.length) { toast("No photos yet"); return; }
+    const label = t.textContent; t.disabled = true;
+    try {
+      if (!window.JSZip) { t.textContent = "Loading…"; await new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"; sc.onload = ok; sc.onerror = () => no(new Error("Couldn't load the zip tool")); document.head.append(sc); }); }
+      const zip = new JSZip(), used = new Set(); let n = 0;
+      for (const [it, id, tag] of list) {
+        t.textContent = `Photos ${++n}/${list.length}…`;
+        try { const b = await photoBlob(id); if (!b) continue;
+          let base = (it.name || "item").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) + tag, nm = base, k = 2;
+          while (used.has(nm.toLowerCase())) nm = `${base} ${k++}`; used.add(nm.toLowerCase());
+          zip.file(nm + "." + ((b.type.split("/")[1] || "jpg").replace("jpeg", "jpg")), b); } catch {}
+      }
+      t.textContent = "Zipping…";
+      await downloads.save({ filename: `TDC product photos ${stampDate()}.zip`, data: await zip.generateAsync({ type: "blob" }) });
+      toast("Photos downloaded");
+    } catch(err) { toast(err?.message || "Couldn't make the zip"); } finally { t.disabled = false; t.textContent = label; }
+    return;
+  }
+  if (!needMe()) return;
+  if (t.id === "newCycle") {
+    const done = items.filter(i => i.countedAt);
+    openPanel(`<div class="ph"><h2>Start a new count cycle?</h2><button class="iconbtn" data-close type="button">Cancel</button></div>
+      <p>${done.length} of ${items.length} items are marked counted. This sets them all back to "not counted yet" so you can count everything again. Quantities, reserves and order lists don't change, and each item's last count stays in the Activity log.</p>
+      <p class="hint" id="ncStat"></p><div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="ncGo" type="button" ${done.length ? "" : "disabled"}>Start new count cycle</button></div>`);
+    $("#ncGo").onclick = async () => {
+      const go = $("#ncGo"); go.disabled = true; sync("busy", "Saving…");
+      try { await bulkWrite("items", done.map(i => ({ id: i.id, data: { countedAt: 0, countedBy: "" } })), k => { $("#ncStat").textContent = `${k} of ${done.length}…`; });
+        try { await db.collection("counts").add({ at: Date.now(), by: me(), scope: "New count cycle", n: 0, ids: [] }); } catch {}
+        logIt("New count cycle", null, `${done.length} items set to not counted`); sync("ok", "Saved"); closePanel(); toast("New count cycle started"); render(); }
+      catch(err) { sync("err", "Not all saved"); $("#ncStat").textContent = "Stopped: " + (err?.message || err) + " Run it again to finish."; go.disabled = false; }
+    };
+    return;
+  }
+  if (t.id === "clearOld") {
+    const days = +($("#oldAge")?.value || 365), cut = Date.now() - days * 864e5, lbl = $("#oldAge")?.selectedOptions[0]?.textContent || "1 year";
+    t.disabled = true; let old = [];
+    try { old = (await db.collection("log").get()).docs.filter(d => (d.data().at || 0) < cut); } catch(err) { toast(dbErr(err)); } finally { t.disabled = false; }
+    if (!old.length) { toast(`Nothing in the Activity log is older than ${lbl}`); return; }
+    openPanel(`<div class="ph"><h2>Clear old activity?</h2><button class="iconbtn" data-close type="button">Cancel</button></div>
+      <p>${old.length} Activity log entr${old.length === 1 ? "y is" : "ies are"} older than ${esc(lbl)} (before ${esc(new Date(cut).toLocaleDateString())}). Deleting them can't be undone.</p>
+      ${downloads ? `<div class="actions"><button class="btn" id="coSave" type="button">Download them first (CSV)</button></div>` : ""}
+      <p class="hint" id="coStat"></p><div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn danger grow" id="coGo" type="button">Delete ${old.length} old entr${old.length === 1 ? "y" : "ies"}</button></div>`);
+    $("#coSave") && ($("#coSave").onclick = async () => { const rows = old.map(d => d.data()).sort((a, b) => a.at - b.at); await downloads.save({ filename: `TDC supply activity before ${new Date(cut).toLocaleDateString("en-CA")}.csv`, data: "Date,Time,Initials,Action,Item,Detail\n" + rows.map(e => { const d = new Date(e.at); return [d.toLocaleDateString(), d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), e.initials, e.action, e.name, e.detail].map(csvCell).join(","); }).join("\n") }); toast("Saved"); });
+    $("#coGo").onclick = async () => {
+      const go = $("#coGo"); if (!go.classList.contains("armed")) { go.classList.add("armed"); go.textContent = "Yes, delete them"; return; }
+      go.disabled = true; sync("busy", "Deleting…");
+      try { await bulkWrite("log", old.map(d => ({ id: d.id, del: true })), k => { $("#coStat").textContent = `${k} of ${old.length}…`; });
+        logIt("Cleared old activity", null, `${old.length} entries older than ${lbl}`); sync("ok", "Saved"); closePanel(); toast(`Deleted ${old.length} old entries`); render(); }
+      catch(err) { sync("err", "Not all deleted"); $("#coStat").textContent = "Stopped: " + (err?.message || err) + " Run it again to finish."; go.disabled = false; }
+    };
+    return;
+  }
+  if (t.id === "delAll") {
+    const n = items.length;
+    openPanel(`<div class="ph"><h2>Delete all products?</h2><button class="iconbtn" data-close type="button">Cancel</button></div>
+      <div class="notice err"><b>This removes all ${n} products from the supply list.</b><span class="hint">Suppliers, reps, settings and the Activity log stay. You can bring the products back with Restore and the backup file from step 1.</span></div>
+      <p><b>1.</b> Download a full backup first <button class="btn" id="daBackup" type="button">Download full backup</button> <span class="hint" id="daOk"></span></p>
+      <p><b>2.</b> Type <b>DELETE</b> to confirm: <input id="daType" autocomplete="off" style="border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:130px;font:inherit" disabled></p>
+      <p class="hint" id="daStat"></p><div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn danger grow" id="daGo" type="button" disabled>Delete all ${n} products</button></div>`);
+    $("#daBackup").onclick = async () => { const b = $("#daBackup"); await fullBackup(b); $("#daOk").textContent = "✓ Backup downloaded. Check it's in your Downloads folder."; $("#daType").disabled = false; $("#daType").focus(); };
+    $("#daType").oninput = e => { $("#daGo").disabled = e.target.value.trim() !== "DELETE"; };
+    $("#daGo").onclick = async () => {
+      const go = $("#daGo"); go.disabled = true; sync("busy", "Deleting…");
+      const ids = items.map(i => i.id);
+      try { await bulkWrite("items", ids.map(id => ({ id, del: true })), k => { $("#daStat").textContent = `${k} of ${ids.length}…`; });
+        logIt("Deleted all products", null, `${ids.length} products (a full backup was downloaded first)`); sync("ok", "Saved"); closePanel(); toast(`Deleted ${ids.length} products`); render(); }
+      catch(err) { sync("err", "Not all deleted"); $("#daStat").textContent = "Stopped: " + (err?.message || err) + " Run it again to finish."; go.disabled = false; }
+    };
+  }
+});
 
 /* ---------- boot ---------- */
 async function boot(){
