@@ -682,3 +682,72 @@ function apify_page_run(string $url, string $tool, int $secs, bool $residential 
     }
     return ['ok' => true, 'html' => $html, 'url' => (string)($it['metadata']['url'] ?? $url)];
 }
+
+/* ---------- finding a product page by name / SKU (web search through Apify's RAG Web Browser) ---------- */
+// $q: name, sku, supplier, site (the supplier's web address, e.g. henryschein.com)
+function find_product_page(array $q, array $ctx = []): array {
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
+    $name = trim((string)($q['name'] ?? '')); $sku = trim((string)($q['sku'] ?? '')); $sup = trim((string)($q['supplier'] ?? ''));
+    $site = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($q['site'] ?? ''))));
+    $site = preg_replace('#/.*$#', '', $site);
+    if ($name === '' && $sku === '') return ['ok' => false, 'error' => 'no_match', 'message' => 'Give a product name or SKU to look up.'];
+    $terms = trim(($sku !== '' ? '"' . $sku . '" ' : '') . $name);
+    $queries = $site !== '' ? [$terms . ' site:' . $site, trim($terms . ' ' . $sup)] : [trim($terms . ' ' . ($sup !== '' ? $sup : 'dental supply'))];
+    $cands = []; $lastErr = '';
+    foreach ($queries as $query) {
+        $r = apify_search($query);
+        if (!$r['ok']) { $lastErr = $r['message']; continue; }
+        foreach ($r['results'] as $c) $cands[$c['url']] = $c;
+        if ($cands) break;
+    }
+    if (!$cands) return ['ok' => false, 'error' => 'no_match', 'message' => $lastErr ?: 'No product page turned up for that search. Add the product\'s web link instead.'];
+    $cands = array_values($cands);
+    // Prefer the office's supplier; then let Claude pick the page that is this exact product.
+    usort($cands, fn($a, $b) => (int)($site !== '' && str_contains(strtolower((string)parse_url($b['url'], PHP_URL_HOST)), $site)) <=> (int)($site !== '' && str_contains(strtolower((string)parse_url($a['url'], PHP_URL_HOST)), $site)));
+    $pick = 0;
+    if (ai_ready() && count($cands) > 1) {
+        $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
+        $a = ai_json("A dental office wants the supplier's product page for: " . ($name !== '' ? "\"$name\"" : '') . ($sku !== '' ? " SKU/catalog # $sku" : '') . ($sup !== '' ? " from $sup" : '')
+            . ".\nSearch results:\n$list\n\nReply with {\"pick\": index of the result that is the product page for this exact item (prefer $sup" . ($site !== '' ? " / $site" : '') . "), or -1 if none is}.", [], 'quick');
+        if ($a['ok'] && isset($a['value']['pick']) && is_numeric($a['value']['pick'])) $pick = (int)$a['value']['pick'];
+    }
+    if ($pick < 0 || !isset($cands[$pick])) return ['ok' => false, 'error' => 'no_match', 'message' => 'The search didn\'t find this exact product. Add its web link instead.'];
+    $res = read_product_link($cands[$pick]['url'], $ctx);
+    if (!$res['ok']) return $res;
+    $res['searched'] = true;
+    $res['candidates'] = array_slice(array_map(fn($c) => ['url' => $c['url'], 'title' => $c['title']], $cands), 0, 5);
+    if ($sku !== '' && ($res['sku'] ?? '') !== '' && strcasecmp(preg_replace('/\W/', '', $res['sku']), preg_replace('/\W/', '', $sku)) !== 0 && stripos((string)($res['mfrNumber'] ?? ''), $sku) === false) {
+        $res['note'] = trim('Found by search: the page\'s SKU (' . $res['sku'] . ') differs from ' . $sku . ', so check it\'s the right product. ' . ($res['note'] ?? ''));
+    } else {
+        $res['note'] = trim('Found by search, so check it\'s the right product. ' . ($res['note'] ?? ''));
+    }
+    return $res;
+}
+function apify_search(string $query): array {
+    @set_time_limit(120);
+    $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
+    $input = ['query' => $query, 'maxResults' => 5, 'outputFormats' => ['markdown'], 'scrapingTool' => 'raw-http', 'maxRequestRetries' => 0, 'removeCookieWarnings' => true];
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=60&format=json&clean=true');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 75, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
+    ]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+    if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code < 200 || $code >= 300 || !is_array($j)) {
+        $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
+        error_log("tdc apify search: $code $m");
+        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.' : ($code === 402 ? 'The Apify account is out of monthly credit.' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
+    }
+    $out = [];
+    foreach ((array_is_list($j) ? $j : [$j]) as $it) {
+        if (!is_array($it)) continue;
+        $s = is_array($it['searchResult'] ?? null) ? $it['searchResult'] : [];
+        $u = (string)($s['url'] ?? ($it['metadata']['url'] ?? ''));
+        if (!preg_match('#^https?://#i', $u)) continue;
+        $out[] = ['url' => $u, 'title' => mb_substr((string)($s['title'] ?? ($it['metadata']['title'] ?? '')), 0, 200), 'description' => mb_substr((string)($s['description'] ?? ($it['metadata']['description'] ?? '')), 0, 300)];
+    }
+    return ['ok' => true, 'results' => $out];
+}

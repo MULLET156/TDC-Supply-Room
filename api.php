@@ -183,6 +183,14 @@ try {
             out(200, $r);
         }
 
+        case 'findproduct': {
+            $q = is_array($req['q'] ?? null) ? $req['q'] : [];
+            $ctx = is_array($req['ctx'] ?? null) ? $req['ctx'] : [];
+            $r = find_product_page($q, $ctx);
+            if (!$r['ok']) fail(502, $r['error'] ?? 'no_match', $r['message']);
+            out(200, $r);
+        }
+
         default:
             fail(400, 'bad_request', 'Unknown operation.');
     }

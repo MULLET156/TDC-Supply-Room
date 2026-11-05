@@ -74,6 +74,8 @@ define('APIFY_TOKEN', 'apify_api_…');
 
 Apify's free plan includes $5 of usage a month; one Amazon product costs well under a cent. Reading an Amazon link takes 20–60 seconds. Without the token, Amazon links only fill in the SKU (ASIN).
 
+The token also lets the Supply Room look products up when there's no link: **Add using a SKU photo** and **Update from supplier pages** for items without a reorder link search the web for the SKU and name (on the supplier's own site when its web address is known), Claude picks the matching product page, and it's read like a pasted link. Results found by search are marked so you can double-check them.
+
 The same token is the fallback for any other supplier site that blocks the server or shows a robot check (Net32, for example): the page is opened in a real browser by Apify's RAG Web Browser (`apify/rag-web-browser`) and read the same way. Sites that let the server in (Henry Schein, Safco, Blue Sky Bio…) are read directly, free and in a few seconds. Neither way is signed in to your supplier accounts, so account-only prices still don't come through.
 
 ### 7. Connect Claude (optional)

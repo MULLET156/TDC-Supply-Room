@@ -1258,11 +1258,15 @@ window.TDC = (function(){
     const j = await call("readlink", { url, ctx: ctx || {} });
     return { ...j, photo: j.photo && j.photo.data ? unb64(j.photo.data, j.photo.type) : null };
   }
+  async function findProduct(q, ctx){
+    const j = await call("findproduct", { q, ctx: ctx || {} });
+    return { ...j, photo: j.photo && j.photo.data ? unb64(j.photo.data, j.photo.type) : null };
+  }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -1665,7 +1669,7 @@ const repOf = sup => repById(supReps[keyOf(sup)]);
 const repContact = r => [r.cell && "cell " + r.cell, r.phone && "office " + r.phone, r.email].filter(Boolean).join(" · ");
 const supSlug = k => "s-" + keyOf(k).replace(/[^a-z0-9_\-.~]/g, "-").slice(0, 150);
 const infoOf = sup => supInfo[supSlug(sup)] || {};
-const cartOn = sup => { const c = infoOf(sup).cart; return typeof c === "boolean" ? c : /amazon/i.test(sup || ""); };
+const cartOn = sup => { if (window.HOSTED) return false; const c = infoOf(sup).cart; return typeof c === "boolean" ? c : /amazon/i.test(sup || ""); };
 const webHref = u => /^https?:\/\//i.test(u) ? u : "https://" + u;
 const telHref = p => "tel:" + String(p).replace(/[^0-9+]/g, "");
 function repCompact(r, sup){
@@ -2792,10 +2796,29 @@ ${hist.text}` : ""}`, { images: sendImgs, modelTier: "default" });
   if (Array.isArray(r?.names)) r.names = r.names.map(v => withShade(v, r.pageTitle, pageText.slice(0, 4000), it.name));
   return { ...r, url, photo, photoNote: !photo && wantPhoto && (shotErr?.code === "hidden_window" || finderErr?.code === "hidden_window") ? "No photo: the Claude app's browser couldn't take pictures because its window isn't showing. Bring the Claude app to the front and use Pull from link." : squashed ? "The Claude app's browser pane was hidden, so its screenshots came out blank or squashed" + (photo ? "" : " and no photo could be taken") + (needMore ? ", and prices this store only shows on screen may be missing" : "") + ". Open the browser pane so it's showing on screen, then run it again." : "", photoDiag: diag.join(" · "), paneTip: !photo && wantPhoto && lastFrame && lastFrame.h < 400 ? "Tip: the Claude app's browser pane is very short right now, so product photos barely fit. Make the pane taller (drag its edge) for better photos." : "", cand: { i: C0.i, n: C0.list.length, more: C0.i + 1 < C0.list.length || !C0.searched }, histNote: hist ? (hist.signedOut ? `Not signed in to ${hist.sup} in the Claude app's browser, so past orders weren't checked. Sign in there to include them.` : "") : "" };
 }
+/* Hosted, no link: search the web for the product (by SKU and name, on the supplier's own site when we know it). */
+function supplierSite(sup){
+  const web = clean(infoOf(sup)?.website); if (web) return web.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, "");
+  const n = {}; for (const i of items) if (i.supplier === sup && clean(i.link)) { try { const h = new URL(webHref(i.link)).hostname.replace(/^www\./, ""); n[h] = (n[h] || 0) + 1; } catch {} }
+  return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+}
+async function hostedSearch(it, status){
+  const name = clean(it.name), sku = clean(it.sku), sup = clean(it.supplier);
+  if (!name && !sku) throw { code: "no_match", message: "Give it a name or SKU first, or paste the product's web link." };
+  status(`Searching ${sup || "supplier sites"} for ${sku ? "SKU " + sku : name}…`);
+  let r;
+  try { r = await TDC.findProduct({ name, sku, supplier: sup, site: sup ? supplierSite(sup) : "" }, { name, sku, nameRule: NAME_RULE }); }
+  catch(e) { throw { code: "no_match", message: e?.code === "blocked" ? "The search found a page, but the supplier's site wouldn't let the server read it. Paste the product's web link, or add it from Claude." : (e?.message || "No product page turned up for that search.") }; }
+  const wantPhoto = !B || B.opts.photo === "always" || (B.opts.photo === "missing" && !it.photo);
+  const names = Array.isArray(r.names) ? r.names.map(v => withShade(v, r.pageTitle, "", it.name)) : [];
+  return { same: true, pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
+    description: r.description || "", supplier: r.supplier || "", note: [r.note, r.priceNote].filter(Boolean).join(" "), url: r.url || "",
+    photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "" };
+}
 /* Hosted: the Supply Room server opens the product link and Claude (API) reads it. */
 async function hostedScrape(it, status){
   const link = clean(it.link);
-  if (!link) throw { code: "no_match", message: "Add the product's web link first. (To look a product up by SKU, ask Claude through the Supply Room connector.)" };
+  if (!link) return hostedSearch(it, status);
   status(/(^|\.)(amazon\.[a-z.]+|a\.co|amzn\.to)(\/|$)/i.test(link.replace(/^https?:\/\//, "")) ? "Reading the Amazon page… this can take up to a minute." : "Reading the product page…");
   let r;
   try { r = await TDC.readLink(webHref(link), { name: it.name === "__add" ? "" : it.name, sku: it.sku || "", nameRule: NAME_RULE }); }
@@ -2832,9 +2855,9 @@ function startBatch(list){
   const full = !!mcp || !!window.HOSTED;
   /* the two speed-up toggles are remembered on this device */
   let auto = {}; try { auto = JSON.parse(localStorage.getItem("tdc.batchAuto") || "{}") || {}; } catch {}
-  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: true, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
+  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
   openPanel(`<div class="ph"><div><h2>Update ${list.length} item${list.length === 1 ? "" : "s"} from supplier pages</h2><div class="lastby">One at a time — you approve each</div></div><button class="iconbtn" data-close type="button">Close</button></div>
-    ${full ? `<p class="hint">For each item, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name. Pick the name, check the filled-in details, then save and move to the next one. The app may ask you to allow each supplier's website the first time.</p>`
+    ${full ? `<p class="hint">${window.HOSTED ? "For each item, the server opens its reorder link (or searches the web for it by SKU and name when there's no link) and Claude reads the page and suggests a proper name." : "For each item, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name."} Pick the name, check the filled-in details, then save and move to the next one.${window.HOSTED ? " Prices that only show when signed in to a supplier account won't come through." : " The app may ask you to allow each supplier's website the first time."}</p>`
       : `<div class="notice"><b>Names only in this browser</b><span class="hint">Reading supplier pages (price, package size, photo, description, SKU) only works when this page is open in the Claude desktop app. Here, Claude can still suggest a proper name for each item.</span></div>`}
     ${full ? `<div class="bopts"><b>Fill in</b>
       ${[["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" checked> ${l}</label>`).join("")}
@@ -2842,7 +2865,7 @@ function startBatch(list){
     <div class="bopts"><b>Go faster</b>
       <label><input type="checkbox" data-bo="autoName" ${B.opts.autoName ? "checked" : ""}> <span>Use the suggested name automatically<span class="hint">Skips the name step. You'll still be asked when Claude isn't sure it found the right product.</span></span></label>
       <label><input type="checkbox" data-bo="autoSave" ${B.opts.autoSave ? "checked" : ""}> <span>Accept automatically after 7 seconds<span class="hint">Each time it asks you to choose (the name, then the details), it picks the suggested choice after 7 seconds unless you tap or type something first. It never auto-confirms a product match Claude is unsure about.</span></span></label></div>
-    ${full ? `<div class="bopts"><label><input type="checkbox" data-bo="history" checked> <span><b>Use our past orders</b><br><span class="hint">Claude also checks each supplier's past orders for extra matches and shows when we last bought an item. Sign in to each supplier in the Claude app's browser for this to work.</span></span></label></div>` : ""}
+    ${full && !window.HOSTED ? `<div class="bopts"><label><input type="checkbox" data-bo="history" checked> <span><b>Use our past orders</b><br><span class="hint">Claude also checks each supplier's past orders for extra matches and shows when we last bought an item. Sign in to each supplier in the Claude app's browser for this to work.</span></span></label></div>` : ""}
     <div class="actions savebar"><button class="btn pri grow" type="button" id="bStart">Start updating ${list.length} item${list.length === 1 ? "" : "s"}</button></div>`);
   document.querySelectorAll("[data-bo]").forEach(el => el.onchange = () => { B.opts[el.dataset.bo] = el.type === "checkbox" ? el.checked : el.value; if (el.dataset.bo === "autoName" || el.dataset.bo === "autoSave") { try { localStorage.setItem("tdc.batchAuto", JSON.stringify({ autoName: B.opts.autoName, autoSave: B.opts.autoSave })); } catch {} } });
   $("#bStart").onclick = () => batchStep();
@@ -3196,8 +3219,8 @@ ${txt.slice(0, 20000)}`, { modelTier: "quick" });
     const inPanel = !!t.closest("#overlay"), hasPhoto = inPanel ? !!curItem?.photo : !!pendingPhoto;
     if (!hasPhoto) {
       const pb = (inPanel ? $("#overlay") : $("#view")).querySelector("[data-pullphoto]");
-      if (mcp && clean($("#e-link")?.value) && pb && assets) { stat.textContent += " Looking for a product photo too…"; pullPhoto(pb); }
-      else if (!mcp) stat.insertAdjacentHTML("beforeend", `<br>No photo yet: on the reorder page, right-click the product picture → Copy image, then press Ctrl/⌘+V here to add it.`);
+      if ((mcp || window.HOSTED) && clean($("#e-link")?.value) && pb && assets) { stat.textContent += " Looking for a product photo too…"; pullPhoto(pb); }
+      else if (!mcp && !window.HOSTED) stat.insertAdjacentHTML("beforeend", `<br>No photo yet: on the reorder page, right-click the product picture → Copy image, then press Ctrl/⌘+V here to add it.`);
     }
   } catch(err) { stat.textContent = { rate_limited: "Too many at once. Wait a moment and try again.", not_granted: "Reading the page needs your OK to use Claude. Try again and choose Allow." }[err?.code] || "That page couldn't be read. Try copying it again."; }
   finally { t.disabled = false; }
@@ -4283,7 +4306,7 @@ function supDetail(name){
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
-  </div><label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show 🛒 Add to cart icon on the To order list</label>${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show 🛒 Add to cart icon on the To order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){
