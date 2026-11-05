@@ -834,6 +834,16 @@ body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]) .bulkbar{
 .dockexp #dockExpDate{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:0 10px;min-height:50px;font:inherit;font-size:15px;min-width:0;flex:0 1 170px}
 .dockexp #dockExpGo{flex:1;min-width:0}
 .dockexp #dockExpGo:disabled{opacity:.55}
+.ordstep{display:flex;align-items:center;gap:8px}
+.ordstep .olab{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--warn)}
+.ordstep .ostep{background:var(--surface);border-color:var(--warn)}
+.ordstep .ostep .q{min-width:40px}
+.ordstep .after{font-family:var(--f-mono);font-size:15px;font-weight:600;white-space:nowrap;color:var(--fg)}
+.ordstep .after small{font-size:12.5px;font-weight:400;color:var(--muted)}
+.ordstep .after .arr{color:var(--muted);margin-right:3px;font-family:var(--f-ui)}
+.ordstep .otop{display:contents}
+.ordstep .olab{order:1}.ordstep .ostep{order:2}.ordstep .after{order:3}
+@media (max-width:520px){.ordstep{flex-direction:column;align-items:stretch;gap:3px}.ordstep .otop{display:flex;justify-content:space-between;align-items:baseline;gap:6px}.ordstep .olab{font-size:11.5px}.ordstep .after{font-size:14px}.ordstep .ostep button{width:38px}.ordstep .ostep .q{min-width:34px}}
 .dockord{display:flex;gap:8px}
 .dockord #dockOrdGo{flex:1}
 .dockord #dockOrdGo:disabled{opacity:.55}
@@ -1366,7 +1376,7 @@ const when = t => t ? new Date(t).toLocaleString([], { month:"short", day:"numer
 let db = null, user = null, sample = null, downloads = null, canImages = false, readOnly = false, myId = null;
 let items = [], orders = [], logs = [], team = [], rules = { expDays: 60 }, supOrder = [], supReps = {}, supExtra = [], reps = [], supInfo = {}, openSups = new Set(), tab = "need", selected = new Set();
 const fromQty = new Map();
-const localQty = new Map(), saveTimers = new Map();
+const localQty = new Map(), saveTimers = new Map(), localOrd = new Map(), ordTimers = new Map();
 
 /* ---------- status ---------- */
 function sync(state, txt){ $("#dot").className = "dot " + state; $("#syncTxt").textContent = txt; }
@@ -1405,7 +1415,9 @@ function derive(it){
   it.manual = (num(it.orderReq) || 0) > 0;
   it.onOrder = !!it.ordered;
   it.need = (short || it.manual) && !it.ordered;
-  it.orderQty = it.need ? +Math.max(short && it.desired != null ? it.desired - it.qty : 0, short && it.is911 ? it.urgent - it.qty + 1 : 0, it.manual ? num(it.orderReq) : 0, 1).toFixed(2) : 0;
+  /* orderAmt: the amount someone set with the To order list's Order +/- (overrides the suggested amount until it's ordered) */
+  const pick = localOrd.has(it.id) ? localOrd.get(it.id) : num(it.orderAmt);
+  it.orderQty = it.need && pick > 0 ? pick : it.need ? +Math.max(short && it.desired != null ? it.desired - it.qty : 0, short && it.is911 ? it.urgent - it.qty + 1 : 0, it.manual ? num(it.orderReq) : 0, 1).toFixed(2) : 0;
   const d = parseExp(it.exp), t0 = new Date(); t0.setHours(0, 0, 0, 0);
   it.expDays = d ? Math.round((d - t0) / 864e5) : null;
   it.expiring = it.expDays != null && it.expDays <= (rules.expDays ?? 60);
@@ -1707,6 +1719,27 @@ document.addEventListener("change", e => {
   document.getElementById(s.value)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   s.value = "";
 });
+/* To order list: how many to order, with +/-, and where stock ends up after that order (on hand + order / desired reserve) */
+const afterHtml = i => `${fmtQ((i.qty ?? 0) + i.orderQty)}<small>/${fmtQ(i.desired)}</small>`;
+function ordStep(i){
+  return `<div class="ordstep"><span class="otop"><span class="olab">Order</span><span class="after" title="On hand after this order arrives / desired reserve (now ${fmtQ(i.qty)} on hand)"><span class="arr" aria-hidden="true">→</span>${afterHtml(i)}</span></span><div class="step ostep" id="os-${esc(i.id)}"><button type="button" data-od="-1" aria-label="Order one less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.orderQty)}</span><button type="button" data-od="1" aria-label="Order one more" ${readOnly ? "disabled" : ""}>+</button></div></div>`;
+}
+function bumpOrd(it, d){
+  if (!needMe()) return;
+  const from = it.orderQty, n = Math.max(1, +(from + d).toFixed(2));
+  if (n === from) return;
+  localOrd.set(it.id, n); derive(it);
+  const os = document.getElementById("os-" + it.id);
+  if (os) { os.querySelector(".q").textContent = fmtQ(n); os.className = "step ostep saving"; const af = os.closest(".ordstep").querySelector(".after"); if (af) af.innerHTML = `<span class="arr" aria-hidden="true">→</span>${afterHtml(it)}`; }
+  if (!ordTimers.has(it.id)) ordTimers.set(it.id, { from, t: 0 });
+  const tm = ordTimers.get(it.id); clearTimeout(tm.t);
+  tm.t = setTimeout(async () => {
+    ordTimers.delete(it.id); sync("busy", "Saving…");
+    try { await write(it.id, { orderAmt: n }); logIt("Order amount", it, `${fmtQ(tm.from)} → ${fmtQ(n)}${it.units ? " × " + it.units : ""}`); sync("ok", "Saved"); const o = document.getElementById("os-" + it.id); if (o) o.className = "step ostep saved"; }
+    catch(e) { sync("err", "Not saved"); toast(dbErr(e)); }
+    finally { if (localOrd.get(it.id) === n) localOrd.delete(it.id); setTimeout(render, 600); }
+  }, 800);
+}
 function rowHtml(i, withChk){
   const openNow = typeof curItem !== "undefined" && curItem?.id === i.id && document.querySelector("#overlay .panel.item") ? " open-now" : "";
   return `<div class="row ${stockCls(i)}${openNow}" data-id="${esc(i.id)}">
@@ -1715,7 +1748,7 @@ function rowHtml(i, withChk){
       <div class="nm">${pills(i, true)}${esc(i.name)}</div>
       <div class="meta">${i.countedAt ? `<span class="cntd" title="Last counted ${esc(when(i.countedAt))}${i.countedBy ? " by " + esc(i.countedBy) : ""}">✓ Counted ${esc(shortDate(i.countedAt))}${i.countedBy ? ` by <span class="init">${esc(i.countedBy)}</span>` : ""}</span>` : ""}${i.cat ? `<span class="catpath">${esc(i.cat)}${i.sub ? " › " + esc(i.sub) : ""}</span>` : ""}${i.loc ? `<span>${esc(i.loc)}</span>` : ""}${i.supplier ? `<span>${esc(i.supplier)}</span>` : ""}${i.units ? `<span>${esc(i.units)}</span>` : ""}${i.sku ? `<span class="pill p-sku">${esc(i.sku)}</span>` : ""}</div>
     </div></div>
-    <div class="rside">${i.need ? `<span class="pill p-need ordamt" title="How many to order">Order ${fmtQ(i.orderQty)}</span>` : ""}${i.link ? `<a class="golink" href="${esc(webHref(i.link))}" target="_blank" rel="noopener" title="Open the product page${i.supplier ? " on " + esc(i.supplier) : ""}" aria-label="Open the product page for ${esc(i.name)}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>` : ""}<div class="step" id="st-${esc(i.id)}"><button type="button" data-d="-1" aria-label="One less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.qty)}<small>/${fmtQ(i.desired)}</small></span><button type="button" data-d="1" aria-label="One more" ${readOnly ? "disabled" : ""}>+</button></div></div>
+    <div class="rside">${i.need && tab !== "need" ? `<span class="pill p-need ordamt" title="How many to order">Order ${fmtQ(i.orderQty)}</span>` : ""}${i.link ? `<a class="golink" href="${esc(webHref(i.link))}" target="_blank" rel="noopener" title="Open the product page${i.supplier ? " on " + esc(i.supplier) : ""}" aria-label="Open the product page for ${esc(i.name)}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></a>` : ""}${tab === "need" && i.need ? ordStep(i) : `<div class="step" id="st-${esc(i.id)}"><button type="button" data-d="-1" aria-label="One less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.qty)}<small>/${fmtQ(i.desired)}</small></span><button type="button" data-d="1" aria-label="One more" ${readOnly ? "disabled" : ""}>+</button></div>`}</div>
   </div>`;
 }
 /* ---- inventory counts: select a whole location / category / supplier, mark it counted, and it's logged with the date ---- */
@@ -2124,6 +2157,8 @@ $("#view").addEventListener("click", e => {
   if (e.target.closest(".golink")) return; /* product page link opens on its own */
   const row = e.target.closest(".row"); if (!row) return;
   const it = byId(row.dataset.id); if (!it) return;
+  const ob = e.target.closest(".ostep button");
+  if (ob) { bumpOrd(it, +ob.dataset.od); return; }
   const b = e.target.closest(".step button");
   if (b) { bumpQty(it, +b.dataset.d); return; }
   if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.textContent = `Mark ${selected.size || ""} ordered`; } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.textContent = `Mark ${selected.size || ""} received`; } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
@@ -2195,7 +2230,7 @@ async function markOrdered(list){
   const lines = list.map(i => ({ id: i.id, name: i.name, qty: i.orderQty, units: i.units || "", supplier: i.supplier || "" }));
   let ok = 0;
   for (const it of list) {
-    try { await write(it.id, { ordered: today(), orderedQty: it.orderQty, orderReq: 0 }); logIt("Ordered", it, `${fmtQ(it.orderQty)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""}`); ok++; }
+    try { await write(it.id, { ordered: today(), orderedQty: it.orderQty, orderReq: 0, orderAmt: 0 }); logIt("Ordered", it, `${fmtQ(it.orderQty)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""}`); ok++; }
     catch(e) { toast(dbErr(e)); break; }
   }
   if (ok < list.length) sync("err", "Not all saved");
@@ -2209,7 +2244,7 @@ async function markReceivedMany(list){
   let ok = 0;
   for (const it of list) {
     const got = num(it.orderedQty) || it.orderQty || 0, now = (it.qty ?? 0) + got;
-    try { await write(it.id, { qty: now, ordered: "", orderedQty: 0, lastReceived: today() }); logIt("Received", it, `+${fmtQ(got)}, now ${fmtQ(now)} on hand`); ok++; }
+    try { await write(it.id, { qty: now, ordered: "", orderedQty: 0, orderAmt: 0, lastReceived: today() }); logIt("Received", it, `+${fmtQ(got)}, now ${fmtQ(now)} on hand`); ok++; }
     catch(e) { toast(dbErr(e)); break; }
   }
   if (ok) Sfx.play("receive");
@@ -2218,7 +2253,7 @@ async function markReceivedMany(list){
 async function markReceived(it, got){
   if (!needMe()) return;
   sync("busy", "Saving…");
-  try { await write(it.id, { qty: (it.qty ?? 0) + got, ordered: "", orderedQty: 0, lastReceived: today() }); logIt("Received", it, `+${fmtQ(got)}, now ${fmtQ((it.qty ?? 0) + got)} on hand`); Sfx.play("receive"); sync("ok", "Saved"); closePanel(); toast(`Added ${fmtQ(got)} to ${it.name}`); }
+  try { await write(it.id, { qty: (it.qty ?? 0) + got, ordered: "", orderedQty: 0, orderAmt: 0, lastReceived: today() }); logIt("Received", it, `+${fmtQ(got)}, now ${fmtQ((it.qty ?? 0) + got)} on hand`); Sfx.play("receive"); sync("ok", "Saved"); closePanel(); toast(`Added ${fmtQ(got)} to ${it.name}`); }
   catch(e) { sync("err", "Not saved"); toast(dbErr(e)); }
 }
 
@@ -3558,7 +3593,7 @@ async function openItem(it, prefill){
   $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
   $("#countBtn") && ($("#countBtn").onclick = () => saveItem(it, { count: true }));
-  $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
+  $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0, orderAmt: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
   $("#saveBtn").onclick = () => saveItem(it);
   reopen = () => openItem(it, prefill);
   markOpenRow(it.id); placeDock(); requestAnimationFrame(placeDock);
@@ -4176,8 +4211,8 @@ async function docApply(rows, D, r, sup){
         const patch = {}, said = [];
         if (price && num(it.unitCost) !== pr) { patch.unitCost = price; said.push(`price ${it.unitCost || "–"} → ${price}`); }
         if (l.sku && !clean(it.sku)) { patch.sku = l.sku; said.push("SKU " + l.sku); }
-        if (mode === "receive" && q > 0) { Object.assign(patch, { qty: (it.qty ?? 0) + q, ordered: "", orderedQty: 0, lastReceived: today() }); }
-        if (mode === "ordered" && q > 0) { Object.assign(patch, { ordered: ordDate, orderedQty: q, orderReq: 0 }); }
+        if (mode === "receive" && q > 0) { Object.assign(patch, { qty: (it.qty ?? 0) + q, ordered: "", orderedQty: 0, orderAmt: 0, lastReceived: today() }); }
+        if (mode === "ordered" && q > 0) { Object.assign(patch, { ordered: ordDate, orderedQty: q, orderReq: 0, orderAmt: 0 }); }
         if (!Object.keys(patch).length) continue;
         await write(it.id, patch);
         if (mode === "receive" && q > 0) { logIt("Received", it, `+${fmtQ(q)}, now ${fmtQ((it.qty ?? 0) + q)} on hand (from ${src})`); recv++; }

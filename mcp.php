@@ -210,7 +210,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
         case 'add_to_order_list': {
             $id = (string)($a['id'] ?? ''); $it = item_or_fail($pdo, $id); $w = who($a);
             $q = max(0, (float)(numv($a['qty'] ?? null) ?? 0));
-            $it = array_merge($it, ['orderReq' => $q, 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
+            $it = array_merge($it, ['orderReq' => $q, 'orderAmt' => 0, 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
             save($pdo, 'items', $id, $it);
             logit($pdo, $q > 0 ? 'Added to order list' : 'Removed from order list', $id, $it['name'] ?? '', $q > 0 ? 'Order ' . fmtq($q) . ' (from Claude)' : 'from Claude', $w);
             return text_result(['id' => $id, 'orderReq' => $q]);
@@ -220,7 +220,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             foreach ((array)($a['items'] ?? []) as $row) {
                 $id = (string)($row['id'] ?? ''); $it = item_or_fail($pdo, $id);
                 $q = numv($row['qty'] ?? null) ?? derive($it, $ed)['orderQty']; if (!$q) $q = 1;
-                $it = array_merge($it, ['ordered' => today_str(), 'orderedQty' => $q, 'orderReq' => 0, 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
+                $it = array_merge($it, ['ordered' => today_str(), 'orderedQty' => $q, 'orderReq' => 0, 'orderAmt' => 0, 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
                 save($pdo, 'items', $id, $it);
                 logit($pdo, 'Ordered', $id, $it['name'] ?? '', fmtq($q) . (!empty($it['units']) ? ' × ' . $it['units'] : '') . (!empty($it['supplier']) ? ' from ' . $it['supplier'] : ''), $w);
                 $lines[] = ['id' => $id, 'name' => $it['name'] ?? '', 'qty' => $q, 'units' => $it['units'] ?? '', 'supplier' => $it['supplier'] ?? ''];
@@ -235,7 +235,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $got = numv($a['qty'] ?? null) ?? (numv($it['orderedQty'] ?? null) ?: derive($it, exp_days($pdo))['orderQty']);
             if (!$got || $got <= 0) throw new RuntimeException('How many arrived? Give qty.');
             $now = (numv($it['qty'] ?? null) ?? 0) + $got;
-            $it = array_merge($it, ['qty' => $now, 'ordered' => '', 'orderedQty' => 0, 'lastReceived' => today_str(), 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
+            $it = array_merge($it, ['qty' => $now, 'ordered' => '', 'orderedQty' => 0, 'orderAmt' => 0, 'lastReceived' => today_str(), 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
             save($pdo, 'items', $id, $it);
             logit($pdo, 'Received', $id, $it['name'] ?? '', '+' . fmtq($got) . ', now ' . fmtq($now) . ' on hand', $w);
             return text_result(['id' => $id, 'received' => $got, 'onHand' => $now]);
