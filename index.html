@@ -604,6 +604,12 @@ body{margin:0}
 .pgrid tr.row{display:table-row;padding:0;border:0;gap:0}
 .pgrid tr.row > td{border-top:0}
 body.on-products main .wrap{max-width:1500px}
+body.on-products .filters{display:none!important}
+.pfilt{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pfilt input,.pfilt select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:0 10px;min-height:42px;font:inherit;font-size:15px;color:var(--fg);min-width:0}
+.pfilt input{flex:1 1 260px}
+.pfilt select{flex:0 1 190px}
+@media (max-width:640px){.pfilt select{flex:1 1 45%}}
 .pgrid td.glink .linkrow{gap:0;align-items:center}
 .pgrid td.glink input::placeholder{color:var(--accent);opacity:.8}
 .pgrid td.glink input:placeholder-shown + .gol{visibility:hidden}
@@ -1972,7 +1978,7 @@ function renderInner(){
   if (tab === "add") { if (!addBuilt) buildAddPage(); return; }
   const banner = (!me() || !team.includes(me())) && !readOnly ? `<div class="notice"><b>Who's logging?</b><span class="hint">Pick your initials next to "Logging as" at the top. This device remembers them, and every count, order and change is stamped with them.</span></div>` : "";
   if (tab === "log") { v.innerHTML = banner + logHtml(); wireLog(); return; }
-  if (tab === "products") { const ae = document.activeElement; if (ae?.closest?.("#pgrid") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + productsHtml(all); wireProducts(all); return; }
+  if (tab === "products") { const ae = document.activeElement; if (ae?.closest?.("#pgrid") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + productsHtml(items); wireProducts(all); return; }
   if (tab === "setup") { if (dragging) return; const ae = document.activeElement; if (ae?.closest?.("#view") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + setupHtml(); wireSetup(); return; }
   if (!items.length) {
     v.innerHTML = `<div class="list"><div class="empty"><b>No items yet.</b><br>Press <b>Add item</b> to add your first product. After that, <b>Scan to count</b> finds an item from a photo of its box so you can update the count.</div></div>`;
@@ -2055,13 +2061,43 @@ function renderInner(){
 /* ---------- products master list (grid editing) ---------- */
 const PCOLS = [["name","Item name","text",260],["link","Product / reorder link","text",240],["sku","SKU / catalog #","text",130],["units","Package size","text",130],["cat","Category","text",140,"dl-gcat"],["sub","Subcategory","text",130,"dl-gsub"],["loc","Storage location","text",130,"dl-gloc"],["supplier","Supplier","text",150,"dl-gsup"],["unitCost","Price","text",90],["qty","On hand","num",80],["desired","Desired reserve","num",90],["urgent","911 at","num",70],["exp","Expiration","text",110],["desc","Description","text",260],["notes","Notes","text",180]];
 let pSort = { k: "name", dir: 1 };
+/* Products editor's own search and filters (the header search is hidden here) */
+let pF = { q: "", sup: "", cat: "", loc: "", flag: "" };
+const P_FLAGS = [["nophoto", "Missing photo", i => !i.photo], ["nolink", "Missing reorder link", i => !clean(i.link)], ["noprice", "Missing price", i => num(i.unitCost) == null], ["nosku", "Missing SKU", i => !clean(i.sku)], ["nounits", "Missing package size", i => !clean(i.units)], ["nocat", "Missing category", i => !clean(i.cat)], ["low", "At or below reserve", i => i.qty != null && i.desired != null && i.qty <= i.desired], ["uncounted", "Not counted in 30 days", i => !i.countedAt || Date.now() - i.countedAt > 30 * 864e5]];
+function pMatch(i){
+  const q = keyOf(pF.q), fl = P_FLAGS.find(f => f[0] === pF.flag);
+  return (!pF.sup || keyOf(i.supplier) === pF.sup) && (!pF.cat || keyOf(i.cat) === pF.cat) && (!pF.loc || keyOf(i.loc) === pF.loc) && (!fl || fl[2](i)) &&
+    (!q || keyOf([i.name, i.sku, i.supplier, i.cat, i.sub, i.loc, i.units, i.notes, i.link].join(" ")).includes(q));
+}
+function pFilterBar(){
+  const opts = (vals, cur, label) => `<option value="">${label}</option>` + [...new Map(vals.filter(Boolean).map(v => [keyOf(v), v])).entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([k, v]) => `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(v)}</option>`).join("");
+  const on = pF.q || pF.sup || pF.cat || pF.loc || pF.flag;
+  return `<div class="pfilt"><input type="search" id="pq" placeholder="Search name, SKU, supplier, notes…" value="${esc(pF.q)}" autocomplete="off" aria-label="Search products">
+    <select id="pSup" aria-label="Supplier">${opts(items.map(i => i.supplier), pF.sup, "All suppliers")}</select>
+    <select id="pCat" aria-label="Category">${opts(items.map(i => i.cat), pF.cat, "All categories")}</select>
+    <select id="pLoc" aria-label="Location">${opts(items.map(i => i.loc), pF.loc, "All locations")}</select>
+    <select id="pFlag" aria-label="Show"><option value="">Show: everything</option>${P_FLAGS.map(([k, l, f]) => `<option value="${k}" ${k === pF.flag ? "selected" : ""}>${l} (${items.filter(f).length})</option>`).join("")}</select>
+    ${on ? `<button type="button" class="btn" id="pClear">Clear filters</button>` : ""}</div>`;
+}
+let pqT = 0;
+document.addEventListener("input", e => {
+  if (e.target.id !== "pq") return;
+  pF.q = e.target.value; clearTimeout(pqT);
+  pqT = setTimeout(() => { const pos = e.target.selectionStart; render(); const el = $("#pq"); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} } }, 220);
+});
+document.addEventListener("change", e => {
+  const k = { pSup: "sup", pCat: "cat", pLoc: "loc", pFlag: "flag" }[e.target.id]; if (!k) return;
+  pF[k] = e.target.value; render();
+});
+document.addEventListener("click", e => { if (e.target.closest?.("#pClear")) { pF = { q: "", sup: "", cat: "", loc: "", flag: "" }; render(); } });
 function productsHtml(all){
+  all = all.filter(pMatch);
   const list = all.slice().sort((a, b) => { const k = pSort.k, x = a[k] ?? "", y = b[k] ?? ""; return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * pSort.dir; });
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
-  return filterBar() + `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
+  return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
     <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n ? "" : "disabled"} title="${n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">✨ Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them">Merge 2</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">🗑 Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid">Export</button></div></div>
-    <div id="bulkSlot"></div><div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
+    ${pFilterBar()}<div id="bulkSlot"></div><div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
 }
