@@ -857,6 +857,10 @@ body.has-ordfloat{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 .docfile .pdfic{display:grid;place-items:center;background:var(--sunk);font-size:11px;font-weight:700}
 .docfile span:not(.pdfic){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .doclines{display:grid;gap:8px;margin:8px 0 12px}
+.docall{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);margin-top:6px}
+.docall label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.docall input{width:22px;height:22px;accent-color:var(--accent)}
+.docall .hint{margin:0}
 .docline{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .docline.off{opacity:.55}
 .docline .dchk{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--accent)}
@@ -3956,7 +3960,8 @@ function docReview(r){
   openPanel(`<div class="ph"><div><h2>Check what Claude found</h2><div class="lastby">${esc(head)}</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
     ${r.notes ? `<div class="notice"><span class="hint">⚠ ${esc(r.notes)}</span></div>` : ""}
     <div class="f full"><label for="docMode">What should this do?</label><select id="docMode">${Object.entries(DOC_MODES).map(([k, v]) => `<option value="${k}" ${k === mode0 ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
-    <p class="hint">Ticked lines are applied. Prices and missing SKUs are updated either way. Change the item if Claude matched the wrong one.</p>
+    <p class="hint">Ticked lines are applied. Change the item if Claude matched the wrong one.</p>
+    <div class="docall"><label><input type="checkbox" id="docAll"> <b>Select all</b></label><span class="hint" id="docCount"></span></div>
     <div class="doclines">${D.map((l, k) => `<div class="docline" data-k="${k}">
       <input type="checkbox" class="dchk" data-on aria-label="Apply this line">
       <div class="dmain">
@@ -3974,7 +3979,11 @@ function docReview(r){
     row.addEventListener("input", () => docChg(row, l, sup));
     row.addEventListener("change", () => docChg(row, l, sup));
   });
-  const all = () => rows.forEach(row => docChg(row, D[+row.dataset.k], sup));
+  const allBox = $("#docAll");
+  const tally = () => { const n = rows.filter(r => r.querySelector("[data-on]").checked).length; allBox.checked = n === rows.length; allBox.indeterminate = n > 0 && n < rows.length; $("#docCount").textContent = `${n} of ${rows.length} ticked`; const b = $("#docApply"); if (b) b.textContent = n ? `Apply ${n} line${n !== 1 ? "s" : ""}` : "Apply"; };
+  const all = () => { rows.forEach(row => docChg(row, D[+row.dataset.k], sup)); tally(); };
+  allBox.onchange = () => { rows.forEach(row => { row.querySelector("[data-on]").checked = allBox.checked; }); all(); };
+  rows.forEach(row => row.querySelector("[data-on]").addEventListener("change", tally));
   $("#docMode").onchange = all; all();
   $("#docApply").onclick = () => docApply(rows, D, r, sup);
 }
