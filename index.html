@@ -876,7 +876,9 @@ body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockAll[hidden]) .bulkbar{
 header .topright .tooltabs .tab[data-t="products"]{border-color:var(--pink);background:var(--pink-soft);color:var(--pink)}
 header .topright .tooltabs .tab[data-t="products"]:hover{border-color:var(--pink)}
 header .topright .tooltabs .tab[data-t="products"][aria-selected="true"]{background:var(--pink);border-color:var(--pink);color:var(--pink-fg)}
-body[data-view="products"]{--pg:var(--pink)}
+body[data-view="products"]{--pg:var(--pink);--pg-soft:var(--pink-soft);--pg-ink:var(--pink)}
+body[data-view="products"] main{background:color-mix(in srgb,var(--pink-soft) 55%,var(--bg));border-top:4px solid var(--pink);min-height:60vh}
+body[data-view="products"] .ptools .ptitle,body[data-view="products"] .ptools .ptitle + .hint{display:none}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
 body[data-view="need"]{--pg:var(--red);--pg-soft:var(--red-soft);--pg-ink:var(--red)}
 body[data-view="ordered"]{--pg:var(--ordc);--pg-soft:var(--ordc-soft);--pg-ink:var(--ordc)}
@@ -1904,6 +1906,7 @@ function pageHead(){
     need: ["To order", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
+    products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
     count: ["Inventory counter", `${n(i => i.countedAt)} of ${s(items.length)} counted`, "Count by supplier, category or location. Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
