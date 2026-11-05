@@ -1814,7 +1814,7 @@ function renderInner(){
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
-    const docBtn = window.HOSTED && sample && !readOnly ? `<button class="btn" type="button" data-docimp>📄 Receive from invoice</button>` : "";
+    const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>📄 Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p>${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
       <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
@@ -3884,12 +3884,52 @@ function askNewSupplier(fromPage, link){
 /* "Add item" first asks how: by link, from a SKU photo, or by hand. Each opens an Add page laid out for that path. */
 /* ---------- import an invoice, packing slip, order confirmation or screenshot (photos, screenshots, PDFs) ---------- */
 let docFiles = [];
+const docMax = () => window.HOSTED ? 8 : 4;
+const docB64 = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.onerror = () => rej(new Error("That file couldn't be read.")); fr.readAsDataURL(b); });
+/* Without the Supply Room server (the claude.ai version), Claude reads the pictures directly. */
+async function docReadLocal(files){
+  const cat = items.filter(i => i.name).map(i => [i.id, i.name, i.sku || "", i.supplier || "", i.units || ""].map(v => String(v).replace(/[|\n]/g, " ")).join(" | ")).join("\n");
+  const v = await sample.json(`These pictures or PDFs come from a dental office's supply ordering: an invoice, packing slip, order confirmation, quote, catalog page or a screenshot of a supplier's product or order page. Read every product line and match each one to our inventory below.
+
+Reply with one JSON object:
+{"kind": "invoice" | "packing_slip" | "order_confirmation" | "quote" | "product_page" | "order_history" | "other",
+ "supplier": "the supplier/seller's name as we'd write it (for example Henry Schein, Patterson, Benco, Amazon, Net32), or empty",
+ "date": "the document's order/invoice/ship date as YYYY-MM-DD, or empty",
+ "number": "invoice or order number, or empty",
+ "lines": [{
+   "desc": "the product description as printed, shortened to under 120 characters",
+   "sku": "the supplier's item/catalog number on the line, or empty",
+   "mfr": "the manufacturer's part number if separately shown, or empty",
+   "qty": number of packs on this line (for invoices and packing slips the quantity SHIPPED; for orders and confirmations the quantity ordered; for product pages and quotes 0 unless a quantity is shown),
+   "backordered": true if the line says backordered / not shipped / cancelled,
+   "pack": "the selling unit or package size the price and quantity refer to (for example Box of 100, Case of 10 boxes, Each), or empty",
+   "price": price for ONE of that selling unit after discounts, as a number, or null (never the line total unless qty is 1),
+   "match": "the id of our inventory item that is this same product, or empty if none is",
+   "sure": "yes" when the SKU matches or the name, maker and size clearly match; "maybe" when it's probably the same product; "no" when there is no good match,
+   "packDiffers": true if this line's selling unit is clearly different from the matched item's units (for example a case vs a box),
+   "name": "when there is no match: a short, clear inventory name for it; otherwise empty"
+ }],
+ "notes": "anything the office should check, in one short sentence, or empty"}
+
+Rules: skip shipping, tax, fees, discounts, totals and other non-product lines. Combine the same product listed twice on one document. Match by SKU first (ignore spaces, dashes and leading zeros), then by maker, product, size and shade. Different sizes, shades, gauges or strengths are different products. If several pages are of one document, treat them as one. Only use what the documents show; leave a field empty rather than guess.
+${NAME_RULE}
+
+OUR INVENTORY (id | name | SKU | supplier | units):
+${cat}`, { images: files.map(f => f.blob) });
+  const ids = new Set(items.map(i => i.id)), n = x => { const k = num(x); return k != null && k >= 0 ? k : null; };
+  const kinds = ["invoice", "packing_slip", "order_confirmation", "quote", "product_page", "order_history", "other"];
+  return { kind: kinds.includes(v?.kind) ? v.kind : "other", supplier: clean(v?.supplier), date: /^\d{4}-\d{2}-\d{2}$/.test(v?.date || "") ? v.date : "", number: clean(v?.number), notes: clean(v?.notes),
+    lines: (Array.isArray(v?.lines) ? v.lines : []).filter(l => l && typeof l === "object").map(l => { const m = ids.has(String(l.match || "")) ? String(l.match) : "";
+      return { desc: clean(l.desc).slice(0, 200), sku: clean(l.sku), mfr: clean(l.mfr), qty: n(l.qty) ?? 0, backordered: !!l.backordered, pack: clean(l.pack), price: n(l.price) != null ? Math.round(n(l.price) * 100) / 100 : null,
+        match: m, sure: !m ? "no" : (["yes", "maybe"].includes(l.sure) ? l.sure : "maybe"), packDiffers: !!m && !!l.packDiffers, name: clean(l.name) }; }) };
+}
 const DOC_MODES = { receive: "Mark received (add to stock)", ordered: "Mark ordered", prices: "Only update prices and details" };
 async function docPrep(file){
   const t = (file.type || "").toLowerCase();
   if (t === "application/pdf" || /\.pdf$/i.test(file.name || "")) {
+    if (!window.HOSTED) throw new Error("PDFs can only be read on the Hostinger Supply Room. Here, use photos or screenshots of the pages.");
     if (file.size > 12 * 1024 * 1024) throw new Error(`${file.name || "That PDF"} is too big (over 12 MB).`);
-    return { type: "application/pdf", data: await TDC.b64(file), label: file.name || "PDF", pdf: true };
+    return { type: "application/pdf", data: await docB64(file), label: file.name || "PDF", pdf: true };
   }
   if (!/^image\//.test(t) && !/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name || "")) throw new Error(`${file.name || "That file"} isn't a photo, screenshot or PDF.`);
   let blob = file;
@@ -3901,20 +3941,20 @@ async function docPrep(file){
     blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.86)) || file;
   } catch {}
   if (!/^image\/(jpeg|png|webp|gif)$/.test(blob.type)) throw new Error(`${file.name || "That picture"} couldn't be read. Try a JPEG or PNG.`);
-  return { type: blob.type, data: await TDC.b64(blob), label: file.name || "Picture", url: URL.createObjectURL(blob) };
+  return { type: blob.type, data: await docB64(blob), label: file.name || "Picture", blob, url: URL.createObjectURL(blob) };
 }
 function openDocImport(){
   if (!needMe()) return;
-  if (!sample || !window.TDC?.readDoc) { toast("Reading documents needs Claude, which isn't set up on this server"); return; }
+  if (!sample || !(window.HOSTED ? window.TDC?.readDoc : canImages)) { toast(window.HOSTED ? "Reading documents needs Claude, which isn't set up on this server" : "Reading documents needs Claude, which isn't available here"); return; }
   docFiles = [];
   openPanel(`<div class="ph"><div><h2>Import invoice or screenshot</h2><div class="lastby">Invoices, packing slips, order confirmations, quotes or screenshots of a supplier page</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
-    <label class="docdrop" id="docDrop"><input type="file" id="docIn" accept="image/*,application/pdf,.pdf" multiple hidden><span class="pk-ic">📄</span><span><b>Choose photos, screenshots or PDFs</b><small>Or drag them here, or paste a screenshot (Ctrl/⌘+V). Up to 8 files; several pages of one invoice are fine.</small></span></label>
+    <label class="docdrop" id="docDrop"><input type="file" id="docIn" accept="${window.HOSTED ? "image/*,application/pdf,.pdf" : "image/*"}" multiple hidden><span class="pk-ic">📄</span><span><b>Choose photos, screenshots or PDFs</b><small>Or drag them here, or paste a screenshot (Ctrl/⌘+V). Up to ${docMax()} files; several pages of one invoice are fine.${window.HOSTED ? "" : " PDFs only work on the Hostinger Supply Room."}</small></span></label>
     <div class="docfiles" id="docList"></div>
     <p class="hint" id="docStat" role="status"></p>
     <div class="actions"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="docGo" type="button" disabled>Read with Claude</button></div>`);
   const add = async list => {
     for (const f of list) {
-      if (docFiles.length >= 8) { toast("Up to 8 files at a time"); break; }
+      if (docFiles.length >= docMax()) { toast(`Up to ${docMax()} files at a time`); break; }
       try { docFiles.push(await docPrep(f)); } catch(e) { toast(e.message); }
     }
     drawDocFiles();
@@ -3939,7 +3979,7 @@ async function runDocRead(){
   go.disabled = true; go.textContent = "Reading…";
   stat.textContent = `Claude is reading ${docFiles.length > 1 ? "the files" : "it"} and matching each line to your items. This can take up to a minute${docFiles.some(f => f.pdf) ? " or two for long PDFs" : ""}.`;
   try {
-    const r = await TDC.readDoc(docFiles.map(f => ({ type: f.type, data: f.data })), { nameRule: NAME_RULE });
+    const r = window.HOSTED ? await TDC.readDoc(docFiles.map(f => ({ type: f.type, data: f.data })), { nameRule: NAME_RULE }) : await docReadLocal(docFiles);
     if (!r.lines?.length) { stat.textContent = "Claude didn't find any product lines. Try a clearer photo, or a screenshot of the whole order."; go.disabled = false; go.textContent = "Read with Claude"; return; }
     docReview(r);
   } catch(e) {
@@ -4064,7 +4104,7 @@ function addChooser(){
       <button type="button" class="pickcard" data-addmode="manual"><span class="pk-ic">✍️</span><span><b>Add manually</b><small>Type in the details yourself, with optional photos.</small></span></button>
     </div>`);
   document.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => openNew({ mode: b.dataset.addmode }));
-  const di = $("#overlay [data-docimp]"); if (di) di.hidden = !(window.HOSTED && sample);
+  const di = $("#overlay [data-docimp]"); if (di) di.hidden = !(sample && (window.HOSTED || canImages));
 }
 
 $("#cam").addEventListener("change", e => { const f = e.target.files?.[0]; if (f) scanFile(f); });

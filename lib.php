@@ -722,11 +722,20 @@ function apify_page_run(string $url, string $tool, int $secs, bool $residential 
 /* ---------- finding a product page by name / SKU (web search through Apify's RAG Web Browser) ---------- */
 // $q: name, sku, supplier, site (the supplier's web address, e.g. henryschein.com)
 function find_product_page(array $q, array $ctx = []): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
     $name = trim((string)($q['name'] ?? '')); $sku = trim((string)($q['sku'] ?? '')); $sup = trim((string)($q['supplier'] ?? ''));
     $site = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($q['site'] ?? ''))));
     $site = preg_replace('#/.*$#', '', $site);
     if ($name === '' && $sku === '') return ['ok' => false, 'error' => 'no_match', 'message' => 'Give a product name or SKU to look up.'];
+    // Henry Schein: the product page address is just the item number (900-7438 -> /p/x/9007438), so go straight there.
+    $hsNum = preg_replace('/[\s\-\.\/_]+/', '', $sku);
+    if (preg_match('/^\d{6,8}$/', $hsNum) && (stripos($sup, 'schein') !== false || str_contains($site, 'henryschein'))) {
+        $direct = read_product_link('https://www.henryschein.com/en-us/p/x/' . $hsNum, $ctx);
+        if ($direct['ok'] && preg_replace('/\D/', '', (string)($direct['sku'] ?? '')) === $hsNum) {
+            $direct['note'] = trim('Opened Henry Schein\'s page for item ' . $sku . '. ' . ($direct['note'] ?? ''));
+            return $direct;
+        }
+    }
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.
     $bare = preg_replace('/[\s\-\.\/_]+/', '', $sku);
