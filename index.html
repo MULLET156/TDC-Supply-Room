@@ -3499,7 +3499,8 @@ async function openItem(it, prefill){
   else if (tab === "exp" && it.expiring) main = expBtn;
   else if (it.onOrder) side = rcvBtn(false);
   else if (it.need) side = ordBtn(false);
-  const countB = `<button class="btn${main ? " cntsec" : " pri big"}" id="countBtn" type="button">Save count</button>`;
+  /* opened from To order, the item is about ordering: no Save count there (a changed count still saves with Save changes) */
+  const countB = tab === "need" && main ? "" : `<button class="btn${main ? " cntsec" : " pri big"}" id="countBtn" type="button">Save count</button>`;
   const primary = `<div class="iact main${main ? "" : " countfirst"}">${main ? main + countB : countB + side}</div>
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
   openPanel(`<div class="ph ihead">
@@ -3556,7 +3557,7 @@ async function openItem(it, prefill){
   $("#expNone") && ($("#expNone").onclick = () => saveExp(""));
   $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
-  $("#countBtn").onclick = () => saveItem(it, { count: true });
+  $("#countBtn") && ($("#countBtn").onclick = () => saveItem(it, { count: true }));
   $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
   $("#saveBtn").onclick = () => saveItem(it);
   reopen = () => openItem(it, prefill);
