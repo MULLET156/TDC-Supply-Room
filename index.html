@@ -837,6 +837,25 @@ body:has(#scanBtn[hidden]):has(#dockOrd[hidden]):has(#dockExp[hidden]):has(#dock
 .dockexp #dockExpDate{border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:0 10px;min-height:50px;font:inherit;font-size:15px;min-width:0;flex:0 1 170px}
 .dockexp #dockExpGo{flex:1;min-width:0}
 .dockexp #dockExpGo:disabled{opacity:.55}
+/* ===== which page you're on: page color, title, selected tile ===== */
+body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
+body[data-view="need"]{--pg:var(--red);--pg-soft:var(--red-soft);--pg-ink:var(--red)}
+body[data-view="ordered"]{--pg:var(--yel);--pg-soft:var(--yel-soft);--pg-ink:var(--yel-ink)}
+body[data-view="exp"]{--pg:var(--warn);--pg-soft:var(--warn-soft);--pg-ink:var(--warn)}
+body[data-view="sups"],body[data-view="cats"],body[data-view="locs"]{--pg:var(--accent);--pg-soft:var(--accent-soft);--pg-ink:var(--accent)}
+.pagehead{display:grid;grid-template-columns:auto 1fr;align-items:baseline;column-gap:12px;row-gap:2px;padding:10px 14px;border-radius:12px;background:var(--pg-soft,var(--sunk));border-left:7px solid var(--pg,var(--accent))}
+.pagehead h2{margin:0;font-family:"Archivo","Arial Narrow",system-ui,sans-serif;font-stretch:85%;font-weight:800;font-size:clamp(22px,4.5vw,28px);line-height:1.05;color:var(--pg-ink,var(--fg))}
+.pagehead .phn{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--pg-ink,var(--muted));justify-self:end}
+.pagehead p{grid-column:1/-1;margin:0;font-size:13px;color:var(--fg);opacity:.85}
+body[data-view] header{border-bottom-color:var(--pg,var(--accent))}
+body[data-view="all"] main,body[data-view="need"] main,body[data-view="ordered"] main,body[data-view="exp"] main,body[data-view="sups"] main,body[data-view="cats"] main,body[data-view="locs"] main{background:color-mix(in srgb,var(--pg-soft) 55%,var(--bg));border-top:4px solid var(--pg);min-height:60vh}
+.tabs-main .tab{position:relative;transition:opacity .15s}
+.tabs-main:has(.tab[aria-selected="true"]) .tab[aria-selected="false"]{opacity:.5}
+.tabs-main:has(.tab[aria-selected="true"]) .tab[aria-selected="false"]:hover{opacity:.85}
+.tabs-main .tab[aria-selected="true"]{box-shadow:0 0 0 3px var(--surface),0 0 0 6px var(--fg);z-index:1}
+.tabs-main .tab[aria-selected="true"]::after{content:"";position:absolute;left:50%;bottom:-15px;transform:translateX(-50%);border:8px solid transparent;border-top-color:var(--fg)}
+@media (max-width:520px){.tabs-main .tab[aria-selected="true"]{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--fg)}.tabs-main .tab[aria-selected="true"]::after{bottom:-12px;border-width:6px}.pagehead{padding:8px 12px}.pagehead p{font-size:12.5px}}
+#view .intro{display:none}  /* the page title above says it */
 .ordstep{display:flex;align-items:center;gap:8px}
 .ordstep .olab{font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--warn)}
 .ordstep .ostep{background:var(--surface);border-color:var(--warn)}
@@ -1171,6 +1190,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false">Expiring <span class="n" id="n-exp">–</span></button>
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><span class="n" aria-hidden="true">🔢</span><span class="cl">Inventory counter</span></button>
     </div>
+    <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
     <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
       <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
@@ -1816,7 +1836,22 @@ function bySupplier(list){
   const g = new Map(); list.forEach(i => { const k = i.supplier || "No supplier listed"; if(!g.has(k)) g.set(k, []); g.get(k).push(i); });
   return [...g.entries()].sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
 }
-function render(){ renderInner(); updateBulk(); try { syncFToggle(); } catch {} }
+function render(){ renderInner(); updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} }
+/* Which page you're on: a title in the page's color under the tiles (the page also takes on that color) */
+function pageHead(){
+  document.body.dataset.view = tab;
+  const n = f => items.filter(f).length, s = k => `${k} item${k === 1 ? "" : "s"}`;
+  const P = {
+    all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list or mark them counted."],
+    need: ["To order", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
+    ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
+    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Tick what you've replaced and set the new date.`],
+    count: ["Inventory counter", `${n(i => i.countedAt)} of ${s(items.length)} counted`, "Count by supplier, category or location. Tick what you've counted, then Mark counted."]
+  }[CNT_MODES.includes(tab) ? "count" : tab];
+  const h = $("#pageHead"); if (!h) return;
+  h.hidden = !P; if (!P) return;
+  $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1]; $("#phSub").textContent = P[2];
+}
 /* On To order / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
@@ -1942,7 +1977,7 @@ function renderInner(){
     const urg = list.filter(i => i.is911);
     const slot911 = $("#alertSlot");
     if (slot911) slot911.innerHTML = "";
-    v.innerHTML = banner + `<div class="ordbar"><p>${list.length} item${list.length>1?"s":""} to order, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
+    v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} to order, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
       <div class="actions"><button class="btn" type="button" data-addorder>➕ Add to list</button><button class="btn" id="copyList" type="button">Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
@@ -1958,7 +1993,7 @@ function renderInner(){
     const list = all.filter(i=>i.onOrder);
     const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>📄 Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
-    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p>${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
+    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
       <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp">${esc(s)}<span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
       : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
@@ -2000,13 +2035,13 @@ function renderInner(){
     const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allX = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p>Expired or expiring within ${rules.expDays ?? 60} days. Replaced some? Tick them, pick the new date at the bottom and press <b>Set new date</b>. Or tap <b>Replaced</b> on one item.</p>${readOnly ? "" : `<div class="actions"><button class="btn" id="selAllExp" type="button">${allX ? "Clear all" : "Select all"}</button></div>`}</div><div class="list">${list.map(i=>rowHtml(i,!readOnly)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
+    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">Expired or expiring within ${rules.expDays ?? 60} days. Replaced some? Tick them, pick the new date at the bottom and press <b>Set new date</b>. Or tap <b>Replaced</b> on one item.</p>${readOnly ? "" : `<div class="actions"><button class="btn" id="selAllExp" type="button">${allX ? "Clear all" : "Select all"}</button></div>`}</div><div class="list">${list.map(i=>rowHtml(i,!readOnly)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
     $("#selAllExp") && ($("#selAllExp").onclick = () => { if (allX) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
   } else {
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p>Tick items, then use the buttons at the bottom to add them to the order list or mark them counted.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
+    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p class="intro">Tick items, then use the buttons at the bottom to add them to the order list or mark them counted.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     $("#selShown") && ($("#selShown").onclick = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
 
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
