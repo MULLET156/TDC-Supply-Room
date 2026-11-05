@@ -241,7 +241,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             return text_result(['id' => $id, 'received' => $got, 'onHand' => $now]);
         }
         case 'read_product_page': {
-            $r = read_product_link((string)($a['url'] ?? ''));
+            $r = read_product_link((string)($a['url'] ?? ''), [], true);  // the connector has to answer quickly: skip Apify's slow full browser
             if (!$r['ok']) throw new RuntimeException($r['message']);
             if ($r['photo']) { $r['photoFound'] = true; unset($r['photo']); }
             return text_result($r);

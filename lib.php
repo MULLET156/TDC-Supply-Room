@@ -453,7 +453,7 @@ function fetch_image(string $url): ?array {
  * Reads a supplier's product page and returns what the Add item page fills in:
  * names[], sku, mfrNumber, price, units, description, supplier, url, photo (type + base64), note.
  */
-function read_product_link(string $url, array $ctx = []): array {
+function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $am = amazon_url($url);
     if ($am !== null && apify_ready()) {
         // Amazon blocks servers from reading its pages, so Amazon links go through Apify's Amazon scraper.
@@ -465,7 +465,7 @@ function read_product_link(string $url, array $ctx = []): array {
         $looksBlocked = !$page['ok'] ? in_array($page['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($page['body']);
         if ($looksBlocked && apify_ready()) {
             // The site turned the server away: open it in a real browser through Apify instead.
-            $got = apify_page($url);
+            $got = apify_page($url, $quick);
             if (!$got['ok']) return $got;
             $page = ['ok' => true, 'body' => $got['html'], 'url' => $got['url'], 'type' => 'text/html'];
         } elseif (!$page['ok']) {
@@ -635,14 +635,24 @@ function bot_wall(string $html): bool {
 }
 
 /* Any blocked page, opened in a real browser by Apify's RAG Web Browser (apify/rag-web-browser). */
-function apify_page(string $url): array {
-    @set_time_limit(200);
+function apify_page(string $url, bool $quick = false): array {
+    // First a quick plain fetch through Apify's proxies (a few seconds); only if that is
+    // blocked too, a full browser (slower, 30-60 seconds). $quick skips the browser.
+    $r = apify_page_run($url, 'raw-http', 40);
+    if ($r['ok'] || $quick) return $r;
+    $b = apify_page_run($url, 'browser-playwright', 110);
+    return $b['ok'] ? $b : $r;
+}
+function apify_page_run(string $url, string $tool, int $secs): array {
+    @set_time_limit($secs + 40);
     $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
-    $input = ['query' => $url, 'maxResults' => 1, 'outputFormats' => ['html'], 'scrapingTool' => 'browser-playwright',
-              'htmlTransformer' => 'none', 'removeCookieWarnings' => true, 'dynamicContentWaitSecs' => 5, 'maxRequestRetries' => 1];
-    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=120&format=json&clean=true');
+    $input = ['query' => $url, 'maxResults' => 1, 'outputFormats' => ['html'], 'scrapingTool' => $tool,
+              'htmlTransformer' => 'none', 'removeCookieWarnings' => true, 'maxRequestRetries' => 1,
+              'proxyConfiguration' => ['useApifyProxy' => true]];
+    if ($tool !== 'raw-http') $input['dynamicContentWaitSecs'] = 5;
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=' . $secs . '&format=json&clean=true');
     curl_setopt_array($ch, [
-        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 140, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
     ]);
@@ -654,7 +664,7 @@ function apify_page(string $url): array {
     $j = json_decode((string)$res, true);
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
-        error_log("tdc apify page: $code $m");
+        error_log("tdc apify page ($tool): $code $m");
         return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
             : ($code === 402 ? 'The Apify account is out of monthly credit.' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
     }
