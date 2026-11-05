@@ -74,6 +74,8 @@ define('APIFY_TOKEN', 'apify_api_…');
 
 Apify's free plan includes $5 of usage a month; one Amazon product costs well under a cent. Reading an Amazon link takes 20–60 seconds. Without the token, Amazon links only fill in the SKU (ASIN).
 
+The same token is the fallback for any other supplier site that blocks the server or shows a robot check (Net32, for example): the page is opened in a real browser by Apify's RAG Web Browser (`apify/rag-web-browser`) and read the same way. Sites that let the server in (Henry Schein, Safco, Blue Sky Bio…) are read directly, free and in a few seconds. Neither way is signed in to your supplier accounts, so account-only prices still don't come through.
+
 ### 7. Connect Claude (optional)
 1. Put a long random key in `config.php` as `MCP_KEY` (40 or more letters and numbers; a password manager's generator works).
 2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: `https://<your site>/mcp.php?key=<your MCP_KEY>`.

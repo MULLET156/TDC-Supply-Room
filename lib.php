@@ -462,20 +462,23 @@ function read_product_link(string $url, array $ctx = []): array {
         $f = $got['facts']; $finalUrl = $got['url'];
     } else {
         $page = http_get($url);
-        if (!$page['ok']) {
-            $blocked = in_array($page['code'] ?? 0, [401, 403, 429, 503], true);
-            return ['ok' => false, 'error' => $blocked ? 'blocked' : 'unreachable',
-                    'message' => $blocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
+        $looksBlocked = !$page['ok'] ? in_array($page['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($page['body']);
+        if ($looksBlocked && apify_ready()) {
+            // The site turned the server away: open it in a real browser through Apify instead.
+            $got = apify_page($url);
+            if (!$got['ok']) return $got;
+            $page = ['ok' => true, 'body' => $got['html'], 'url' => $got['url'], 'type' => 'text/html'];
+        } elseif (!$page['ok']) {
+            return ['ok' => false, 'error' => $looksBlocked ? 'blocked' : 'unreachable',
+                    'message' => $looksBlocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
+        } elseif ($looksBlocked) {
+            return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site showed a robot check instead of the product. Add APIFY_TOKEN to config.php to read sites like this.'];
         }
         if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
             return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
         }
         $f = page_facts($page['body'], $page['url']);
         $finalUrl = $page['url'];
-        // Amazon's "Continue shopping" robot check instead of the product
-        if ($am !== null && (stripos($page['body'], 'captcha') !== false || stripos($page['body'], 'Continue shopping') !== false) && stripos($page['body'], 'productTitle') === false) {
-            return ['ok' => false, 'error' => 'blocked', 'message' => 'Amazon didn\'t let the server read that page. Add APIFY_TOKEN to config.php to read Amazon links.'];
-        }
     }
     $res = ['url' => $finalUrl, 'pageTitle' => $f['title'], 'names' => [], 'sku' => '', 'mfrNumber' => '', 'price' => null,
             'units' => '', 'description' => $f['description'], 'supplier' => '', 'note' => '', 'photo' => null, 'photoNote' => ''];
@@ -621,4 +624,45 @@ function amazon_facts(string $url): array {
                       'offers' => is_numeric($pv) ? ['price' => (float)$pv] : null]],
         'text' => mb_substr("Amazon product data:\n" . $text, 0, 24000),
     ]];
+}
+
+/* Robot checks served with a normal "200 OK" (Cloudflare, Akamai, Amazon and similar). */
+function bot_wall(string $html): bool {
+    if (strlen($html) > 400000) return false;
+    $markers = ['cf-browser-verification', 'challenge-platform', 'Just a moment...', 'Attention Required! | Cloudflare', 'Access Denied</title>', '/_Incapsula_Resource', 'px-captcha', 'Robot or human?', 'Request unsuccessful. Incapsula', 'Type the characters you see in this image', 'api-services-support@amazon.com', 'Continue shopping'];
+    foreach ($markers as $m) if (stripos($html, $m) !== false) return stripos($html, 'productTitle') === false;
+    return false;
+}
+
+/* Any blocked page, opened in a real browser by Apify's RAG Web Browser (apify/rag-web-browser). */
+function apify_page(string $url): array {
+    @set_time_limit(200);
+    $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
+    $input = ['query' => $url, 'maxResults' => 1, 'outputFormats' => ['html'], 'scrapingTool' => 'browser-playwright',
+              'htmlTransformer' => 'none', 'removeCookieWarnings' => true, 'dynamicContentWaitSecs' => 5, 'maxRequestRetries' => 1];
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=120&format=json&clean=true');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 140, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
+    ]);
+    $res = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code < 200 || $code >= 300 || !is_array($j)) {
+        $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
+        error_log("tdc apify page: $code $m");
+        return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
+            : ($code === 402 ? 'The Apify account is out of monthly credit.' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
+    }
+    $it = array_is_list($j) ? ($j[0] ?? null) : $j;
+    $html = is_array($it) ? (string)($it['html'] ?? '') : '';
+    $status = is_array($it) ? (int)($it['crawl']['httpStatusCode'] ?? 200) : 0;
+    if ($html === '' || $status >= 400 || bot_wall($html)) {
+        return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site blocked the server, and Apify couldn\'t get past it either. Add it from the Claude desktop app instead.'];
+    }
+    return ['ok' => true, 'html' => $html, 'url' => (string)($it['metadata']['url'] ?? $url)];
 }
