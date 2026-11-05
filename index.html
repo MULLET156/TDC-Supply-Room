@@ -2272,7 +2272,7 @@ document.addEventListener("click", async e => {
   const g = id => clean($("#" + id)?.value), cur = g("e-name");
   if (!cur && !g("e-sku")) { toast("Type a name or SKU first"); return; }
   if (!sample) { toast("Name suggestions aren't available here"); return; }
-  b.disabled = true; b.textContent = "Thinking…";
+  const label = b.innerHTML; b.disabled = true; b.textContent = "Thinking…";
   try {
     const r = await sample.json(`Suggest clear inventory names for a dental office supply item. Current name: "${cur}". SKU: "${g("e-sku")}". Supplier: "${g("e-sup")}". Units: "${g("e-units")}". Category: "${g("e-cat")}". ${NAME_RULE} Reply with only one JSON object: {"options": ["best short name", "alternative name"]}`, { modelTier: "quick" });
     const opts = [[cur, "Keep current"]];
@@ -2280,7 +2280,7 @@ document.addEventListener("click", async e => {
     if (opts.length < 2) toast("The current name already looks good");
     else { const host = b.closest(".nmwrap") || $("#overlay .nmwrap") || $(".nmwrap"); openSec("det"); namePick(host, opts.filter(o => o[0])); host.scrollIntoView?.({ block: "center", behavior: "smooth" }); }
   } catch(err) { toast(err?.code === "rate_limited" ? "Too many at once. Try again in a moment." : "Couldn't get suggestions this time."); }
-  finally { b.disabled = false; b.textContent = "Suggest names"; }
+  finally { b.disabled = false; b.innerHTML = label; }
 });
 document.addEventListener("click", e => {
   const a = e.target.closest?.("[data-imgfind]"); if (!a) return;
@@ -3370,7 +3370,6 @@ async function openItem(it, prefill){
       <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">🔎 Look up ▾</button><button class="btn sm" type="button" id="editBtn">✏️ Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
       <button type="button" class="pmi" data-autoscrape>🔄 Update from supplier page <span class="aitag">✨ Claude</span></button>
-      <button type="button" class="pmi" data-suggestname>💡 Suggest names <span class="aitag">✨ Claude</span></button>
       <button type="button" class="pmi" data-pfill hidden id="pfillHidden">📋 Copy-and-paste update</button>
       <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">🔎 Search supplier ↗</a>
       <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">💲 Compare prices ↗</a>
