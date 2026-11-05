@@ -2125,7 +2125,7 @@ function renderInner(){
   }
 }
 /* ---------- products master list (grid editing) ---------- */
-const PCOLS = [["name","Item name","text",300],["link","Reorder link","text",136],["sku","SKU / catalog #","text",90],["units","Package size","text",125],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Storage location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the item window */
+const PCOLS = [["name","Item name","text",300],["link","Reorder link","text",136],["sku","SKU / catalog #","text",90],["units","Package size","text",125],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the item window */
 let pSort = { k: "name", dir: 1 };
 /* Products editor's own search and filters (the header search is hidden here) */
 let pF = { q: "", sup: "", cat: "", loc: "", flag: "" };
