@@ -1159,7 +1159,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'No product pages turned up.'];
-    $keep = array_map(fn($c) => $c + ['sure' => false], array_slice($cands, 0, 6));
+    $keep = []; $seenH = []; foreach ($cands as $c) { if (isset($seenH[$c['host']])) continue; $seenH[$c['host']] = 1; $keep[] = $c + ['sure' => false]; if (count($keep) >= 6) break; }
     if (ai_ready()) {
         $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
         $a = ai_json("A dental office wants to compare prices for this exact product: \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . ($sku !== '' ? " (their supplier's SKU $sku)" : '')

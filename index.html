@@ -4825,13 +4825,19 @@ function unitCount(pack){
   return /^(each|ea|1 each|single|unit|kit|bottle|vial|tube|syringe)\b/.test(s) ? 1 : null;
 }
 const perUnit = o => { const n = unitCount(o.pack), p = Number(o.price); return p > 0 && n ? p / n : null; };
-function upsertOffer(list, o){
-  const L = (Array.isArray(list) ? list : []).filter(x => x && !(keyOf(x.src) === keyOf(o.src) && (x.kind === "invoice") === (o.kind === "invoice")));
-  return [...L, o].slice(-20);
+/* one row per store: a new reading replaces the store's last one; when a check finds several pages at the same store
+   (Net32 lists the same product many times), only the cheapest is kept */
+const offerHost = o => { try { return new URL(webHref(o.url)).hostname.replace(/^www\./, ""); } catch { return ""; } };
+function upsertOffer(list, o, sameRun){
+  const same = x => (x.kind === "invoice") === (o.kind === "invoice") && (keyOf(x.src) === keyOf(o.src) || (o.url && x.url && offerHost(x) && offerHost(x) === offerHost(o)));
+  const L = Array.isArray(list) ? list.filter(Boolean) : [];
+  const old = L.find(same);
+  if (old && sameRun && (sameRun === "show" || old.run === sameRun) && Number(old.price) > 0 && !(Number(o.price) > 0 && Number(o.price) < Number(old.price))) return L;
+  return [...L.filter(x => !same(x)), o].slice(-20);
 }
 const KIND_LBL = { invoice: "Invoice", live: "Signed in", public: "Website", signin: "Website" };
 function offersFor(it){
-  const L = (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src);
+  let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
   if (cur != null && it.supplier && !L.some(o => keyOf(o.src) === keyOf(it.supplier) && Number(o.price) > 0 && Math.abs(Number(o.price) - cur) < .005)) L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: it.updatedAt || 0, sure: true, mine: true, url: it.link || "" });
   return L;
@@ -4899,7 +4905,7 @@ async function runPriceCheck(it, scope, opt = {}){
   const status = t => { if (opt.status) opt.status(t); else { const el = $("#pStatus"); if (el) el.textContent = t; } };
   if (!window.TDC?.priceSearch) { status("Price checks run on the Supply Room website (they need its server to read supplier pages)."); return false; }
   if (!opt.quiet && priceRun) { toast("A price check is already running"); return false; }
-  const run = priceRun = {}; const btns = ["#pCheck", "#pWeb"].map(s => $(s)).filter(Boolean); btns.forEach(b => b.disabled = true);
+  const run = priceRun = Date.now(); const btns = ["#pCheck", "#pWeb"].map(s => $(s)).filter(Boolean); btns.forEach(b => b.disabled = true);
   try {
     status(scope === "web" ? "Searching the web for this product…" : "Looking for this product at your suppliers…");
     const known = (Array.isArray(it.offers) ? it.offers : []).filter(o => o.url && o.at > Date.now() - 864e5).map(o => o.url);
@@ -4912,12 +4918,13 @@ async function runPriceCheck(it, scope, opt = {}){
       try {
         const r = await TDC.readLink(c.url, { name: it.name });
         const src = c.mine ? (canonSup(c.supplier) || c.supplier) : (clean(r.supplier) || c.supplier);
-        const o = { src, price: Number(r.price) > 0 ? Number(r.price) : null, pack: clean(r.units), url: c.url, sku: clean(r.sku), kind: Number(r.price) > 0 ? "public" : "signin", at: Date.now(), sure: c.sure !== false && r.skuCheck !== "missing", mine: !!c.mine };
-        offers = upsertOffer(offers, o);
+        const o = { src, price: Number(r.price) > 0 ? Number(r.price) : null, pack: clean(r.units), url: c.url, sku: clean(r.sku), kind: Number(r.price) > 0 ? "public" : "signin", at: Date.now(), sure: c.sure !== false && r.skuCheck !== "missing", mine: !!c.mine, run };
+        offers = upsertOffer(offers, o, run);
       } catch {}
       done++; status(`Read ${done} of ${cands.length} page${cands.length > 1 ? "s" : ""}…`);
     };
     for (let i = 0; i < cands.length; i += 3) await Promise.all(cands.slice(i, i + 3).map(one));
+    offers = offers.map(o => { const { run: _r, ...x } = o; return x; });
     await write(it.id, { offers }, { quiet: true });
     it.offers = offers; const live = byId(it.id); if (live) live.offers = offers;
     logIt("Price checked", it, `${cands.length} page${cands.length > 1 ? "s" : ""}${scope === "web" ? " (whole web)" : ""}`);
