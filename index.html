@@ -2545,7 +2545,7 @@ function histHtml(){
 let logType = "", logWho = "";   /* Activity log filters: kind of activity and initials */
 function logRows(src){
   const q = keyOf($("#q").value);
-  return (src || logs).filter(e => (!logType || e.action === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
+  return (src || logs).filter(e => (!logType || logKind(e.action) === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
 }
 let logLim = 400, logUnsub = null;
 function subLog(){
@@ -2555,10 +2555,13 @@ function subLog(){
     if (tab === "log") render();
   }, () => {});
 }
+/* the three kinds of count entry share one "Counts" filter */
+const COUNT_KINDS = ["Count", "Counted", "Inventory counted"];
+const logKind = a => COUNT_KINDS.includes(a) ? "Counts" : a;
 function logHtml(){
   const rows = logRows();
   const kinds = new Map(), who = new Map();
-  logs.forEach(e => { if (e.action) kinds.set(e.action, (kinds.get(e.action) || 0) + 1); if (e.initials) who.set(e.initials, (who.get(e.initials) || 0) + 1); });
+  logs.forEach(e => { if (e.action) kinds.set(logKind(e.action), (kinds.get(logKind(e.action)) || 0) + 1); if (e.initials) who.set(e.initials, (who.get(e.initials) || 0) + 1); });
   const kOpts = [...kinds.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => `<option value="${esc(k)}" ${k === logType ? "selected" : ""}>${esc(k)} (${n})</option>`).join("");
   const wOpts = [...who.keys()].sort().map(k => `<option value="${esc(k)}" ${k === logWho ? "selected" : ""}>${esc(k)}</option>`).join("");
   const tool = `<div class="toolbar logtools"><p>Every count, order, receipt and edit, newest first. Pick a kind of activity or a person to narrow it down; the search box filters by item too.</p>
