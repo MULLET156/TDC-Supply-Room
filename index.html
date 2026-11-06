@@ -1346,6 +1346,7 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .prow .pk a .ic{width:15px;height:15px}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
+.cc.sim .ccb{opacity:.8;border:1px dashed var(--line,#ccd)}.cc.sim .csrc{font-style:italic}.ptitle{display:block;color:var(--muted,#667);font-size:12px;margin-top:2px}
 .psub{margin:12px 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .pbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .pnote{margin:8px 0 0}
@@ -3225,10 +3226,11 @@ function spendInner(){
 }
 /* the best known price at one supplier: account prices (invoice, price list, signed in) beat website prices */
 function offerAt(it, sup){
-  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0);
+  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false);
   const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
   return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 }
+function similarAt(it, sup){ const k = keyOf(sup); return offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure === false).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null; }
 function cmpRows(){
   const sups = compareSups();
   let list = cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice();
@@ -3252,7 +3254,8 @@ function compareHtml(){
   const sups = compareSups(), rows = cmpRows();
   const cheaper = rows.filter(r => r.save > 0.004), totalSave = cheaper.reduce((a, r) => a + r.save, 0);
   const cell = (r, c) => {
-    const o = c.o; if (!o) return `<td class="cc none"><span>—</span></td>`;
+    const o = c.o;
+    if (!o) { const s = similarAt(r.it, c.s); return s ? `<td class="cc sim"><button type="button" class="ccb" data-cmpopen="${esc(r.it.id)}" title="Similar product, not the same item${s.title ? ": " + esc(s.title) : ""}. Not counted in the comparison."><b>${esc(money(Number(s.price)))}</b><small>${esc(s.pack || "")}</small><i class="csrc">Similar</i></button></td>` : `<td class="cc none"><span>—</span></td>`; }
     const pu = perUnit(o), isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(r.it.supplier);
     const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
     const src = o.kind === "saved" ? "Saved" : (KIND_LBL[o.kind] || "Website");
@@ -3354,10 +3357,10 @@ async function hsSignedIn(list){
     const it = byId(x.id); if (!it) continue;
     /* a page found by search is kept as Henry Schein's link for this item (hidden until you switch), flagged if it may be another product */
     if (x.url) {
-      const offers = upsertOffer(it.offers, { src: "Henry Schein", price: x.price > 0 ? x.price : null, pack: clean(x.units) || (/schein/i.test(it.supplier || "") ? it.units || "" : ""), url: x.url, sku: clean(x.sku), kind: x.price > 0 ? "live" : "signin", at: Date.now(), sure: x.same !== false, mine: true });
+      const offers = upsertOffer(it.offers, { src: "Henry Schein", price: x.price > 0 ? x.price : null, pack: clean(x.units) || (/schein/i.test(it.supplier || "") ? it.units || "" : ""), url: x.url, sku: clean(x.sku), kind: x.price > 0 ? "live" : "signin", at: Date.now(), sure: x.same !== false, mine: true, title: clean(x.title || "").slice(0, 120) });
       try { await write(it.id, { offers }); it.offers = offers; if (x.price > 0) saved++; } catch {}
     }
-    rows.push(`<li>${esc(it.name)}: ${x.price > 0 ? `<b>${esc(money(x.price))}</b>${x.units ? " / " + esc(x.units) : ""}${x.found ? ` <span class="hint">(found by search${x.same === false ? ", may be a different product" : ""})</span>` : ""}` : `<span class="hint">no price (${esc(x.note || "not shown")})</span>`}</li>`);
+    rows.push(`<li>${esc(it.name)}: ${x.price > 0 ? `<b>${esc(money(x.price))}</b>${x.units ? " / " + esc(x.units) : ""}${x.same === false ? ` <span class="pflag">Similar product</span>${x.title ? ` <span class="hint">${esc(x.title)}</span>` : ""}` : x.found ? ` <span class="hint">(found by search)</span>` : ""}` : `<span class="hint">no price (${esc(x.note || "not shown")})</span>`}</li>`);
   }
   if (saved) logIt("Price checked", null, `Henry Schein signed-in prices for ${saved} item${saved > 1 ? "s" : ""} (test)`);
   openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
@@ -5020,7 +5023,7 @@ const ACCT_KINDS = ["invoice", "list", "live"];
 const offerGrp = k => ACCT_KINDS.includes(k) ? "acct" : "web";
 const offerHost = o => { try { return new URL(webHref(o.url)).hostname.replace(/^www\./, ""); } catch { return ""; } };
 function upsertOffer(list, o, sameRun){
-  const same = x => offerGrp(x.kind) === offerGrp(o.kind) && (keyOf(x.src) === keyOf(o.src) || (o.url && x.url && offerHost(x) && offerHost(x) === offerHost(o)));
+  const same = x => offerGrp(x.kind) === offerGrp(o.kind) && (x.sure === false) === (o.sure === false) && (keyOf(x.src) === keyOf(o.src) || (o.url && x.url && offerHost(x) && offerHost(x) === offerHost(o)));
   const L = Array.isArray(list) ? list.filter(Boolean) : [];
   const old = L.find(same);
   if (old && sameRun && (sameRun === "show" || old.run === sameRun) && Number(old.price) > 0 && !(Number(o.price) > 0 && Number(o.price) < Number(old.price))) return L;
@@ -5064,7 +5067,7 @@ function priceBox(it){
     const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
     const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " " + when : "");
     return `<div class="prow${isBest ? " best" : ""}${o.price > 0 ? "" : " noprice"}">
-      <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${o.sure === false ? `<span class="pflag" title="This page might be a different size, shade or pack. Open it and check before switching.">Check match</span>` : ""}</div>
+      <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${o.sure === false ? `<span class="pflag" title="A similar product, not this exact item. Open it and check before switching.">Similar product</span>` : ""}</div>${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}
       <div class="pp">${o.price > 0 ? `<b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}${pu != null && unitCount(o.pack) > 1 ? `<small class="ppu">${esc(money(pu))} each</small>` : ""}` : `<span class="hint">${o.kind === "signin" ? "Price shows after signing in" : "No price shown"}</span>`}</div>
       <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.price > 0 && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
     </div>`;
@@ -5109,7 +5112,7 @@ async function runPriceCheck(it, scope, opt = {}){
       try {
         const r = await TDC.readLink(c.url, { name: it.name });
         const src = c.mine ? (canonSup(c.supplier) || c.supplier) : (clean(r.supplier) || c.supplier);
-        const o = { src, price: Number(r.price) > 0 ? Number(r.price) : null, pack: clean(r.units), url: c.url, sku: clean(r.sku), kind: Number(r.price) > 0 ? "public" : "signin", at: Date.now(), sure: c.sure !== false && r.skuCheck !== "missing", mine: !!c.mine, run };
+        const o = { src, price: Number(r.price) > 0 ? Number(r.price) : null, pack: clean(r.units), url: c.url, sku: clean(r.sku), kind: Number(r.price) > 0 ? "public" : "signin", at: Date.now(), sure: c.sure !== false && r.skuCheck !== "missing", mine: !!c.mine, run, title: clean(r.name || c.title || "").slice(0, 120) };
         offers = upsertOffer(offers, o, run);
       } catch {}
       done++; status(`Read ${done} of ${cands.length} page${cands.length > 1 ? "s" : ""}…`);
@@ -5157,7 +5160,7 @@ function useOffer(it, o){
     <p>${esc(it.name)} will be ordered from <b>${esc(o.src)}</b> at <b>${esc(money(Number(o.price)))}</b>${o.pack ? ` per ${esc(o.pack)}` : ""}, using <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener">this product page</a>${o.sku ? ` (item # ${esc(o.sku)})` : ""}.</p>
     ${it.supplier && keyOf(it.supplier) !== keyOf(o.src) ? `<label class="chkline" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uoKeep" checked> Keep ${esc(it.supplier)} as a backup source (it stays in price checks)</label>` : ""}
     ${packDiff ? `<p class="notice warn">${ic("alert")} The pack is different: ${esc(o.pack)} here vs ${esc(it.units)} now. Your on-hand count and reserve are in ${esc(it.units)}; update them (and Units in Edit info) if you'll count in the new pack.</p>` : ""}
-    ${o.sure === false ? `<p class="notice warn">${ic("alert")} This page might be a different size, shade or pack. Open it and check before switching.</p>` : ""}
+    ${o.sure === false ? `<p class="notice warn">${ic("alert")} This is a similar product${o.title ? ` (${esc(o.title)})` : ""}, not this exact item. Switching replaces the item's supplier, link and price with this product.</p>` : ""}
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="uoGo" type="button">Switch supplier</button></div>`);
   $("#uoGo").onclick = async () => {
     const keep = $("#uoKeep")?.checked;

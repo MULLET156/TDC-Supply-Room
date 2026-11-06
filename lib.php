@@ -1361,10 +1361,10 @@ function signed_in_read(array $o, array $pages): array {
         $found = $pg['url'] === '';
         $a = ai_json("This is the text of a Henry Schein product page seen while signed in to the office's account. The office calls the product: \"" . ($pg['name'] ?? '') . "\".\n"
             . ($found ? "This page was found by searching Henry Schein for \"{$pg['q']}\", so it may be a different product: say whether it is the same product (same brand, product, size/shade; pack may differ).\n" : '')
-            . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), what one unit is, and Henry Schein's item number.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"sku\": \"item #\", \"same\": true/false, \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
+            . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), what one unit is, and Henry Schein's item number.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"sku\": \"item #\", \"product\": \"the product name on the page\", \"same\": true/false, \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
         $v = $a['ok'] ? (array)$a['value'] : [];
         $pr = is_numeric($v['price'] ?? null) && (float)$v['price'] > 0 ? (float)$v['price'] : null;
-        $out[] = ['id' => $pg['id'], 'url' => $url, 'found' => $found, 'same' => $found ? !empty($v['same']) : true, 'sku' => (string)($v['sku'] ?? ''), 'price' => $pr, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? ''),
+        $out[] = ['id' => $pg['id'], 'url' => $url, 'found' => $found, 'same' => $found ? !empty($v['same']) : true, 'sku' => (string)($v['sku'] ?? ''), 'title' => mb_substr((string)($v['product'] ?? ''), 0, 120), 'price' => $pr, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? ''),
                   'debug' => ['pagePrices' => $r['prices'] ?? [], 'pageSignedIn' => $r['signedIn'] ?? null, 'start' => mb_substr(preg_replace('/\s+/', ' ', (string)$r['text']), 0, 500)]];
     }
     return ['ok' => true, 'results' => $out];
