@@ -1862,7 +1862,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
         <div class="toolrow2">
           <button class="btn pri addhdr" id="addBtn" type="button" title="Add item (shortcut: N)"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
-          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
+          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool t-exptool" role="tab" data-t="exp" aria-selected="false"><i data-ic="hourglass"></i><span class="xl">Expiring</span><span class="xn" id="n-exp2"></span></button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
       </div>
     </div>
@@ -1932,6 +1932,15 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
   .explist .row.xrow .info .meta{white-space:normal!important}
   .xdate, .xdate b{font-size:13px}
 }
+/* Expiring lives in the header buttons (next to Spending) on larger screens; phones reach it from More */
+header > .wrap > .tabs-main > .tab.t-exp{display:none!important}
+header > .wrap > .tabs-main{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+header .tooltabs .tab.t-exptool{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+header .tooltabs .tab.t-exptool[aria-selected="true"]{background:var(--warn);border-color:var(--warn);color:var(--surface)}
+header .tooltabs .tab.t-exptool .xn{margin-left:6px;font-family:var(--f-mono);font-size:12px;font-weight:700;background:var(--warn);color:var(--surface);border-radius:999px;padding:0 7px;line-height:18px}
+header .tooltabs .tab.t-exptool[aria-selected="true"] .xn{background:var(--surface);color:var(--warn)}
+@media (max-width:1100px){header .tooltabs .tab.t-exptool .xl{display:none}header .tooltabs .tab.t-exptool .xn{margin-left:4px}}
+@media (max-width:640px){header .tooltabs .tab.t-exptool{display:none!important}}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
@@ -2969,6 +2978,7 @@ function renderInner(){
   { const u = items.filter(i => i.is911 && !i.onOrder).length; let b = $("#n-911"); if (!b) { b = document.createElement("span"); b.id = "n-911"; b.className = "b911"; $(".tab.t-need").append(b); } b.hidden = !u; b.innerHTML = ic("urgent") + u; }
   $("#n-ordered").textContent = items.filter(i=>i.onOrder).length;
   $("#n-exp").textContent = items.filter(i=>i.expiring).length;
+  { const ne = items.filter(i => i.expiring).length, e2 = $("#n-exp2"); if (e2) { e2.textContent = ne || ""; e2.hidden = !ne; } }
   $("#n-all").textContent = items.length;
   const v = $("#view");
   document.body.classList.toggle("on-add", tab === "add"); document.body.classList.toggle("on-setup", tab === "setup"); document.body.classList.toggle("on-products", tab === "products");
