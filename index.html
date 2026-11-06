@@ -5167,14 +5167,13 @@ function priceBox(it){
   const similar = L.filter(o => priced(o) && o.sure === false).sort(byVal);
   const web = L.filter(o => priced(o) && o.sure !== false && o.mine === false).sort(byVal);
   /* stores that had the product but showed no price: one line, not a row each */
-  const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
+  const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && o.mine !== false && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
   const cheaperWeb = bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best);
-  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices yet. <b>Check prices</b> looks this product up at your suppliers; imported invoices add what you really paid.</p>`}
+  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
     ${noPrice.length ? `<p class="pnone">${ic("alert")}No price shown at ${noPrice.map(o => `${esc(o.src)}${o.url ? ` <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}`).join(", ")}${noPrice.some(o => o.kind === "signin") ? " (needs sign-in)" : ""}</p>` : ""}
     ${similar.length ? `<h4 class="psub">Similar products <small>not this exact product</small></h4><div class="plist sim">${similar.map(row).join("")}</div>` : ""}
-    ${web.length ? `<h4 class="psub">Other stores</h4><div class="plist">${web.map(row).join("")}</div>` : ""}
     ${backupsHtml(it)}
-    <p class="hint pnote" id="pStatus">${cheaperWeb ? `Cheapest anywhere: ${esc(money(Number(bestW.price)))} at ${esc(bestW.src)}. ` : ""}Website prices are list prices unless marked Signed in.</p>
+    <p class="hint pnote" id="pStatus">Website prices are list prices unless marked Signed in.</p>
     <p class="hint pgo">To check this product's prices at your suppliers or across the web, use <button type="button" class="linkbtn" id="pGoCmp">Spending › Compare suppliers</button>.</p>
     ${window.TDC?.priceHistory ? `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>` : ""}`;
 }
