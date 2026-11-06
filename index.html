@@ -727,6 +727,7 @@ body.on-products .filters{display:none!important}
 .istatus .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
 .istatus .cntok.icnt .ic{width:20px;height:20px;margin:0}
 .cbox .cntlab{display:block;margin-top:6px}
+@media (min-width:641px){.cbox .cntsel{font-size:12px!important;padding:0 2px!important}}
 .cbox .cntsel{display:block;width:100%;margin-top:2px;min-height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;font-size:12.5px;font-weight:600;padding:0 4px;text-align:center;text-align-last:center;cursor:pointer}
 @media (max-width:640px){
   .counts.three{gap:6px!important}
@@ -4368,12 +4369,14 @@ async function openItem(it, prefill){
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery)}
     ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button></div>` : ""}
     <div class="isecs">
-      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
+      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("sparkle")}Tools ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
+      ${readOnly ? "" : `<button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>`}
+      <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
       <button type="button" class="pmi" data-autoscrape>${ic("refresh")}Update from supplier page <span class="aitag">${ic("sparkle")}Claude</span></button>
       <button type="button" class="pmi" data-pfill id="pfillHidden">${ic("clipboard")}Paste page text <span class="aitag">${ic("sparkle")}Claude</span></button>
-      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
-      <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      ${readOnly ? "" : `<button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>`}
     </div>
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
@@ -4399,6 +4402,8 @@ async function openItem(it, prefill){
   const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
   menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu");
   $("#editBtn").onclick = () => { unlockItem(); openSec("ord"); openSec("det"); $("#e-sup")?.focus(); };
+  $("#tChgPhoto") && ($("#tChgPhoto").onclick = () => { openSec("ph"); $("#sec-ph")?.scrollIntoView({ block: "center", behavior: "smooth" }); const m = $("#pMenu"); if (m && m.hidden) $("#pMenuBtn")?.click(); });
+  $("#tDup") && ($("#tDup").onclick = () => { const go = () => openNew({ name: it.name, sku: "", units: it.units || "", cat: it.cat || "", sub: it.sub || "", loc: it.loc || "", supplier: it.supplier || "", link: "", exp: "", unitCost: "", notes: "", desc: it.desc || "", qty: 0, desired: num(it.desired) ?? 1, urgent: num(it.urgent) ?? 0, countEvery: it.countEvery ?? "", note: `Copied from "${it.name}". Change the name, SKU, reorder link and price for the new one, then save.` }); if (cardDirty()) leavePrompt(go); else go(); });
   /* tapping a field while locked unlocks editing */
   panel.querySelectorAll(".isec .fields").forEach(fl => fl.addEventListener("click", e => { if (panel.classList.contains("ro") && e.target.closest("input, textarea")) { unlockItem(); e.target.focus(); } }));
   $("#thumbBtn").onclick = () => { if (it.photo && $("#pPic")) $("#pPic").click(); else { openSec("ph"); $("#sec-ph").scrollIntoView({ block: "center", behavior: "smooth" }); $("#pMenuBtn")?.click(); } };
