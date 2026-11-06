@@ -202,7 +202,7 @@ try {
 
         case 'signedinprices': {
             $pages = is_array($req['pages'] ?? null) ? $req['pages'] : [];
-            $r = signed_in_prices($pdo, (string)($req['supplier'] ?? ''), $pages);
+            $r = !empty($req['run']) ? signed_in_poll((string)$req['run']) : signed_in_prices($pdo, (string)($req['supplier'] ?? ''), $pages);
             if (!$r['ok']) out(200, ['ok' => true, 'failed' => true] + $r);   // a failed login is an answer for the page, not an error
             out(200, $r);
         }

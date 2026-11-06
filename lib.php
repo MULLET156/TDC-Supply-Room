@@ -1246,15 +1246,46 @@ JS;
     $input = ['startUrls' => [['url' => 'https://www.henryschein.com/en-us/login']], 'pageFunction' => $fn, 'customData' => ['u' => $login['u'], 'p' => $login['p'], 'jobs' => array_map(fn($p) => ['url' => $p['url'], 'q' => $p['q']], $pages)],
               'proxyConfiguration' => ['useApifyProxy' => true, 'apifyProxyGroups' => ['RESIDENTIAL'], 'apifyProxyCountry' => 'US'],
               'launcher' => 'chromium', 'headless' => true, 'maxRequestRetries' => 0, 'maxConcurrency' => 1, 'pageLoadTimeoutSecs' => 60, 'pageFunctionTimeoutSecs' => 280, 'ignoreSslErrors' => false, 'downloadMedia' => true, 'downloadCss' => true];
+    // Start the run and return at once: it takes minutes, longer than the web server waits. The page asks signed_in_poll() for the result.
     $actor = (string)cfg('APIFY_LOGIN_ACTOR', 'apify~playwright-scraper');
-    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=300&format=json&clean=true');
-    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 320, CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES), CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')]]);
+    $r = apify_api('POST', '/acts/' . rawurlencode($actor) . '/runs?timeout=330', $input);
+    if (!$r['ok']) return $r;
+    $run = (string)($r['data']['id'] ?? '');
+    if ($run === '') return ['ok' => false, 'error' => 'apify', 'message' => 'Apify didn\'t start the run.'];
+    $dir = sys_get_temp_dir() . '/tdc-runs'; if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    @file_put_contents($dir . '/' . preg_replace('/[^A-Za-z0-9]/', '', $run) . '.json', json_encode(['pages' => $pages, 'ds' => (string)($r['data']['defaultDatasetId'] ?? ''), 'at' => time()]));
+    return ['ok' => true, 'pending' => true, 'run' => $run];
+}
+function apify_api(string $method, string $path, ?array $body = null): array {
+    $ch = curl_init('https://api.apify.com/v2' . $path);
+    $opt = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 40, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')]];
+    if ($method === 'POST') { $opt[CURLOPT_POST] = true; $opt[CURLOPT_POSTFIELDS] = json_encode($body ?? new stdClass(), JSON_UNESCAPED_SLASHES); }
+    curl_setopt_array($ch, $opt);
     $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
     if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
     $j = json_decode((string)$res, true);
     if ($code < 200 || $code >= 300 || !is_array($j)) { $m = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return ['ok' => false, 'error' => 'apify', 'message' => 'Apify refused the run (' . $code . ($m ? ': ' . $m : '') . ').']; }
+    return ['ok' => true, 'data' => $j['data'] ?? $j];
+}
+function signed_in_poll(string $run): array {
+    $run = preg_replace('/[^A-Za-z0-9]/', '', $run);
+    $meta = json_decode((string)@file_get_contents(sys_get_temp_dir() . '/tdc-runs/' . $run . '.json'), true);
+    if (!is_array($meta)) return ['ok' => false, 'error' => 'unknown_run', 'message' => 'That check isn\'t known any more. Start it again.'];
+    $r = apify_api('GET', '/actor-runs/' . $run);
+    if (!$r['ok']) return $r;
+    $st = (string)($r['data']['status'] ?? '');
+    if (in_array($st, ['READY', 'RUNNING'], true)) return ['ok' => true, 'pending' => true, 'secs' => time() - (int)($meta['at'] ?? time())];
+    if ($st !== 'SUCCEEDED') return ['ok' => false, 'error' => 'run_' . strtolower($st), 'message' => 'The Apify run ' . strtolower(str_replace('-', ' ', $st)) . ' before finishing.', 'debug' => ['run' => $run, 'status' => $st]];
+    $ds = $meta['ds'] ?: (string)($r['data']['defaultDatasetId'] ?? '');
+    $d = apify_api('GET', '/datasets/' . rawurlencode($ds) . '/items?clean=true&format=json');
+    if (!$d['ok']) return $d;
+    $j = $d['data'];
     $o = array_is_list($j) ? ($j[0] ?? []) : $j;
+    if (!$o) return ['ok' => false, 'error' => 'empty', 'message' => 'The run finished without a result.', 'debug' => ['run' => $run]];
+    @set_time_limit(120);
+    return signed_in_read($o, (array)$meta['pages']);
+}
+function signed_in_read(array $o, array $pages): array {
     $stage = (string)($o['stage'] ?? 'start');
     $why = ['challenge' => 'Henry Schein asked for a verification code or a robot check, which an automated login can\'t answer.', 'bad_login' => 'Henry Schein didn\'t accept the saved username or password.', 'start' => 'The login page didn\'t look as expected' . (!empty($o['error']) ? ': ' . $o['error'] : '.')][$stage] ?? '';
     if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 600)]];

@@ -2017,7 +2017,7 @@ window.TDC = (function(){
   async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
-  async function signedInPrices(supplier, pages){ return call("signedinprices", { supplier, pages }); }
+  async function signedInPrices(supplier, pages, run){ return call("signedinprices", { supplier, pages, run: run || "" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
@@ -3328,7 +3328,17 @@ async function hsSignedIn(list){
   openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <p class="hint" id="hsStat">Logging in to Henry Schein and reading ${pages.length} product page${pages.length > 1 ? "s" : ""}. This takes 1–4 minutes; keep this open.</p><div class="fpbar"><i class="indet"></i></div>`);
   let r;
-  try { r = await TDC.signedInPrices("Henry Schein", pages); if (r?.failed) r = { ...r, ok: false }; } catch(e) { r = { ok: false, message: e?.message || dbErr(e) }; }
+  try {
+    r = await TDC.signedInPrices("Henry Schein", pages);
+    const t0 = Date.now();
+    while (r?.pending && r.run && Date.now() - t0 < 9 * 60e3) {
+      await new Promise(res => setTimeout(res, 8000));
+      const st = $("#hsStat"); if (st) st.textContent = `Logging in to Henry Schein and reading ${pages.length} product page${pages.length > 1 ? "s" : ""}… ${Math.round((Date.now() - t0) / 1000)} s so far (usually 1–4 minutes).`;
+      r = { ...(await TDC.signedInPrices("Henry Schein", [], r.run)), run: r.run };
+    }
+    if (r?.pending) r = { ok: false, message: "It's taking longer than 9 minutes, so the page stopped waiting." };
+    if (r?.failed) r = { ...r, ok: false };
+  } catch(e) { r = { ok: false, message: e?.message || dbErr(e) }; }
   if (!$("#hsStat")) { if (r?.ok) toast("Henry Schein prices saved"); }
   if (!r?.ok) {
     openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
