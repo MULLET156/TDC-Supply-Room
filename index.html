@@ -1235,6 +1235,8 @@ body[data-view="sups"] #fSup, body[data-view="cats"] #fCat, body[data-view="locs
 .ihbtns{display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0}
 .ihbtns #toolsBtn,.ihbtns #ptoolsBtn{font-size:13px;padding:6px 10px;min-height:34px}
 .ihbtns .btn{white-space:nowrap}
+.pmsub{display:contents}
+.pmsub > p.hint{margin:4px 12px 2px;font-size:12px}
 @media (max-width:640px){.isechead > span:first-child{display:none}.isechead{justify-content:flex-end}.ihbtns{display:flex;gap:6px;flex-wrap:nowrap}.ihbtns .btn{padding:0 10px!important;font-size:14px!important;min-height:40px}.manrow .cs-s{display:none}}
 
 /* ================= fun themes ================= */
@@ -4399,7 +4401,7 @@ async function openItem(it, prefill){
         ${detFields(f)}
         <p class="dethist">${it.updatedAt ? "Changed " + esc(when(it.updatedAt)) + (by ? ` by <span class="init">${esc(by)}</span>` : "") : "Imported from the spreadsheet"}${it.lastReceived ? " · received " + esc(it.lastReceived) : ""}${!countable(it) ? " · not on the count schedule" : it.countedAt ? ` · counted ${esc(shortDate(it.countedAt))}${it.countedBy ? " by " + esc(it.countedBy) : ""} (${esc(cntName(cycleOf(it)).toLowerCase())}; ${countedToday(it) ? "next due " + esc(shortDate(+nextDue(it))) : "due now"})` : ` · not counted yet (${esc(cntName(cycleOf(it)).toLowerCase())})`}</p>
       </details>
-      <details class="isec" id="sec-ph" ${isOpen("sec-ph", false) ? "open" : ""}><summary><b>Photos</b><span class="sum">${esc(phSum)}</span></summary>
+      <details class="isec" id="sec-ph" hidden><summary><b>Photos</b><span class="sum">${esc(phSum)}</span></summary>
         ${photoBlock(photoSrc, !readOnly, it.skuPhoto ? "blob.php?id=" + it.skuPhoto : "")}
       </details>
       <p class="hint roempty">Empty fields are hidden. Tap Edit info to fill them in.</p>
@@ -4411,7 +4413,7 @@ async function openItem(it, prefill){
   if (keepEdit || prefill?.edit) unlockItem();
   wireCounts();
   if (readOnly) document.querySelectorAll(".panel button:not([data-close]), .panel input").forEach(x => x.disabled = true);
-  const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
+  const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn, #pDel")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
   menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu"); menu("#ptoolsBtn", "#ptoolsMenu");
   { const a = $("#ptoolsBtn"), b = $("#toolsBtn"); a?.addEventListener("click", () => { const m = $("#toolsMenu"); if (m && !m.hidden) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); b?.addEventListener("click", () => { const m = $("#ptoolsMenu"); if (m && !m.hidden) { m.hidden = true; a?.setAttribute("aria-expanded", "false"); } }); }
   $("#editBtn").onclick = () => { unlockItem(); openSec("ord"); openSec("det"); $("#e-sup")?.focus(); };
@@ -4419,7 +4421,7 @@ async function openItem(it, prefill){
   $("#tDup") && ($("#tDup").onclick = () => { const go = () => openNew({ name: it.name, sku: "", units: it.units || "", cat: it.cat || "", sub: it.sub || "", loc: it.loc || "", supplier: it.supplier || "", link: "", exp: "", unitCost: "", notes: "", desc: it.desc || "", qty: 0, desired: num(it.desired) ?? 1, urgent: num(it.urgent) ?? 0, countEvery: it.countEvery ?? "", note: `Copied from "${it.name}". Change the name, SKU, reorder link and price for the new one, then save.` }); if (cardDirty()) leavePrompt(go); else go(); });
   /* tapping a field while locked unlocks editing */
   panel.querySelectorAll(".isec .fields").forEach(fl => fl.addEventListener("click", e => { if (panel.classList.contains("ro") && e.target.closest("input, textarea")) { unlockItem(); e.target.focus(); } }));
-  $("#thumbBtn").onclick = () => { if (it.photo && $("#pPic")) $("#pPic").click(); else { openSec("ph"); $("#sec-ph").scrollIntoView({ block: "center", behavior: "smooth" }); $("#pMenuBtn")?.click(); } };
+  $("#thumbBtn").onclick = () => { if (it.photo && $("#pPic")) $("#pPic").click(); else { const m = $("#ptoolsMenu"); if (m && m.hidden) $("#ptoolsBtn")?.click(); m?.scrollIntoView({ block: "nearest", behavior: "smooth" }); } };
   /* Expiring: "Replaced" opens a date picker right in the window */
   $("#expBtn") && ($("#expBtn").onclick = () => { $("#expRow").hidden = false; $("#expNew").focus(); });
   $("#expCancel") && ($("#expCancel").onclick = () => { $("#expRow").hidden = true; });
@@ -4454,6 +4456,9 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
     const d = r.top + r.height / 2 - (T + bOff);
     if (Math.abs(d) > 8) scrollBy({ top: d, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); } }
   wirePhoto(f => setItemPhoto(it, f), () => removeItemPhoto(it));
+  /* the photo actions live in the Tools menu (no separate Photos section) */
+  { const pm = $("#pMenu"), pt = $("#ptoolsMenu"); if (pm && pt) { pm.hidden = false; pm.removeAttribute("id"); pm.className = "pmsub"; pt.insertBefore(pm, pt.firstChild); $("#tChgPhoto")?.remove();
+      const sk = it.skuPhoto ? "blob.php?id=" + it.skuPhoto : ""; if (sk) { const b = document.createElement("button"); b.type = "button"; b.className = "pmi"; b.innerHTML = ic("tag") + "View SKU / label photo"; b.onclick = () => showBigPic(sk, "SKU / label"); pm.insertBefore(b, pm.querySelector("p.hint")); } } }
   $("#pSku") && ($("#pSku").onclick = e => { if (!needMe()) e.preventDefault(); }) && ($("#pSku").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setItemPhoto(it, f, null, "skuPhoto"); });
   $(".skupic img") && ($(".skupic img").onclick = e => showBigPic(e.target.src, "SKU photo"));
   $("#delBtn").onclick = async e => {
