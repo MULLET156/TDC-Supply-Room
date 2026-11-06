@@ -1256,7 +1256,9 @@ body[data-view="sups"] #fSup, body[data-view="cats"] #fCat, body[data-view="locs
 .ihbtns{display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0}
 .ihbtns #toolsBtn,.ihbtns #ptoolsBtn{font-size:13px;padding:6px 10px;min-height:34px}
 .ihbtns .btn{white-space:nowrap}
-.pmsub{display:contents}
+.pmsub{display:block;margin:0 0 4px 22px;border-left:2px solid var(--line);padding-left:4px}
+.pmsub[hidden]{display:none}
+#tPhotos .pmarr{margin-left:auto;opacity:.6}
 .pmsub > p.hint{margin:4px 12px 2px;font-size:12px}
 @media (max-width:640px){.isechead > span:first-child{display:none}.isechead{justify-content:flex-end}.ihbtns{display:flex;gap:6px;flex-wrap:nowrap}.ihbtns .btn{padding:0 10px!important;font-size:14px!important;min-height:40px}.manrow .cs-s{display:none}}
 
@@ -4458,7 +4460,7 @@ async function openItem(it, prefill){
   if (keepEdit || prefill?.edit) unlockItem();
   wireCounts();
   if (readOnly) document.querySelectorAll(".panel button:not([data-close]), .panel input").forEach(x => x.disabled = true);
-  const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn, #pDel")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
+  const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn, #pDel, #tPhotos")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
   menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu"); menu("#ptoolsBtn", "#ptoolsMenu");
   { const a = $("#ptoolsBtn"), b = $("#toolsBtn"); a?.addEventListener("click", () => { const m = $("#toolsMenu"); if (m && !m.hidden) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); b?.addEventListener("click", () => { const m = $("#ptoolsMenu"); if (m && !m.hidden) { m.hidden = true; a?.setAttribute("aria-expanded", "false"); } }); }
   $("#editBtn").onclick = () => { unlockItem(); openSec("ord"); openSec("det"); $("#e-sup")?.focus(); };
@@ -4502,7 +4504,12 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
     if (Math.abs(d) > 8) scrollBy({ top: d, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); } }
   wirePhoto(f => setItemPhoto(it, f), () => removeItemPhoto(it));
   /* the photo actions live in the Tools menu (no separate Photos section) */
-  { const pm = $("#pMenu"), pt = $("#ptoolsMenu"); if (pm && pt) { pm.hidden = false; pm.removeAttribute("id"); pm.className = "pmsub"; pt.insertBefore(pm, pt.firstChild); $("#tChgPhoto")?.remove();
+  { const pm = $("#pMenu"), pt = $("#ptoolsMenu"); if (pm && pt) { pm.removeAttribute("id"); pm.className = "pmsub"; pm.hidden = true;
+      const pull = pm.querySelector("[data-pullphoto]"), lk = $("#toolsMenu"); if (pull && lk) lk.insertBefore(pull, lk.firstChild);
+      const pb = document.createElement("button"); pb.type = "button"; pb.className = "pmi"; pb.id = "tPhotos"; pb.setAttribute("aria-expanded", "false");
+      pb.innerHTML = ic("camera") + `${it.photo ? "Photos" : "Add a photo"}<span class="pmarr">▸</span>`;
+      pb.onclick = () => { pm.hidden = !pm.hidden; pb.setAttribute("aria-expanded", String(!pm.hidden)); pb.querySelector(".pmarr").textContent = pm.hidden ? "▸" : "▾"; };
+      pt.insertBefore(pb, pt.firstChild); pt.insertBefore(pm, pb.nextSibling); $("#tChgPhoto")?.remove();
       const sk = it.skuPhoto ? "blob.php?id=" + it.skuPhoto : ""; if (sk) { const b = document.createElement("button"); b.type = "button"; b.className = "pmi"; b.innerHTML = ic("tag") + "View SKU / label photo"; b.onclick = () => showBigPic(sk, "SKU / label"); pm.insertBefore(b, pm.querySelector("p.hint")); } } }
   $("#pSku") && ($("#pSku").onclick = e => { if (!needMe()) e.preventDefault(); }) && ($("#pSku").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setItemPhoto(it, f, null, "skuPhoto"); });
   $(".skupic img") && ($(".skupic img").onclick = e => showBigPic(e.target.src, "SKU photo"));
