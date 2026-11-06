@@ -1421,6 +1421,91 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .bulkbar{bottom:var(--dockh,70px)!important}
   body:has(#overlay .panel.item) .dock, body:has(#overlay .panel) .dock{z-index:6}
 }
+/* ===== phone v2: compact rows, slim header, everything else under "More" in the bottom bar ===== */
+.tabs-main .morebtn{display:none}
+.mmenu{display:grid;gap:8px;margin-top:4px}
+.mmenu .mi{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--fg);font:inherit;font-size:16px;font-weight:600;text-align:left;cursor:pointer}
+.mmenu .mi .ic{width:22px;height:22px;margin:0;flex:none;color:var(--accent)}
+.mmenu .mi small{margin-left:auto;font-weight:500;color:var(--muted);font-size:13.5px}
+.mmenu .mi.pri{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}.mmenu .mi.pri .ic{color:inherit}
+.mmenu .mrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mmenu label.mi select{margin-left:auto;min-height:38px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);color:var(--fg);padding:0 8px;font-size:16px}
+@media (max-width:640px){
+  /* header: logo, title and who's logging — the rest lives under More */
+  header .top #addBtn, header .top .topright .tooltabs, header #sndBtn, header #themeBtn, header #musicBtn{display:none!important}
+  header .top::before{display:none!important}
+  header .top .whoami{order:3!important}
+  header .top .whoami select{min-height:38px!important;width:66px!important;max-width:66px!important}
+  header .top .logo img{height:28px!important}
+  header .titlerow .apptitle{font-size:18px!important}
+  header .wrap{padding-top:6px!important;padding-bottom:6px!important}
+  /* page heading: one slim line */
+  header .pagehead{padding:5px 10px!important;border-left-width:5px!important;border-radius:9px!important;margin-top:6px!important}
+  header .pagehead h2{font-size:17px!important}
+  header .pagehead .phn{font-size:13px!important}
+  header .pagehead p{display:none!important}
+  header .filters{margin-top:6px!important;gap:6px!important}
+  header .filters input, header .ftoggle{min-height:40px!important}
+  /* list header: no intro text or colour legend */
+  .selbar .intro, .selbar .stlegend{display:none!important}
+  .selbar{padding:6px 10px!important}
+  .selbar .btn{min-height:34px!important;font-size:14px!important;padding:0 12px!important}
+  /* rows: tick · photo · name/details · count, all on one line */
+  .list .row{grid-template-columns:auto minmax(0,1fr) auto!important;gap:8px!important;padding:7px 8px 7px 10px!important;align-items:center!important}
+  .list .row .chk{width:20px!important;height:20px!important;margin:0!important}
+  .list .row .info{gap:8px!important;align-items:center!important}
+  .list .row .thumb{width:38px!important;height:38px!important;border-radius:6px!important}
+  .list .row .info .nm{font-size:14.5px!important;line-height:1.25!important;font-weight:600;display:-webkit-box!important;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+  .list .row .info .nm .pill{font-size:11px!important;padding:0 5px!important;vertical-align:1px}
+  .list .row .info .meta{display:block!important;font-size:12.5px!important;line-height:1.3;margin-top:2px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+  .list .row .info .meta > span{display:inline!important;margin:0!important;padding:0!important;background:none!important;border:0!important;font:inherit!important;color:inherit!important}
+  .list .row .info .meta > span + span::before{content:" · "}
+  .list .row .info .meta > .catpath, .list .row .info .meta > .p-sku, .list .row .info .meta > .cntd{display:none!important}
+  .list .row .info .meta > .catpath + span::before, .list .row .info .meta > .cntd + span::before{content:""}
+  .list .row .rside, .list .row:has(.rside .step) .rside{grid-column:auto!important;display:flex!important;flex-direction:column;align-items:flex-end!important;justify-content:center;gap:3px!important;padding-left:0!important}
+  .list .row .rside .golink, .list .row .rside .cntok, .list .row .rside .ordamt{display:none!important}
+  .list .row .rside .step{border-radius:9px!important}
+  .list .row .rside .step button{width:32px!important;min-width:32px!important;height:38px!important;min-height:38px!important;padding:0!important;font-size:20px!important}
+  .list .row .rside .step .q{min-width:42px!important;font-size:15px!important}
+  .list .row .rside .step .q small{font-size:11.5px!important}
+  .list .row .rside .ordstep{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:2px!important}
+  .list .row .rside .ordstep .otop{display:flex!important;justify-content:space-between;align-items:center;gap:4px}
+  .list .grp{padding:6px 10px!important;gap:2px 8px!important;font-size:12.5px!important}
+  .list .grp .grpname{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px!important;font-size:14px!important}
+  .list .grp .suplogo{height:22px!important;max-width:64px!important;width:auto!important;padding:2px 4px!important}
+  .list .grp .grpicon{width:34px!important;height:34px!important;min-height:34px!important}
+  .list .grp .ordall{min-height:34px!important;padding:0 10px!important;font-size:13px!important}
+  .list .row .rside .ordstep .olab{font-size:10.5px!important}
+  .list .row .rside .ordstep .after{font-size:13px!important;padding:1px 6px!important;border-width:1.5px!important}
+  .list .row .rside .ordstep .after small{font-size:11px!important}
+  .list .row:has(.rside .exprep) .rside{grid-column:1/-1!important;align-items:stretch!important;padding-left:0!important}
+  .list .row .rside .exprep .btn{min-height:36px!important;font-size:14px!important;padding:0 12px!important;white-space:nowrap}
+  .list .grp .grptools{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px!important;margin-left:auto}
+  .list .grp .grptools .btn{min-height:34px!important;font-size:13.5px!important;padding:0 10px!important;border-radius:9px!important}
+  .list .grp .grptools .btn .ic{width:16px!important;height:16px!important}
+  .jumprow{gap:4px!important;margin-bottom:6px!important}
+  .jumprow label{font-size:13px!important}
+  .jumprow select{min-height:40px!important}
+  .jumprow + .hint, .jumprow .hint{display:none!important}
+  header .pagehead .phn{white-space:nowrap}
+  .dock .wrap > #scanBtn{flex:1 1 100%!important;min-height:44px!important;white-space:nowrap}
+  .list .grp.cathead{padding:8px 10px!important;gap:4px 8px!important;align-items:center}
+  .list .grp.cathead > span:first-child{font-size:16px!important}
+  .list .grp.cathead .grprep{display:inline!important;margin:0 0 0 6px!important;font-size:12.5px!important}
+  .list .grp.cathead .grptools{width:100%;margin-left:0!important}
+  .list .grp.cathead .grptools .grpcnt{font-size:12.5px!important;margin-right:auto}
+  .list .grp .grpsel{min-height:34px!important;padding:0 11px!important;font-size:13px!important;display:inline-flex!important;flex-direction:row!important;align-items:center;border-radius:999px!important;white-space:nowrap}
+  .list .grp .grpsel .ic{width:15px!important;height:15px!important;margin:0 5px 0 0!important}
+  /* bottom: the action button only shows once something is ticked */
+  .dock .dockord:has(> .btn.pri:disabled){display:none!important}
+  .dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:has(> .btn.pri:disabled)))){display:none!important}
+  .dock .wrap{padding-top:6px!important;padding-bottom:6px!important}
+  .dock .btn{min-height:44px!important;font-size:15px!important}
+  .dock .tabs-main{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .dock .tabs-main .morebtn{display:flex!important}
+  .dock .tabs-main > .tab, .dock .tabs-main > .tab.big{min-height:50px!important}
+  .dock .tabs-main .tl{font-size:11px!important}
+}
 </style>
 <header>
   <div class="wrap">
@@ -1446,6 +1531,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
       <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false"><span class="tl"><i data-ic="truck"></i>On order</span> <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false"><span class="tl"><i data-ic="hourglass"></i>Expiring</span> <span class="n" id="n-exp">–</span></button>
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl">Inventory counter</span></button>
+      <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
     <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
@@ -5660,6 +5746,29 @@ const readF = () => Object.fromEntries(FKEYS.map(k => [k, $(k).value]));
 const writeF = f => FKEYS.forEach(k => { const el = $(k); el.value = (f && f[k]) || ""; if (el.tagName === "SELECT" && el.value !== ((f && f[k]) || "")) el.value = ""; });
 function setTab(t){ if (t !== "add") { try { localStorage.setItem("tdc.tab", t); } catch {} } if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
 $("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; tabClick(b); });
+/* phone: "More" in the bottom bar holds Add item, Editor, Activity log, Setup, who's logging, sound and theme */
+$("#moreBtn")?.addEventListener("click", e => {
+  e.stopPropagation();
+  const who = $("#who"), lab = b => /effects on/i.test(b?.getAttribute("aria-label") || "") ? "Sound on" : "Sound off";
+  const tool = t => document.querySelector(`.tooltabs [data-t="${t}"]`);
+  openPanel(`<div class="ph"><h2>More</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <div class="mmenu">
+      <button class="mi pri" type="button" data-m="add">${ic("plus")}Add item</button>
+      <button class="mi" type="button" data-m="products">${ic("table")}Editor<small>edit many items at once</small></button>
+      <button class="mi" type="button" data-m="log">${ic("history")}Activity log</button>
+      <button class="mi" type="button" data-m="setup">${ic("gear")}Setup</button>
+      <label class="mi">${ic("pencil")}Logging as<select id="mWho">${who ? who.innerHTML : ""}</select></label>
+      <div class="mrow"><button class="mi" type="button" data-m="snd">${ic("music")}<span id="mSnd">${lab($("#sndBtn"))}</span></button><button class="mi" type="button" data-m="theme">${ic(document.documentElement.dataset.theme === "dark" ? "sun" : "moon")}Theme</button></div>
+    </div>`);
+  const s = $("#mWho"); if (s && who) { s.value = who.value; s.onchange = () => { who.value = s.value; who.dispatchEvent(new Event("change", { bubbles: true })); }; }
+  $("#overlay .mmenu").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-m]"); if (!b) return; const m = b.dataset.m;
+    if (m === "snd") { $("#sndBtn")?.click(); $("#mSnd").textContent = lab($("#sndBtn")); return; }
+    if (m === "theme") { $("#themeBtn")?.click(); return; }
+    closePanel();
+    if (m === "add") $("#addBtn")?.click(); else { tool(m)?.click(); window.scrollTo(0, 0); }
+  });
+});
 $("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
 /* reopen on the last page used on this device */
 try { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "log", "setup"].includes(v)) setTab(v); } catch {}
