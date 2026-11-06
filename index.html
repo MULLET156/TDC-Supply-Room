@@ -721,7 +721,10 @@ body.on-products .filters{display:none!important}
 .ithumb{flex:0 0 auto;width:56px;height:56px;border-radius:12px;border:1px solid var(--line);background:var(--sunk);display:grid;place-items:center;font-size:22px;padding:0;overflow:hidden;cursor:pointer;color:var(--muted)}
 .ithumb img{width:100%;height:100%;object-fit:cover}
 .ititle{flex:1 1 auto;min-width:0;display:grid;gap:2px}
-.iloc{font-size:13.5px;font-weight:700;color:var(--fg)}
+.iloc{font-size:13.5px;font-weight:700;color:var(--fg);display:flex;flex-wrap:wrap;align-items:baseline;column-gap:14px;row-gap:2px}
+.iprice{font-family:var(--f-mono);font-size:16px;font-weight:800;color:var(--fg);white-space:nowrap}
+.iprice small{font-family:var(--f-ui,system-ui);font-size:12px;font-weight:600;color:var(--muted)}
+.sumprice{color:var(--fg);font-weight:800}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
 .manrow{flex-wrap:nowrap!important;gap:8px!important}
 .istatus:has(> .btn){display:flex;align-items:center;gap:8px;padding-top:6px;padding-bottom:6px}
@@ -975,6 +978,13 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{display:block;justify-
 body[data-view="products"] .ptools > .actions > .pright{justify-self:end;display:flex;gap:8px;flex-wrap:nowrap}
 @media (max-width:1000px){body[data-view="products"] .ptools > .actions{display:flex;flex-wrap:wrap}body[data-view="products"] .ptools > .actions > .pright{margin-left:auto}}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
+.ihsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}
+.ihs{background:var(--sunk);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.ihs small{font-size:11.5px;color:var(--muted)}
+.ihs b{font-size:14px}
+.ihs .init{align-self:flex-start}
+.ihlist{max-height:56vh;overflow:auto;margin-top:10px}
+.ihlist .daywrap h3{font-size:13px;margin:10px 0 4px}
 /* ---- shelf labels: DYMO 30252 (1-1/8" x 3-1/2"), black and white ---- */
 .slbl{box-sizing:border-box;width:3.5in;height:1.125in;padding:.07in .08in .07in .12in;display:flex;gap:.08in;align-items:center;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;overflow:hidden}
 .slbl .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:.02in}
@@ -4432,7 +4442,7 @@ async function openItem(it, prefill){
   const by = isInit(it.updatedBy) ? it.updatedBy : "";
   const st = itemStatus(it);
   const photoSrc = it.photo ? "blob.php?id=" + it.photo : "";
-  const ordSum = [it.supplier, it.unitCost, it.units].map(clean).filter(Boolean).map(esc).join(" · ") || "No supplier yet";
+  const ordSum = [esc(clean(it.supplier)), clean(it.unitCost) ? `<b class="sumprice">${esc(priceTxt(it.unitCost))}</b>` : "", esc(clean(it.units))].filter(Boolean).join(" · ") || "No supplier yet";
   const detSum = [it.cat ? it.cat + (it.sub ? " › " + it.sub : "") : "", it.exp ? "Exp " + it.exp : "", it.countEvery == null || it.countEvery === "" ? "" : String(it.countEvery) === "0" ? "Not counted" : "Count " + cntName(it.countEvery).toLowerCase()].map(clean).filter(Boolean).map(esc).join(" · ") || "Category, location, notes";
   const phSum = it.photo ? "Product photo" + (it.skuPhoto ? " · SKU photo" : "") : (it.skuPhoto ? "SKU photo only" : "No photo yet. Tap to add one");
   /* Ordering starts closed; it stays open only if you had it open (e.g. after a save) */
@@ -4456,7 +4466,7 @@ async function openItem(it, prefill){
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
   openPanel(`<div class="ph ihead">
       <button type="button" class="ithumb" id="thumbBtn" aria-label="${it.photo ? "Product photo" : "Add a photo"}">${photoSrc ? `<img src="${esc(photoSrc)}" alt="" onerror="this.replaceWith('📷')">` : "📷"}</button>
-      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc ? `<div class="iloc">${ic("pin")}${esc(it.loc)}</div>` : ""}</div>
+      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc || clean(it.unitCost) ? `<div class="iloc">${it.loc ? `<span>${ic("pin")}${esc(it.loc)}</span>` : ""}${clean(it.unitCost) ? `<span class="iprice" title="Price${it.supplier ? " at " + esc(it.supplier) : ""}">${esc(priceTxt(it.unitCost))}${it.units ? `<small> / ${esc(it.units)}</small>` : ""}</span>` : ""}</div>` : ""}</div>
       <span class="phbtns"><button class="iconbtn" type="button" id="moreBtn" aria-label="More actions" aria-expanded="false" aria-controls="moreMenu">⋯</button><button class="iconbtn" data-close type="button">Close</button></span>
     </div>
     <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">${ic("trash")}Delete this item</button></div>
@@ -4470,6 +4480,7 @@ async function openItem(it, prefill){
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
       <button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>
       <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      <button type="button" class="pmi" id="tHist">${ic("history")}Item history</button>
       <button type="button" class="pmi" id="tLabel">${ic("tag")}Print shelf label</button>
       <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
     </div>`}
@@ -4530,6 +4541,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
     }; }
   $("#tLabel") && ($("#tLabel").onclick = () => shelfLabels([it]));
+  $("#tHist") && ($("#tHist").onclick = () => itemHistory(it));
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true, stay: true }); b.disabled = false;
     if (!ok) return;
     it.countedAt = Date.now(); it.countedBy = me(); b.classList.add("on"); b.title = "Counted. Tap to count again with the number below";
@@ -4572,6 +4584,32 @@ async function saveIfChanged(it){
   const ok = await saveItem(it, { stay: true, quiet: true });
   return ok ? f : false;
 }
+/* "12.5" -> "$12.50"; anything that isn't a plain number is shown as typed */
+function priceTxt(v){ v = clean(v); const n = Number(v.replace(/[$,\s]/g, "")); return v && /^\$?\s*[\d,]*\.?\d+$/.test(v) && isFinite(n) ? "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; }
+/* ---------- item history: everything the Log has for one item ---------- */
+async function itemHistory(it){
+  openPanel(`<div class="ph"><h2>History</h2><button class="iconbtn" type="button" id="ihBack">Back</button></div><p class="hint" style="margin:0 0 8px">${esc(it.name)}</p><div id="ihBody"><p class="hint">Loading…</p></div>`);
+  $("#ihBack").onclick = () => openItem(byId(it.id) || it);
+  let rows = [];
+  try {
+    const snap = await db.collection("log").orderBy("at", "desc").limit(2000).get();
+    snap.docs.forEach(d => { const e = d.data(); if (e.itemId ? e.itemId === it.id : e.name === it.name) rows.push(e); });
+  } catch (e) { const el = $("#ihBody"); if (el) el.innerHTML = `<p class="hint">${esc(dbErr(e))}</p>`; return; }
+  /* entries logged before item ids were recorded, matched by name in the full log */
+  logs.forEach(e => { if (!e.itemId && e.name === it.name && !rows.some(r => r.at === e.at && r.action === e.action)) rows.push(e); });
+  rows.sort((x, y) => (y.at || 0) - (x.at || 0));
+  const el = $("#ihBody"); if (!el) return;
+  const last = kinds => rows.find(e => kinds.includes(e.action));
+  const sm = (lbl, e) => `<div class="ihs"><small>${lbl}</small><b>${e ? esc(new Date(e.at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "—"}</b>${e?.initials ? `<span class="init">${esc(e.initials)}</span>` : ""}</div>`;
+  const nOrd = rows.filter(e => e.action === "Ordered").length, yr = Date.now() - 365 * 864e5, nYr = rows.filter(e => e.action === "Ordered" && e.at >= yr).length;
+  const cur = byId(it.id) || it, lc = last(COUNT_KINDS), lcE = cur.countedAt && (!lc || cur.countedAt > lc.at) ? { at: cur.countedAt, initials: cur.countedBy } : lc;
+  const head = `<div class="ihsum">${sm("Last counted", lcE)}${sm("Last ordered", last(["Ordered"]))}${sm("Last received", last(["Received"]))}</div>${nOrd ? `<p class="hint" style="margin:6px 0 0">Ordered ${nYr} time${nYr === 1 ? "" : "s"} in the last year${nOrd > nYr ? ` (${nOrd} in all)` : ""}.</p>` : ""}`;
+  if (!rows.length) { el.innerHTML = head + `<div class="list"><div class="empty">Nothing in the Log for this item yet. Counts, orders, receipts and edits will show up here.</div></div>`; return; }
+  const days = new Map();
+  rows.forEach(e => { const k = new Date(e.at).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" }); if (!days.has(k)) days.set(k, []); days.get(k).push(e); });
+  el.innerHTML = head + `<div class="ihlist">` + [...days.entries()].map(([d, es]) => `<div class="daywrap"><h3>${esc(d)}</h3><div class="list">${es.map(e => `<div class="arow"><span class="init">${esc(e.initials || "–")}</span><div><div class="t">${esc(e.action)}</div>${e.detail ? `<div class="d">${esc(e.detail)}</div>` : ""}</div><time>${esc(new Date(e.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</time></div>`).join("")}</div></div>`).join("") + `</div>`;
+}
+
 /* ---------- shelf labels (DYMO 30252) ---------- */
 let qrLoad;
 function loadQr(){
@@ -4626,6 +4664,7 @@ async function saveItem(it, opt = {}){
     if ("desired" in patch) ch.push(`desired ${fmtQ(base.desired)} → ${fmtQ(f.desired)}`);
     FKEYS_TXT.forEach(k => { if (k in patch) ch.push(k === "countEvery" ? `count schedule → ${patch[k] === "" ? "office default" : cntName(patch[k])}` : ({cat:"category",sub:"subcategory",loc:"location",unitCost:"price",exp:"expiration",sku:"SKU"}[k] || k)); });
     if (ch.length) logIt(ch.length === 1 && ch[0].startsWith("count") ? "Count" : "Edited", { id: it.id, name: f.name }, ch.join(", "));
+    else if (counted) logIt("Counted", { id: it.id, name: f.name }, `${fmtQ(f.qty)} on hand${f.units ? " × " + f.units : ""}`);
     Object.assign(it, patch); if (curItem?.id === it.id) openVals = { ...base, ...patch };
     if (counted && !opt.quiet) Sfx.play("count");
     sync("ok", "Saved"); if (!opt.stay) { closePanel(); toast("Saved " + f.name); } return true; }
