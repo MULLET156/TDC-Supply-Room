@@ -1358,6 +1358,9 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+.linkbtn{all:unset;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+#sec-ord .usehint{margin-top:8px}
+table.cmp th.ce, table.cmp td.ce{border-left:2px dashed var(--line)}
 header #addBtn{display:none!important}
 .newprodrow{display:flex;justify-content:flex-end;margin-bottom:-4px}
 .newprodrow .btn{min-height:42px}
@@ -3297,7 +3300,7 @@ function histHtml(){
   }).join("")}</div>`;
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
-const cmpSel = new Set();
+const cmpSel = new Set(); let cmpQ = "";
 let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = (() => { try { return localStorage.getItem("tdc.spmode") === "compare" ? "compare" : "spend"; } catch { return "spend"; } })(), cmpShow = "need";
 const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
 async function loadSpend(){
@@ -3348,11 +3351,19 @@ function offerAt(it, sup){
   const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
   return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 }
+/* open Spending › Compare suppliers with this product showing and ticked */
+function goCompare(it){
+  closePanel(); spendMode = "compare"; try { localStorage.setItem("tdc.spmode", "compare"); } catch {}
+  cmpShow = "all"; cmpSel.clear(); cmpSel.add(it.id); cmpQ = it.name;
+  setTab("spend"); window.scrollTo(0, 0);
+}
+/* cheapest price found at a store that isn't one of your suppliers */
+function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false && Number(o.price) > 0 && o.sure !== false); const pu = L.some(o => perUnit(o) != null); return L.sort((a, b) => (pu ? (perUnit(a) ?? Infinity) - (perUnit(b) ?? Infinity) : a.price - b.price))[0] || null; }
 function similarAt(it, sup){ const k = keyOf(sup); return offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure === false).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null; }
 function cmpRows(){
   const sups = compareSups();
   let list = cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice();
-  const q = keyOf($("#q")?.value || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.supplier].join(" ")).includes(q));
+  const q = keyOf(cmpQ || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.supplier].join(" ")).includes(q));
   return list.sort((a, b) => a.name.localeCompare(b.name)).map(it => {
     const cells = sups.map(s => ({ s, o: offerAt(it, s) }));
     const vals = cells.filter(c => c.o).map(c => ({ ...c, pu: perUnit(c.o), p: Number(c.o.price) }));
@@ -3381,42 +3392,46 @@ function compareHtml(){
   };
   return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
-    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpDesk" ${cmpSel.size ? "" : "disabled"} title="Tick products in the table, then have the Claude desktop app look them up at your suppliers while you're signed in">${ic("monitor")}<span>Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop</span></button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or supplier" style="min-width:200px"></label>
+    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch" title="Look up the ticked products (or all shown) at your suppliers' websites">${ic("refresh")}<span>Check prices${cmpSel.size ? ` (${cmpSel.size})` : rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</span></button><button type="button" class="btn" id="cmpWeb" ${cmpSel.size ? "" : "disabled"} title="Tick products, then search every online store for them">${ic("globe")}<span>Search the whole web${cmpSel.size ? ` (${cmpSel.size})` : ""}</span></button><button type="button" class="btn" id="cmpDesk" ${cmpSel.size ? "" : "disabled"} title="Tick products in the table, then have the Claude desktop app look them up at your suppliers while you're signed in">${ic("monitor")}<span>Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop</span></button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
-    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
+    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="ce">Elsewhere</th><th class="cs">Save</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><a class="ccb" href="${esc(webHref(w.url || ""))}" target="_blank" rel="noopener" title="${esc(w.src)}${w.title ? ": " + esc(w.title) : ""} · website price"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></a></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "No prices to compare yet. Import a price list from each supplier, or check website prices."}</div></div>`}`;
 }
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
+  $("#cmpQ") && ($("#cmpQ").oninput = e => { cmpQ = e.target.value; clearTimeout(wireCompare.t); wireCompare.t = setTimeout(() => { render(); const el = $("#cmpQ"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 300); });
   $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
-  const selSync = () => { const b = $("#cmpDesk"); if (b) { b.disabled = !cmpSel.size; b.querySelector("span").textContent = `Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
+  const selSync = () => { const b = $("#cmpDesk"); if (b) { b.disabled = !cmpSel.size; b.querySelector("span").textContent = `Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop`; } const f = $("#cmpFetch"); if (f) f.querySelector("span").textContent = `Check prices${cmpSel.size ? ` (${cmpSel.size})` : ` (${Math.min(cmpRows().length, 40)})`}`; const w = $("#cmpWeb"); if (w) { w.disabled = !cmpSel.size; w.querySelector("span").textContent = `Search the whole web${cmpSel.size ? ` (${cmpSel.size})` : ""}`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
   document.querySelectorAll("[data-cmpsel]").forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.cmpsel) : cmpSel.delete(c.dataset.cmpsel); selSync(); });
   $("#cmpAll") && ($("#cmpAll").onchange = e => { const ids = cmpRows().map(r => r.it.id); ids.forEach(i => e.target.checked ? cmpSel.add(i) : cmpSel.delete(i)); document.querySelectorAll("[data-cmpsel]").forEach(c => c.checked = cmpSel.has(c.dataset.cmpsel)); selSync(); });
   $("#cmpDesk") && ($("#cmpDesk").onclick = () => deskPriceCheck([...cmpSel].map(byId).filter(Boolean)));
-  $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(cmpRows().map(r => r.it).slice(0, 40)));
+  const picked = () => cmpSel.size ? [...cmpSel].map(byId).filter(Boolean) : cmpRows().map(r => r.it).slice(0, 40);
+  $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(picked()));
+  $("#cmpWeb") && ($("#cmpWeb").onclick = () => fetchPrices([...cmpSel].map(byId).filter(Boolean), "web"));
   $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
   document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} product link saved for this product yet: open the product and check prices to find it`); return; } useOffer(it, o); });
 }
 /* Fetch prices: everything the app can do by itself (each supplier's public website), skipping items checked this week,
    then what's left at suppliers that only show prices after sign-in, with the two ways to get those. */
-async function fetchPrices(list){
+async function fetchPrices(list, scope = "mine"){
   if (!list.length) { toast("No products to fetch prices for"); return; }
   if (!window.TDC?.priceSearch) { livePricesHelp(null); return; }
   if (priceRun) { toast("A price check is already running"); return; }
   const sups = compareSups(), wk = Date.now() - 7 * 864e5;
   const fresh = it => sups.every(s => { const o = offerAt(it, s); return o && (o.at || 0) > wk; }) || (Array.isArray(it.offers) && it.offers.some(o => o.run === undefined && o.kind !== "invoice" && o.kind !== "list" && (o.at || 0) > Date.now() - 864e5 && o.mine));
-  const todo = list.filter(it => !fresh(it)), skip = list.length - todo.length;
+  const todo = scope === "web" ? list.slice() : list.filter(it => !fresh(it)), skip = list.length - todo.length;
   let stop = false, n = 0;
   openPanel(`<div class="ph"><h2>Fetching prices</h2><button class="iconbtn" id="fpX" type="button">Stop</button></div>
-    <p class="hint" id="fpStat">Checking ${todo.length} product${todo.length === 1 ? "" : "s"} at your suppliers' websites${skip ? ` (${skip} checked recently, skipped)` : ""}. About 30–60 seconds each; you can keep this open or close it and come back.</p>
+    <p class="hint" id="fpStat">Checking ${todo.length} product${todo.length === 1 ? "" : "s"} ${scope === "web" ? "across the web" : "at your suppliers' websites"}${skip ? ` (${skip} checked recently, skipped)` : ""}. About 30–60 seconds each; you can keep this open or close it and come back.</p>
     <div class="fpbar"><i id="fpBar" style="width:0%"></i></div><div id="fpOut" class="hint"></div>`);
   $("#fpX").onclick = () => { stop = true; $("#fpX").textContent = "Stopping…"; };
   for (const it of todo) {
     if (stop) break; n++;
     const st = $("#fpStat"); if (st) st.textContent = `Checking ${n} of ${todo.length}: ${it.name}`;
-    await runPriceCheck(byId(it.id) || it, "mine", { quiet: true, status: () => {} });
+    await runPriceCheck(byId(it.id) || it, scope, { quiet: true, status: () => {} });
     const bar = $("#fpBar"); if (bar) bar.style.width = (n / todo.length * 100).toFixed(0) + "%";
   }
   /* what's still missing: suppliers that hide prices until you sign in */
@@ -3427,7 +3442,7 @@ async function fetchPrices(list){
   if (!$("#fpStat")) { render(); toast(`Prices fetched${cheaper ? `: ${cheaper} product${cheaper > 1 ? "s" : ""} cheaper elsewhere` : ""}`); return; }
   openPanel(`<div class="ph"><h2>Prices fetched</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <p>${stop ? `Stopped after ${n} of ${todo.length}.` : `Checked ${n} product${n === 1 ? "" : "s"}${skip ? ` (${skip} were checked recently)` : ""}.`}${cheaper ? ` <b>${cheaper} product${cheaper > 1 ? "s are" : " is"} cheaper at another supplier</b>; look for green prices.` : ""}</p>
-    ${gaps.length ? `<p>Still without a price: ${gaps.map(([s, c]) => `<b>${esc(s)}</b> (${c})`).join(", ")}. These suppliers only show your price after you sign in, so the website can't read them. Two ways to fill them in:</p>
+    ${gaps.length && scope !== "web" ? `<p>Still without a price: ${gaps.map(([s, c]) => `<b>${esc(s)}</b> (${c})`).join(", ")}. These suppliers only show your price after you sign in, so the website can't read them. Two ways to fill them in:</p>
       <div class="mmenu"><button type="button" class="mi" id="fpLive">${ic("monitor")}Have Claude read them while you're signed in<small>Claude desktop app</small></button><button type="button" class="mi" id="fpImp">${ic("upload")}Import a price list<small>Excel, CSV, PDF or screenshot</small></button></div>` : `<p>Every product has a price at each supplier.</p>`}
     <div class="actions savebar"><button class="btn pri grow" data-close type="button">Show the comparison</button></div>`);
   $("#fpLive") && ($("#fpLive").onclick = () => livePricesHelp(null));
@@ -4954,7 +4969,6 @@ async function openItem(it, prefill){
     <div class="istatus ${st.cls}"><span>${st.html}</span>${it.link ? `<a class="btn sm ishop" href="${esc(webHref(it.link))}" target="_blank" rel="noopener" title="Open the product page${it.supplier ? " on " + esc(it.supplier) : ""}">${ic("cart")}Shop</a>` : `<a class="btn sm ishop" data-pfind="${it.supplier ? "sup" : "shop"}" href="#" target="_blank" rel="noopener" title="No product link saved yet. Searches ${it.supplier ? esc(it.supplier) : "online stores"} for this product">${ic("cart")}Shop</a>`}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
-    ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
     <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span></div>
     <div class="isecs">
       <div class="isechead"><span>Product info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
@@ -4976,6 +4990,7 @@ async function openItem(it, prefill){
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
         ${ordFields(f)}
+        ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
         ${priceTrend(it)}
       </details>
       <details class="isec" id="sec-price" ${isOpen("sec-price", false) ? "open" : ""}><summary><b>Prices</b><span class="sum">${priceSum(it)}</span></summary><div id="priceBox">${priceBox(it)}</div></details>
@@ -5031,7 +5046,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
   $("#tLabel") && ($("#tLabel").onclick = () => shelfLabels([it]));
   $("#tAlt") && ($("#tAlt").onclick = () => { $("#ptoolsMenu").hidden = true; const go = () => findAlternatives(it); if (cardDirty()) leavePrompt(go); else go(); });
   $("#tArch") && ($("#tArch").onclick = () => { $("#ptoolsMenu").hidden = true; const go = () => archiveItem(it); if (cardDirty()) leavePrompt(go); else go(); });
-  $("#tPrices") && ($("#tPrices").onclick = () => { $("#ptoolsMenu").hidden = true; const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ behavior: "smooth", block: "start" }); } runPriceCheck(it, "mine"); });
+  $("#tPrices") && ($("#tPrices").onclick = () => { $("#ptoolsMenu").hidden = true; const go = () => goCompare(it); if (cardDirty()) leavePrompt(go); else go(); });
   wirePriceBox(it);
   showUseHint(it);
   $("#tHist") && ($("#tHist").onclick = () => itemHistory(it));
@@ -5160,7 +5175,7 @@ function priceBox(it){
     ${web.length ? `<h4 class="psub">Other stores</h4><div class="plist">${web.map(row).join("")}</div>` : ""}
     ${backupsHtml(it)}
     <p class="hint pnote" id="pStatus">${cheaperWeb ? `Cheapest anywhere: ${esc(money(Number(bestW.price)))} at ${esc(bestW.src)}. ` : ""}Website prices are list prices unless marked Signed in.</p>
-    ${readOnly ? "" : `<div class="pbtns"><button type="button" class="btn sm" id="pCheck">${ic("refresh")}Check prices</button><button type="button" class="btn sm" id="pWeb">${ic("globe")}Search the whole web</button><button type="button" class="btn sm" id="pLive">${ic("monitor")}Signed-in prices</button><button type="button" class="btn sm" id="pAlt">${ic("search")}Find alternatives</button></div>`}
+    <p class="hint pgo">To check this product's prices at your suppliers or across the web, use <button type="button" class="linkbtn" id="pGoCmp">Spending › Compare suppliers</button>.</p>
     ${window.TDC?.priceHistory ? `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>` : ""}`;
 }
 
@@ -5241,6 +5256,7 @@ function wirePriceHist(){ /* nothing to wire yet: the chart and lists are plain 
 function wirePriceBox(it){
   const box = $("#priceBox"); if (!box) return;
   const sec = $("#sec-price"); if (sec) { sec.ontoggle = () => { if (sec.open) loadPriceHist(it); }; if (sec.open) loadPriceHist(it); }
+  $("#pGoCmp") && ($("#pGoCmp").onclick = () => goCompare(it));
   $("#pCheck") && ($("#pCheck").onclick = () => runPriceCheck(it, "mine"));
   $("#pWeb") && ($("#pWeb").onclick = () => runPriceCheck(it, "web"));
   $("#pLive") && ($("#pLive").onclick = () => livePricesHelp(it));
