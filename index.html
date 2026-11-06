@@ -1478,6 +1478,9 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .list .row .rside .ordstep .olab{font-size:10.5px!important}
   .list .row .rside .ordstep .after{font-size:13px!important;padding:1px 6px!important;border-width:1.5px!important}
   .list .row .rside .ordstep .after small{font-size:11px!important}
+  body[data-view="sups"] .list .row .rside, body[data-view="cats"] .list .row .rside, body[data-view="locs"] .list .row .rside{flex-direction:row!important;align-items:center!important;gap:6px!important}
+  body[data-view="sups"] .list .row .rside .cntok, body[data-view="cats"] .list .row .rside .cntok, body[data-view="locs"] .list .row .rside .cntok{display:inline-grid!important;order:2;width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;border-radius:9px!important}
+  body[data-view="sups"] .list .row .rside .cntok .ic, body[data-view="cats"] .list .row .rside .cntok .ic, body[data-view="locs"] .list .row .rside .cntok .ic{width:20px!important;height:20px!important;margin:0!important}
   .list .row:has(.rside .exprep) .rside{grid-column:1/-1!important;align-items:stretch!important;padding-left:0!important}
   .list .row .rside .exprep .btn{min-height:36px!important;font-size:14px!important;padding:0 12px!important;white-space:nowrap}
   .list .grp .grptools{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px!important;margin-left:auto}
