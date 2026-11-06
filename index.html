@@ -1354,6 +1354,16 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 .pthead{display:flex;align-items:center;gap:6px;font-size:13.5px}.pthead span{margin-left:auto;font-weight:700;font-size:12.5px;color:var(--muted)}.pthead span.up{color:var(--bad)}.pthead span.down{color:var(--ok)}
 .ptsvg{width:100%;height:48px;color:var(--accent);margin:6px 0 2px;display:block}
 .ptlist{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}.ptlist b{color:var(--fg)}
+.btn.ordall{margin-left:6px;min-height:34px}
+.oolist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:6px 0}
+.ooitem{display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--line);cursor:pointer}.ooitem:first-child{border-top:0}
+.ooitem input{width:20px;height:20px;flex:none}.ooitem .oonm{flex:1;min-width:0}.ooitem small{color:var(--muted);margin-left:4px}
+.ooitem:has(input:checked) .oonm{text-decoration:line-through;opacity:.55}
+#ooText{width:100%;font-size:15px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--sunk);color:var(--fg)}
+.oofmt{display:flex;gap:8px;align-items:center;margin-top:6px}.oofmt select{font-size:14px}
+.oomore summary{cursor:pointer;color:var(--muted);font-size:13.5px;margin-top:6px}
+.ph h2:has(.suplogo){display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ph h2 .suplogo{height:28px;margin:0}
+.oofmt select{width:auto!important;max-width:100%;min-width:0;flex:1 1 auto}
 #markOrd,#markRcv{display:none!important}
 .expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
 .exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
@@ -2115,6 +2125,48 @@ function priceTrend(it){
     <svg viewBox="0 0 ${W} ${H}" class="ptsvg" role="img" aria-label="Price went from $${first.toFixed(2)} to $${last.toFixed(2)}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${ps.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.6" fill="currentColor"><title>${esc(d(h[k]))}: $${v.toFixed(2)}</title></circle>`).join("")}</svg>
     <div class="ptlist">${h.slice(-6).reverse().map(x => `<span>${esc(d(x))} <b>$${num(x.p).toFixed(2)}</b></span>`).join("")}</div></div>`;
 }
+
+/* Order online: one supplier's Order list items, ready for that supplier's website.
+   Amazon: one link fills the cart. Henry Schein: item numbers to paste into Quick Order. Everyone else: a click-through checklist. */
+const asinOf = u => (String(u || "").match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aws\/cart\/add\.html\?ASIN\.1=|[?&]asin=)([A-Z0-9]{10})/i) || [])[1]?.toUpperCase() || "";
+const OO_FMT = { space: ["Item number, space, quantity", (k, q) => `${k} ${q}`], comma: ["Item number, comma, quantity", (k, q) => `${k},${q}`], tab: ["Item number, tab, quantity (from a spreadsheet)", (k, q) => `${k}\t${q}`] };
+function ooFmt(){ try { const v = localStorage.getItem("tdc.ooFmt"); if (OO_FMT[v]) return v; } catch {} return "space"; }
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-orderall]"); if (b) orderOnline(b.dataset.orderall); });
+function orderOnline(sup){
+  const rows = items.filter(i => i.need && !i.onOrder && keyOf(i.supplier) === keyOf(sup)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!rows.length) { toast("Nothing from " + sup + " on the Order list"); return; }
+  const q = i => fmtQ(i.orderQty || 1), web = clean(infoOf(sup).website), isAmz = /amazon/i.test(sup), isHS = /schein/i.test(sup);
+  const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
+  const linkOf = i => /^https?:/i.test(i.link || "") ? i.link : "";
+  const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(isAmz ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
+  const done = `<div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" type="button" id="ooMark">${ic("send")}Mark these ${rows.length} ordered</button></div>`;
+  let body = "";
+  if (isAmz) {
+    const ok = rows.filter(i => asinOf(i.link)), miss = rows.filter(i => !asinOf(i.link));
+    const url = "https://www.amazon.com/gp/aws/cart/add.html?" + ok.map((i, k) => `ASIN.${k + 1}=${asinOf(i.link)}&Quantity.${k + 1}=${Math.max(1, Math.round(num(i.orderQty) || 1))}`).join("&");
+    body = `${ok.length ? `<p class="hint">Step 1: open Amazon with ${ok.length} item${ok.length === 1 ? "" : "s"} already in the cart. Amazon shows a page to confirm; press <b>Add to cart</b>, then check out as usual.</p>
+      <div class="actions"><a class="btn pri grow" href="${esc(url)}" target="_blank" rel="noopener">${ic("cart")}Add ${ok.length} to Amazon cart ↗</a></div>` : ""}
+      ${miss.length ? `<p class="hint">${ok.length ? "These" : "None of these"} have an Amazon product link${ok.length ? " yet, so add them yourself" : ", so add them yourself (add the Amazon link to an item once and next time it goes in automatically)"}:</p>${check(miss)}` : ""}
+      ${ok.length ? `<details class="oomore"><summary>See the ${ok.length} going in automatically</summary>${check(ok)}</details>` : ""}`;
+  } else if (isHS) {
+    const ok = rows.filter(i => clean(i.sku)), miss = rows.filter(i => !clean(i.sku)), f = ooFmt();
+    const text = () => ok.map(i => OO_FMT[ooFmt()][1](clean(i.sku).replace(/[\s-]/g, ""), Math.max(1, Math.round(num(i.orderQty) || 1)))).join("\n");
+    body = `${ok.length ? `<p class="hint">Step 1: copy these item numbers. Step 2: on Henry Schein, open <b>Quick Order</b> (sign in first), paste them in and add to cart.</p>
+      <textarea id="ooText" class="mono" rows="${Math.min(10, ok.length + 1)}" readonly>${esc(text())}</textarea>
+      <div class="actions"><button class="btn pri grow" type="button" id="ooCopy">${ic("copy")}Copy ${ok.length} item number${ok.length === 1 ? "" : "s"}</button><a class="btn" href="https://www.henryschein.com/us-en/dental/default.aspx" target="_blank" rel="noopener">Open Henry Schein ↗</a></div>
+      <label class="hint oofmt">Format <select id="ooFmt">${Object.entries(OO_FMT).map(([k, [l]]) => `<option value="${k}" ${k === f ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
+      ${miss.length ? `<p class="hint">${miss.length} item${miss.length === 1 ? " has" : "s have"} no item number, so add ${miss.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(miss)}` : ""}`;
+  } else {
+    body = `<p class="hint">${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.</p>${check(rows)}
+      <div class="actions"><button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
+  }
+  openPanel(head + body + `<p class="hint">Step ${isAmz || isHS ? "3" : "2"}: after you've placed the order, mark them ordered so they move to On order.</p>` + done);
+  $("#ooFmt") && ($("#ooFmt").onchange = e => { try { localStorage.setItem("tdc.ooFmt", e.target.value); } catch {} const t = $("#ooText"); if (t) t.value = rows.filter(i => clean(i.sku)).map(i => OO_FMT[e.target.value][1](clean(i.sku).replace(/[\s-]/g, ""), Math.max(1, Math.round(num(i.orderQty) || 1)))).join("\n"); });
+  const copy = (txt, msg) => { try { navigator.clipboard.writeText(txt).then(() => toast(msg), () => toast("Select the text and copy it")); } catch { toast("Select the text and copy it"); } };
+  $("#ooCopy") && ($("#ooCopy").onclick = () => { const t = $("#ooText"); t.select(); copy(t.value, "Copied. Paste into Henry Schein Quick Order"); });
+  $("#ooCopyList") && ($("#ooCopyList").onclick = () => copy(rows.map(i => `${q(i)} x ${i.name}${i.units ? " (" + i.units + ")" : ""}${i.sku ? " #" + i.sku : ""}`).join("\n"), "List copied"));
+  $("#ooMark").onclick = () => { closePanel(); markOrdered(rows); };
+}
 function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
   const cnt = list.filter(i => i.countedAt).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
@@ -2166,8 +2218,8 @@ function repInline(r, sup){
 async function saveSup(patch){ await db.doc("settings/suppliers").set({ order: supOrder, reps: supReps, extra: supExtra, ...patch }); }
 function supRank(name){ const i = supOrder.indexOf(keyOf(name)); return i < 0 ? 1e6 : i; }
 function bySupplier(list){
-  const g = new Map(); list.forEach(i => { const k = i.supplier || "No supplier listed"; if(!g.has(k)) g.set(k, []); g.get(k).push(i); });
-  return [...g.entries()].sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
+  const g = new Map(), nm = new Map(); list.forEach(i => { const raw = clean(i.supplier) || "No supplier listed", k = keyOf(raw); if (!nm.has(k) || (/^[a-z]/.test(nm.get(k)) && /^[A-Z]/.test(raw))) nm.set(k, raw); if(!g.has(k)) g.set(k, []); g.get(k).push(i); });
+  return [...g.entries()].map(([k, v]) => [nm.get(k), v]).sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
 }
 let lastRendered = "";   /* a refresh of the same page keeps the list where you were (after saving an item, live updates) */
 function render(){ const y = scrollY, same = lastRendered === tab; renderInner(); lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
@@ -2282,7 +2334,7 @@ function renderInner(){
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${real ? supLogo(s) : ""}${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp"><span class="grpname">${real ? supLogo(s) : ""}${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} items in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
