@@ -1206,25 +1206,61 @@ async function pageFunction(context) {
   const out = { stage: 'start', results: [] };
   const scrub = s => String(s || '').split(customData.u).join('[user]');
   try {
-    await sleep(3000);
-    const signIn = page.locator('a:has-text("Sign In"), button:has-text("Sign In")').first();
-    if (await signIn.count()) { await signIn.click().catch(() => {}); await sleep(6000); }
+    await sleep(4000);
+    const vis = async l => await l.isVisible().catch(() => false);
+    const formInfo = async () => page.$$eval('input,button', els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).slice(0, 40).map(e => [e.tagName, e.type || '', e.name || '', e.id || '', (e.placeholder || e.innerText || e.value || '').trim().slice(0, 30)].join('|')));
+    /* open the sign-in panel: the header link, or the Sign In button on /login */
+    let pw = page.locator('input[type=password]');
+    if (!(await vis(pw.first()))) {
+      for (const sel of ['button:has-text("Sign In")', 'a:has-text("Sign In")', 'text=/^\\s*Sign In\\s*$/']) {
+        const b = page.locator(sel); const n = await b.count();
+        for (let i = 0; i < n && !(await vis(pw.first())); i++) { if (await vis(b.nth(i))) { await b.nth(i).click().catch(() => {}); await sleep(3500); } }
+        if (await vis(pw.first())) break;
+      }
+    }
     out.loginUrl = page.url();
-    const userSel = 'input[type=email], input[name*=user i], input[id*=user i], input[name*=email i], input[id*=email i], input[name=identifier], input[autocomplete=username]';
-    const passSel = 'input[type=password]';
-    await page.waitForSelector(userSel + ', ' + passSel, { timeout: 25000 });
-    const u = page.locator(userSel).first();
-    if (await u.count() && await u.isVisible().catch(() => false)) await u.fill(customData.u);
-    let p = page.locator(passSel).first();
-    if (!(await p.isVisible().catch(() => false))) { await page.keyboard.press('Enter'); await sleep(5000); p = page.locator(passSel).first(); await p.waitFor({ state: 'visible', timeout: 25000 }); }
-    await p.fill(customData.p);
-    await page.keyboard.press('Enter');
-    await sleep(10000);
+    out.form = await formInfo();
+    /* a username-first page (identity provider) shows only the name box: fill it and continue */
+    if (!(await vis(pw.first()))) {
+      const u1 = page.locator('input[type=email]:visible, input[name*=user i]:visible, input[id*=user i]:visible, input[name=identifier]:visible, input[autocomplete=username]:visible').first();
+      if (await u1.count()) { await u1.fill(customData.u); await page.keyboard.press('Enter'); await sleep(5000); }
+    }
+    pw = page.locator('input[type=password]:visible').first();
+    await pw.waitFor({ state: 'visible', timeout: 20000 });
+    /* the username box is the visible text/email field in the same form as the password, just before it */
+    const filled = await pw.evaluate((p, user) => {
+      const scope = p.form || p.closest('div[class*=login i], div[class*=signin i], div[class*=modal i], section, body') || document.body;
+      const ins = [...scope.querySelectorAll('input')].filter(i => { const r = i.getBoundingClientRect(); return r.width > 0 && r.height > 0 && /^(text|email|)$/i.test(i.type) && !/search/i.test(i.name + i.id + i.placeholder); });
+      const before = ins.filter(i => i.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const u = before[before.length - 1] || ins[0];
+      if (!u) return '';
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      if (!u.value) { u.focus(); set.call(u, user); u.dispatchEvent(new Event('input', { bubbles: true })); u.dispatchEvent(new Event('change', { bubbles: true })); }
+      return (u.name || u.id || u.placeholder || 'field');
+    }, customData.u);
+    out.userField = filled;
+    await pw.fill(customData.p);
+    /* press the form's own sign-in button (Enter can land on the search box instead) */
+    const clicked = await pw.evaluate(p => {
+      const scope = p.form || p.closest('div[class*=login i], div[class*=signin i], div[class*=modal i], section') || document.body;
+      const bs = [...scope.querySelectorAll('button, input[type=submit], a')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && /sign\s*in|log\s*in|submit|continue/i.test(b.innerText || b.value || ''); });
+      const b = bs.find(b => b.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_PRECEDING) || bs[0];
+      if (b) { b.click(); return (b.innerText || b.value || '').trim().slice(0, 30); }
+      return '';
+    });
+    out.clicked = clicked;
+    if (!clicked) await pw.press('Enter');
+    await sleep(12000);
     out.afterUrl = page.url();
-    const t = (await page.innerText('body').catch(() => '')).slice(0, 1500);
-    out.afterText = scrub(t);
+    const t = (await page.innerText('body').catch(() => '')).slice(0, 2500);
+    out.afterText = scrub(t.slice(0, 1500));
     if (/verification code|one[- ]time (code|pass)|captcha|verify (it'?s|that it'?s) you|security code|enter the code/i.test(t)) { out.stage = 'challenge'; return out; }
     if (/(incorrect|invalid|wrong).{0,40}(user|password|credentials)|(user|password).{0,40}(incorrect|invalid)/i.test(t)) { out.stage = 'bad_login'; return out; }
+    /* check it really signed in before reading prices */
+    await page.goto('https://www.henryschein.com/en-us/', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {}); await sleep(5000);
+    const home = await page.innerText('body').catch(() => '');
+    out.homeHead = scrub(home.slice(0, 400));
+    if (/Create an Online Account/i.test(home) || /\bSign In\b/.test(home.slice(0, 1500))) { out.stage = 'not_signed_in'; out.form2 = await formInfo(); return out; }
     out.stage = 'logged_in';
     for (const job of customData.jobs) {
       try {
@@ -1292,8 +1328,8 @@ function signed_in_poll(string $run): array {
 }
 function signed_in_read(array $o, array $pages): array {
     $stage = (string)($o['stage'] ?? 'start');
-    $why = ['challenge' => 'Henry Schein asked for a verification code or a robot check, which an automated login can\'t answer.', 'bad_login' => 'Henry Schein didn\'t accept the saved username or password.', 'start' => 'The login page didn\'t look as expected' . (!empty($o['error']) ? ': ' . $o['error'] : '.')][$stage] ?? '';
-    if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 600)]];
+    $why = ['challenge' => 'Henry Schein asked for a verification code or a robot check, which an automated login can\'t answer.', 'bad_login' => 'Henry Schein didn\'t accept the saved username or password.', 'not_signed_in' => 'The login didn\'t stick: after signing in, Henry Schein still showed the signed-out page.', 'start' => 'The login page didn\'t look as expected' . (!empty($o['error']) ? ': ' . $o['error'] : '.')][$stage] ?? '';
+    if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'form' => $o['form'] ?? [], 'userField' => $o['userField'] ?? '', 'clicked' => $o['clicked'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 700), 'home' => $o['homeHead'] ?? '', 'form2' => $o['form2'] ?? [], 'error' => $o['error'] ?? '']];
     $out = [];
     foreach ((array)($o['results'] ?? []) as $k => $r) {
         $pg = $pages[$k] ?? ['url' => '', 'name' => '', 'id' => '', 'q' => ''];
