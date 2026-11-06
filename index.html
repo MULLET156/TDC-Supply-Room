@@ -727,6 +727,9 @@ body.on-products .filters{display:none!important}
 .istatus .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
 .istatus .cntok.icnt .ic{width:20px;height:20px;margin:0}
 .cbox .cntlab{display:block;margin-top:6px}
+.manrow .cntrow{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:700;margin-right:auto}
+@media (max-width:640px){.manrow{gap:8px!important}.manrow .cntrow{flex:1 1 auto;min-width:0;gap:6px}.manrow .cntrow > span{white-space:nowrap}.manrow .cntrow .cntsel{min-width:0!important;flex:1 1 auto;width:100%}.manrow .btn{white-space:nowrap;flex:none;padding:0 10px!important}}
+.manrow .cntrow .cntsel{width:auto;min-width:150px;margin:0;min-height:36px;font-size:14px!important;padding:0 8px!important;text-align:left;text-align-last:left;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font-weight:600;cursor:pointer}
 @media (min-width:641px){.cbox .cntsel{font-size:12px!important;padding:0 2px!important}}
 .cbox .cntsel{display:block;width:100%;margin-top:2px;min-height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;font-size:12.5px;font-weight:600;padding:0 4px;text-align:center;text-align-last:center;cursor:pointer}
 @media (max-width:640px){
@@ -3125,12 +3128,14 @@ function detFields(it){
     ${fwrap("full", it.notes, `<label for="e-notes">Notes</label><input id="e-notes" value="${esc(it.notes)}">`)}
   </div>${dl("dl-cat", catTree().map(t => t.name))}${dl("dl-sub", [...new Set(catTree().flatMap(t => (keyOf(t.name) === keyOf(it.cat) || !it.cat ? t.subs : []).map(x => x.name)))])}${dl("dl-loc", locNames())}`;
 }
-function countBoxes(q, d, u, cnt){
+function countBoxes(q, d, u, cnt, inBox = true){
   const short = { "7": "Weekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" };
   const sched = `<span class="chint cntlab">Count schedule</span><select id="e-cnt" class="cntsel" aria-label="Count schedule" title="How often this item is counted. Default follows Setup › Alerts (now ${esc(cntName(cntDefault()).toLowerCase())}).">${`<option value="">Default (${esc(short[String(cntDefault())] || cntName(cntDefault()))})</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(cnt ?? "") === k ? " selected" : ""}>${short[k]}</option>`).join("")}</select>`;
-  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" ? sched : ""}</div>`;
+  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" && inBox ? sched : ""}</div>`;
   return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
 }
+/* the count schedule dropdown on its own (item window: on the line with Add to order list) */
+function cntSelRow(cnt){ const m = countBoxes(0, 0, 0, cnt).match(/<span class="chint cntlab">[\s\S]*?<\/select>/); return m ? `<label class="cntrow">${m[0].replace('<span class="chint cntlab">Count schedule</span>', '<span>Count schedule</span>')}</label>` : ""; }
 /* The Add page and the item window use the same field ids. Look inside the open window first so one never
    reads or writes the other's fields. */
 function fld(id){ const p = $("#overlay .panel"); return (p && p.querySelector("#" + CSS.escape(id))) || document.getElementById(id); }
@@ -4366,8 +4371,8 @@ async function openItem(it, prefill){
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
     <div class="istatus ${st.cls}"><span>${st.html}</span>${countB}</div>
     ${primary}${primaryTail}
-    ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery)}
-    ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button></div>` : ""}
+    ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
+    <div class="manrow">${cntSelRow(f.countEvery)}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button>` : ""}</div>
     <div class="isecs">
       <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("sparkle")}Tools ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
