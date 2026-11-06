@@ -1300,6 +1300,32 @@ body[data-view="all"] .row .meta .catpath{display:none}
 body[data-view="need"] .row .meta .m-loc{display:none}
 body[data-view="sups"] .row .meta .m-sup, body[data-view="cats"] .row .meta .m-sup, body[data-view="locs"] .row .meta .m-sup{display:none}
 body[data-view="locs"] .row .meta .m-loc{display:none}
+/* Compare suppliers */
+.sptabs{display:flex;gap:6px;margin-bottom:2px}
+.sptabs button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;cursor:pointer}
+.sptabs button .ic{width:16px;height:16px}
+.sptabs button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.cmpwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table.cmp{border-collapse:collapse;width:100%;min-width:640px;font-size:13.5px}
+table.cmp th, table.cmp td{border-top:1px solid var(--line);padding:6px 8px;text-align:center;vertical-align:middle}
+table.cmp thead th{border-top:0;font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap}
+table.cmp thead th .suplogo{display:block;margin:0 auto 3px;height:18px;max-width:60px}
+table.cmp .cn{text-align:left;min-width:200px;max-width:320px;position:sticky;left:0;background:var(--surface);z-index:1}
+table.cmp .cnb{all:unset;cursor:pointer;font-weight:600;display:block}
+table.cmp .cnb:hover{text-decoration:underline}
+table.cmp th.cn small, table.cmp td small{display:block;color:var(--muted);font-weight:500;font-size:11.5px}
+table.cmp .ccb{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 6px;border-radius:8px;border:2px solid transparent;min-width:78px}
+table.cmp .ccb b{font-family:var(--f-mono);font-size:14px}
+table.cmp .ccb small{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.cmp .ccb i{font-style:normal;font-size:10.5px;color:var(--muted)}
+table.cmp .ccb i.s-invoice, table.cmp .ccb i.s-list, table.cmp .ccb i.s-live{color:var(--info);font-weight:700}
+table.cmp td.best .ccb{background:color-mix(in srgb,var(--ok) 14%,transparent)}
+table.cmp td.best .ccb b{color:var(--ok)}
+table.cmp td.cur .ccb{border-color:var(--line)}
+table.cmp td.none{color:var(--muted)}
+table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
+.ccols{display:grid;gap:8px}
+.ccols label{display:flex;gap:10px;align-items:center;font-weight:600}
 /* Prices */
 .plist{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .prow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:14px}
@@ -1782,7 +1808,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
         <div class="toolrow2">
           <button class="btn pri addhdr" id="addBtn" type="button" title="Add item (shortcut: N)"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
-          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
+          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending &amp; prices</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
       </div>
     </div>
@@ -2442,7 +2468,7 @@ async function countOne(it, btn){
 }
 /* price as a number ("$12.50", "12.5" -> 12.5); null when it isn't a plain price */
 function priceNum(v){ v = clean(v); if (!/^\$?\s*[\d,]*\.?\d+$/.test(v)) return null; const n = Number(v.replace(/[$,\s]/g, "")); return isFinite(n) && n > 0 ? n : null; }
-const money = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: Math.abs(n) < 1 && n !== 0 ? 3 : 2 });
 const lineTotal = i => { const p = ordPrice(i), q = Number(i.orderQty) || 0; return p != null && q > 0 ? p * q : null; };
 const daysSince = s => { const t = Date.parse(s); return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : null; };
 /* extra facts on the right of a row, depending on the page */
@@ -3148,7 +3174,8 @@ function histHtml(){
   }).join("")}</div>`;
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
-let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "";
+let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = (() => { try { return localStorage.getItem("tdc.spmode") === "compare" ? "compare" : "spend"; } catch { return "spend"; } })(), cmpShow = "need";
+const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
 async function loadSpend(){
   if (spendLoading) return; spendLoading = true;
   try { const s = await db.collection("orders").orderBy("at", "desc").limit(3000).get(); spendOrders = s.docs.map(d => ({ id: d.id, ...d.data() })); }
@@ -3160,6 +3187,10 @@ function spendRange(){
   return { "12m": [new Date(y, m - 11, 1), "the last 12 months"], month: [new Date(y, m, 1), "this month"], quarter: [new Date(y, m - (m % 3), 1), "this quarter"], year: [new Date(y, 0, 1), "this year"], all: [new Date(0), "all time"] }[spendPer] || [new Date(0), "all time"];
 }
 function spendHtml(){
+  if (spendMode === "compare") return spendTabs() + compareHtml();
+  return spendTabs() + spendInner();
+}
+function spendInner(){
   if (!spendOrders) { loadSpend(); return `<div class="list"><div class="empty">Loading orders…</div></div>`; }
   const [from, label] = spendRange();
   const catOf = l => l.cat || byId(l.id)?.cat || "", supOf = l => l.supplier || byId(l.id)?.supplier || "No supplier";
@@ -3187,7 +3218,74 @@ function spendHtml(){
     ${spendCat ? "" : `<section class="spsec"><h3 class="sec">By category</h3>${bars(group(l => catOf(l) || "No category"))}</section>`}
     <section class="spsec"><h3 class="sec">Top items</h3>${items.length ? items.map(([k, v]) => `<div class="sbar"><span class="sk">${esc(k)}</span><b class="sv">${money(v)}</b></div>`).join("") : `<p class="hint">Nothing yet.</p>`}</section></div>`;
 }
+/* the best known price at one supplier: account prices (invoice, price list, signed in) beat website prices */
+function offerAt(it, sup){
+  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0);
+  const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
+  return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
+}
+function cmpRows(){
+  const sups = compareSups();
+  let list = cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice();
+  const q = keyOf($("#q")?.value || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.supplier].join(" ")).includes(q));
+  return list.sort((a, b) => a.name.localeCompare(b.name)).map(it => {
+    const cells = sups.map(s => ({ s, o: offerAt(it, s) }));
+    const vals = cells.filter(c => c.o).map(c => ({ ...c, pu: perUnit(c.o), p: Number(c.o.price) }));
+    const counts = vals.map(v => unitCount(v.o.pack));
+    const samePack = vals.length > 1 && (vals.every(v => keyOf(v.o.pack) === keyOf(vals[0].o.pack)) || (counts.every(c => c != null) && counts.every(c => c === counts[0])));
+    const usePU = !samePack && vals.length > 1 && vals.every(v => v.pu != null);
+    const comparable = usePU || samePack;
+    const val = v => usePU ? v.pu : v.p;
+    const best = comparable ? vals.reduce((a, b) => (val(b) < val(a) ? b : a), vals[0]) : null;
+    const cur = vals.find(v => keyOf(v.s) === keyOf(it.supplier));
+    let save = 0;
+    if (best && cur && best !== cur) { const per = val(cur) - val(best); const units = usePU ? (unitCount(it.units) || unitCount(cur.o.pack) || 1) : 1; save = per * units * (Number(it.orderQty) || 1); }
+    return { it, cells, best, cur, comparable, save, usePU };
+  });
+}
+function compareHtml(){
+  const sups = compareSups(), rows = cmpRows();
+  const cheaper = rows.filter(r => r.save > 0.004), totalSave = cheaper.reduce((a, r) => a + r.save, 0);
+  const cell = (r, c) => {
+    const o = c.o; if (!o) return `<td class="cc none"><span>—</span></td>`;
+    const pu = perUnit(o), isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(r.it.supplier);
+    const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+    const src = o.kind === "saved" ? "Saved" : (KIND_LBL[o.kind] || "Website");
+    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(r.it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(r.usePU && pu != null && unitCount(o.pack) > 1 ? money(pu) : money(Number(o.price)))}</b><small>${r.usePU && pu != null && unitCount(o.pack) > 1 ? "each · " + esc(money(Number(o.price))) + "/" + esc(o.pack) : esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
+  };
+  return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
+    <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Items with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All items</option></select></label>
+    ${readOnly ? "" : `<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn" id="cmpCheck" ${window.TDC?.priceSearch ? "" : "hidden"}>${ic("refresh")}Check website prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpLive">${ic("monitor")}Signed-in prices</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} item${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
+    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">Item</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><th class="cn"><button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "No prices to compare yet. Import a price list from each supplier, or check website prices."}</div></div>`}`;
+}
+function wireCompare(){
+  $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
+  $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
+  $("#cmpLive") && ($("#cmpLive").onclick = () => livePricesHelp(null));
+  $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
+  $("#cmpCheck") && ($("#cmpCheck").onclick = async () => {
+    const list = cmpRows().map(r => r.it).slice(0, 40), b = $("#cmpCheck"); if (!list.length || priceRun) return;
+    b.disabled = true; let n = 0;
+    for (const it of list) { n++; b.innerHTML = ic("refresh") + `Checking ${n} of ${list.length}…`; await runPriceCheck(byId(it.id) || it, "mine", { quiet: true, status: () => {} }); }
+    render(); toast("Website prices checked");
+  });
+  document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
+  document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} product link saved for this item yet: open the item and check prices to find it`); return; } useOffer(it, o); });
+}
+function compareColumns(){
+  const all = [...new Set([...compareSups(), ...items.map(i => clean(i.supplier)).filter(Boolean)])].sort((a, b) => a.localeCompare(b)), on = new Set(compareSups().map(keyOf));
+  openPanel(`<div class="ph"><h2>Suppliers to compare</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <div class="ccols">${all.map(s => `<label><input type="checkbox" value="${esc(s)}" ${on.has(keyOf(s)) ? "checked" : ""}> ${esc(s)}</label>`).join("")}</div>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="ccGo" type="button">Save</button></div>`);
+  $("#ccGo").onclick = async () => { const v = [...document.querySelectorAll(".ccols input:checked")].map(x => x.value); if (!v.length) { toast("Pick at least one"); return; }
+    try { await db.doc("settings/rules").set({ ...rules, compareSups: v }); rules.compareSups = v; closePanel(); render(); } catch(e) { toast(dbErr(e)); } };
+}
 function wireSpend(){
+  document.querySelectorAll("[data-spmode]").forEach(b => b.onclick = () => { spendMode = b.dataset.spmode; try { localStorage.setItem("tdc.spmode", spendMode); } catch {} render(); });
+  if (spendMode === "compare") { wireCompare(); return; }
   $("#spPer") && ($("#spPer").onchange = e => { spendPer = e.target.value; render(); });
   $("#spCat") && ($("#spCat").onchange = e => { spendCat = e.target.value; render(); });
   $("#spSup") && ($("#spSup").onchange = e => { spendSup = e.target.value; render(); });
@@ -4820,22 +4918,24 @@ function priceTxt(v){ v = clean(v); const n = Number(v.replace(/[$,\s]/g, "")); 
 /* how many units are in one "pack" as sold: "Box of 200" -> 200, "Pack of 3" -> 3, "Each" -> 1 */
 function unitCount(pack){
   const s = clean(pack).toLowerCase(); if (!s) return null;
-  let m = s.match(/\b(?:of|x)\s*(\d[\d,]*)\b/) || s.match(/(\d[\d,]*)\s*(?:\/|per\s)?\s*(?:pk|pack|ct|count|pcs?|pieces|tips|ea\b|units?|bx|box|bag|case)/) || s.match(/^\(?(\d[\d,]*)\)?\s/);
+  let m = s.match(/\b(?:of|x)\s*(\d[\d,]*)\b/) || s.match(/^(?:bx|box|pk|pkg|pack|cs|case|bg|bag|ct|bt|btl|jar|tb|tube|rl|roll)\s*\/\s*(\d[\d,]*)\b/) || s.match(/^(\d[\d,]*)\s*\/\s*(?:bx|box|pk|pkg|pack|cs|case|bg|bag|ct|canister|cn|jar|rl|roll)\b/) || s.match(/(\d[\d,]*)\s*(?:\/|per\s)?\s*(?:pk|pack|ct|count|pcs?|pieces|tips|ea\b|units?|bx|box|bag|case)/) || s.match(/^\(?(\d[\d,]*)\)?\s(?!\s*(?:ml|g|gm|gr|oz|mm|cc|l|in|cm|mg|fl|%|"))/);
   if (m) { const n = Number(m[1].replace(/,/g, "")); return n > 0 && n < 100000 ? n : null; }
   return /^(each|ea|1 each|single|unit|kit|bottle|vial|tube|syringe)\b/.test(s) ? 1 : null;
 }
 const perUnit = o => { const n = unitCount(o.pack), p = Number(o.price); return p > 0 && n ? p / n : null; };
 /* one row per store: a new reading replaces the store's last one; when a check finds several pages at the same store
    (Net32 lists the same product many times), only the cheapest is kept */
+const ACCT_KINDS = ["invoice", "list", "live"];
+const offerGrp = k => ACCT_KINDS.includes(k) ? "acct" : "web";
 const offerHost = o => { try { return new URL(webHref(o.url)).hostname.replace(/^www\./, ""); } catch { return ""; } };
 function upsertOffer(list, o, sameRun){
-  const same = x => (x.kind === "invoice") === (o.kind === "invoice") && (keyOf(x.src) === keyOf(o.src) || (o.url && x.url && offerHost(x) && offerHost(x) === offerHost(o)));
+  const same = x => offerGrp(x.kind) === offerGrp(o.kind) && (keyOf(x.src) === keyOf(o.src) || (o.url && x.url && offerHost(x) && offerHost(x) === offerHost(o)));
   const L = Array.isArray(list) ? list.filter(Boolean) : [];
   const old = L.find(same);
   if (old && sameRun && (sameRun === "show" || old.run === sameRun) && Number(old.price) > 0 && !(Number(o.price) > 0 && Number(o.price) < Number(old.price))) return L;
   return [...L.filter(x => !same(x)), o].slice(-20);
 }
-const KIND_LBL = { invoice: "Invoice", live: "Signed in", public: "Website", signin: "Website" };
+const KIND_LBL = { invoice: "Invoice", list: "Price list", live: "Signed in", public: "Website", signin: "Website" };
 function offersFor(it){
   let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
@@ -4950,8 +5050,8 @@ async function checkOrderPrices(list){
   toast(cheaper ? `${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper elsewhere: about ${money(total)} in all. Look for the green Save tags.` : "Checked. Your current suppliers have the best prices found.");
 }
 function livePricesHelp(it){
-  const sups = [...new Set(offersFor(it).filter(o => o.mine !== false).map(o => o.src))].join(", ") || it.supplier || "your suppliers";
-  const prompt = `Check my signed-in prices for "${it.name}" in the TDC Supply Room at ${sups}, and record them with record_price.`;
+  const sups = it ? ([...new Set(offersFor(it).filter(o => o.mine !== false).map(o => o.src))].join(", ") || it.supplier || "your suppliers") : compareSups().join(", ");
+  const prompt = it ? `Check my signed-in prices for "${it.name}" in the TDC Supply Room at ${sups}, and record them with record_price.` : `Check my signed-in prices at ${sups} for everything on the TDC Supply Room order list, and record them with record_price.`;
   openPanel(`<div class="ph"><h2>Signed-in prices</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <p>Henry Schein, Benco, Brasseler and Ultradent only show your price after you sign in, so this check runs in the <b>Claude desktop app</b>, using its browser where you're signed in to your supplier accounts. Claude only reads the price; it never adds to a cart or orders.</p>
     <p>In the Claude app, ask:</p><div class="copybox"><code id="lpTxt">${esc(prompt)}</code><button type="button" class="btn sm" id="lpCopy">${ic("copy")}Copy</button></div>
@@ -5518,6 +5618,132 @@ async function docPrep(file){
   if (!/^image\/(jpeg|png|webp|gif)$/.test(blob.type)) throw new Error(`${file.name || "That picture"} couldn't be read. Try a JPEG or PNG.`);
   return { type: blob.type, data: await docB64(blob), label: file.name || "Picture", blob, url: URL.createObjectURL(blob) };
 }
+/* ---------- price lists: a supplier's price sheet, purchase history or saved list (CSV / Excel / PDF / screenshot) ---------- */
+/* minimal .xlsx reader (first sheet): unzip with the browser's own inflate, read the XML */
+async function readXlsx(buf){
+  const u = new Uint8Array(buf), dv = new DataView(buf);
+  let e = -1; for (let i = u.length - 22; i >= Math.max(0, u.length - 70000); i--) if (dv.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error("That Excel file couldn't be opened. Save it as CSV and try again.");
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const files = {};
+  for (let k = 0; k < n; k++) {
+    const meth = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(u.subarray(p + 46, p + 46 + nl)); files[name] = { meth, csize, off }; p += 46 + nl + xl + cl;
+  }
+  const get = async name => { const f = files[name]; if (!f) return null; const ln = dv.getUint16(f.off + 26, true), lx = dv.getUint16(f.off + 28, true), s = f.off + 30 + ln + lx, raw = u.subarray(s, s + f.csize);
+    if (f.meth === 0) return new TextDecoder().decode(raw);
+    const ds = new DecompressionStream("deflate-raw"); const out = await new Response(new Blob([raw]).stream().pipeThrough(ds)).arrayBuffer(); return new TextDecoder().decode(out); };
+  const P = s => new DOMParser().parseFromString(s, "application/xml");
+  const ss = await get("xl/sharedStrings.xml"), strs = ss ? [...P(ss).getElementsByTagName("si")].map(si => [...si.getElementsByTagName("t")].map(t => t.textContent).join("")) : [];
+  const sheetName = Object.keys(files).filter(f => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort()[0]; if (!sheetName) throw new Error("No sheet found in that Excel file.");
+  const doc = P(await get(sheetName)), rows = [];
+  const col = ref => { let c = 0; for (const ch of ref.replace(/\d+/g, "")) c = c * 26 + (ch.charCodeAt(0) - 64); return c - 1; };
+  for (const r of doc.getElementsByTagName("row")) {
+    const row = [];
+    for (const c of r.getElementsByTagName("c")) {
+      const t = c.getAttribute("t"), v = c.getElementsByTagName("v")[0]?.textContent ?? "", is = c.getElementsByTagName("is")[0];
+      row[col(c.getAttribute("r") || "A1")] = t === "s" ? (strs[+v] ?? "") : t === "inlineStr" ? (is?.textContent ?? "") : v;
+    }
+    rows.push([...row].map(x => x ?? ""));
+  }
+  return rows;
+}
+function readCsv(text){
+  const rows = [], d = (text.split("\n")[0].match(/\t/g) || []).length > (text.split("\n")[0].match(/,/g) || []).length ? "\t" : ",";
+  let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++) { const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
+    else if (ch === '"') q = true; else if (ch === d) { row.push(f); f = ""; } else if (ch === "\n") { row.push(f.replace(/\r$/, "")); rows.push(row); row = []; f = ""; } else f += ch; }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(c => clean(c)));
+}
+const COMPARE_DEFAULT = ["Henry Schein", "Benco", "Net32", "Darby Dental"];
+const compareSups = () => { const v = rules.compareSups; const L = Array.isArray(v) && v.length ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };
+function openPriceListImport(preSup){
+  if (!needMe()) return;
+  if (!sample) { toast("Reading price lists needs Claude, which isn't set up here"); return; }
+  const sups = [...new Set([...compareSups(), ...items.map(i => clean(i.supplier)).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  openPanel(`<div class="ph"><div><h2>Import a price list</h2><div class="lastby">Your prices from a supplier: a price sheet, purchase history or saved list</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
+    <div class="f full"><label for="plSup">Whose prices are these?</label><select id="plSup"><option value="">Choose the supplier…</option>${sups.map(s => `<option ${keyOf(s) === keyOf(preSup) ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></div>
+    <label class="docdrop" id="plDrop"><input type="file" id="plIn" accept=".csv,.tsv,.txt,.xlsx,${window.HOSTED ? ".pdf,application/pdf," : ""}image/*" hidden><span class="pk-ic">${ic("file")}</span><span><b>Choose the file</b><small>Excel (.xlsx) or CSV export works best; a PDF or screenshot works too</small></span></label>
+    <p class="hint" id="plStat" role="status">Where to get one: Henry Schein › My account › Purchase history (Export) or a saved list; Benco › Purchase history or My lists (Export to Excel); or ask your rep to email your contract price sheet.</p>
+    <div class="actions"><button class="btn" data-close type="button">Cancel</button></div>`);
+  const go = async file => {
+    const sup = $("#plSup").value; const stat = $("#plStat");
+    if (!sup) { toast("Choose whose prices these are first"); return; }
+    try {
+      let r;
+      if (/\.(xlsx|csv|tsv|txt)$/i.test(file.name || "") || /csv|spreadsheetml/.test(file.type || "")) {
+        stat.textContent = "Reading the file…";
+        const rows = /\.xlsx$/i.test(file.name || "") ? await readXlsx(await file.arrayBuffer()) : readCsv(await file.text());
+        r = await priceRowsToLines(rows, sup, t => { stat.textContent = t; });
+      } else {
+        stat.textContent = "Claude is reading it and matching each line to your items. This can take up to a minute.";
+        const f = await docPrep(file);
+        r = window.HOSTED ? await TDC.readDoc([{ type: f.type, data: f.data }], { nameRule: NAME_RULE }) : await docReadLocal([f]);
+      }
+      if (!r?.lines?.length) { stat.textContent = "No product lines with prices were found in that file."; return; }
+      docReview({ ...r, kind: "price_list", supplier: sup, number: "" });
+    } catch(e) { stat.textContent = e?.message || "Couldn't read that file."; }
+  };
+  $("#plIn").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) go(f); };
+  const drop = $("#plDrop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer?.files?.[0]; if (f) go(f); });
+}
+/* spreadsheet rows -> price lines matched to items: item numbers first (exact), then Claude for the rest */
+async function priceRowsToLines(rows, sup, status){
+  rows = rows.filter(r => r.some(c => clean(c))).slice(0, 2000);
+  if (rows.length < 2) throw new Error("That file has no rows.");
+  status("Working out which columns are which…");
+  const peek = rows.slice(0, 12).map((r, i) => i + ": " + r.map(c => clean(c).slice(0, 60)).join(" | ")).join("\n");
+  const m = await sample.json(`These are the first rows of a dental supplier's price list or purchase history export. Identify the columns (0-based index, or -1 if missing) and the first data row.
+Reply with JSON: {"header": row index of the header row or -1, "sku": column of the supplier's item / catalog number, "mfr": column of the manufacturer part number, "desc": column of the product description or name, "price": column of the price for one unit (your price / net price / unit price; NOT an extended line total), "pack": column of the unit of measure or pack size, "qty": column of quantity ordered (or -1)}
+
+${peek}`, { modelTier: "quick" });
+  const ci = k => Number.isInteger(m?.[k]) && m[k] >= 0 ? m[k] : -1;
+  if (ci("price") < 0 || (ci("desc") < 0 && ci("sku") < 0)) throw new Error("Couldn't find a price column and a product column in that file. Try a different export, or a PDF/screenshot.");
+  const start = Number.isInteger(m.header) && m.header >= 0 ? m.header + 1 : 0;
+  const seen = new Map();
+  rows.slice(start).forEach(r => {
+    const pr = num(String(r[ci("price")] ?? "").replace(/[$,\s]/g, "")); if (!(pr > 0)) return;
+    const l = { sku: clean(r[ci("sku")]), mfr: clean(r[ci("mfr")]), desc: clean(r[ci("desc")]), pack: clean(r[ci("pack")]), price: pr };
+    const k = sku_n(l.sku) || keyOf(l.desc); if (!k) return;
+    seen.set(k, l);   /* purchase history repeats items: keep the latest row (exports list newest last or first; either way one per item) */
+  });
+  const lines = [...seen.values()];
+  if (!lines.length) throw new Error("No rows with a price were found.");
+  const supK = keyOf(sup);
+  const skuIdx = new Map();
+  items.forEach(i => {
+    if (i.sku && keyOf(i.supplier) === supK) skuIdx.set(sku_n(i.sku), i.id);
+    (Array.isArray(i.offers) ? i.offers : []).forEach(o => { if (o.sku && keyOf(o.src) === supK) skuIdx.set(sku_n(o.sku), i.id); });
+    (Array.isArray(i.altSources) ? i.altSources : []).forEach(a => { if (a.sku && keyOf(a.supplier) === supK) skuIdx.set(sku_n(a.sku), i.id); });
+    if (i.mfr) skuIdx.set("M" + sku_n(i.mfr), i.id);
+  });
+  lines.forEach(l => { const id = skuIdx.get(sku_n(l.sku)) || (l.mfr && skuIdx.get("M" + sku_n(l.mfr))); if (id) { l.match = id; l.sure = "yes"; } });
+  const rest = lines.filter(l => !l.match && l.desc);
+  if (rest.length) {
+    const inv = items.filter(i => i.name).map((i, k) => `${k}: ${i.name}${i.units ? " (" + i.units + ")" : ""}${i.sku ? " #" + i.sku : ""}`).join("\n"), idx = items.filter(i => i.name);
+    for (let s = 0; s < rest.length && s < 400; s += 60) {
+      status(`Matching lines to your items (${Math.min(rest.length, s + 60)} of ${Math.min(rest.length, 400)})…`);
+      const part = rest.slice(s, s + 60);
+      const a = await sample.json(`Match each price-list line from ${sup} to the dental office's inventory item that is the same product (same brand, product, size/shade; the pack may differ). Most lines will have no match: that's fine.
+INVENTORY (index: name):
+${inv}
+
+PRICE LIST LINES (line: description):
+${part.map((l, k) => `${k}: ${l.desc}${l.sku ? " #" + l.sku : ""}${l.pack ? " (" + l.pack + ")" : ""}`).join("\n")}
+
+Reply with JSON: {"m": [{"line": line number, "item": inventory index, "sure": true or false}]} listing only lines that match.`, { modelTier: "quick" });
+      (a?.m || []).forEach(x => { const l = part[x.line], it = idx[x.item]; if (l && it) { l.match = it.id; l.sure = x.sure ? "yes" : "maybe"; } });
+    }
+  }
+  const matched = lines.filter(l => l.match);
+  status(`${matched.length} of ${lines.length} lines match your items.`);
+  return { kind: "price_list", supplier: sup, lines: [...matched, ...lines.filter(l => !l.match).slice(0, 40)].map(l => ({ ...l, name: l.desc, qty: null })) };
+}
+const sku_n = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
 function openDocImport(){
   if (!needMe()) return;
   if (!sample || !(window.HOSTED ? window.TDC?.readDoc : canImages)) { toast(window.HOSTED ? "Reading documents needs Claude, which isn't set up on this server" : "Reading documents needs Claude, which isn't available here"); return; }
@@ -5569,7 +5795,7 @@ function docSeenBefore(r){ const n = docNo(r.number); if (!n) return null; retur
 async function docRemember(r, mode, count){ const n = docNo(r.number); if (!n) return; const list = [{ n, num: r.number, sup: clean(r.supplier), kind: r.kind, mode, count, at: Date.now(), by: me() }, ...docsSeen.filter(d => !(d.n === n && keyOf(d.sup) === keyOf(r.supplier)))].slice(0, 500); try { await db.doc("settings/docsSeen").set({ list }); docsSeen = list; } catch {} }
 function docReview(r){
   const mode0 = ["invoice", "packing_slip"].includes(r.kind) ? "receive" : r.kind === "order_confirmation" ? "ordered" : "prices";
-  const kindName = { invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
+  const kindName = { price_list: "Price list", invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
   const sup = clean(r.supplier), supK = keyOf(sup);
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
   const mine = items.filter(i => i.name && supK && keyOf(i.supplier) === supK).sort(byName), rest = items.filter(i => i.name && !(supK && keyOf(i.supplier) === supK)).sort(byName);
@@ -5597,6 +5823,7 @@ function docReview(r){
     const l = D[k], pick = row.querySelector("[data-pick]");
     pick.value = l.match && byId(l.match) ? l.match : "__new";
     row.querySelector("[data-on]").checked = docSeenBefore(r) ? false : l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind);
+    if (r.kind === "price_list" && !l.match) row.querySelector("[data-on]").checked = false;
     row.addEventListener("input", () => docChg(row, l, sup));
     row.addEventListener("change", () => docChg(row, l, sup));
   });
@@ -5615,8 +5842,9 @@ function docChg(row, l, sup){
   if (it) {
     if (mode === "receive" && q > 0) bits.push(`+${fmtQ(q)} → ${fmtQ((it.qty ?? 0) + q)} on hand${it.onOrder ? ", off On the way" : ""}`);
     if (mode === "ordered" && q > 0) bits.push(`On the way: ${fmtQ(q)}${it.units ? " × " + esc(it.units) : ""}`);
-    const cur = num(it.unitCost);
-    if (pr != null && pr > 0 && (cur == null || Math.abs(cur - pr) >= 0.005)) bits.push(`price ${cur == null ? "" : "$" + cur.toFixed(2) + " → "}$${pr.toFixed(2)}`);
+    const cur = num(it.unitCost), other = sup && it.supplier && keyOf(canonSup(sup) || sup) !== keyOf(it.supplier);
+    if (pr != null && pr > 0 && other) bits.push(`${esc(canonSup(sup) || sup)} price $${pr.toFixed(2)} saved for comparing (you buy it from ${esc(it.supplier)}${cur != null ? " at $" + cur.toFixed(2) : ""})`);
+    else if (pr != null && pr > 0 && (cur == null || Math.abs(cur - pr) >= 0.005)) bits.push(`price ${cur == null ? "" : "$" + cur.toFixed(2) + " → "}$${pr.toFixed(2)}`);
     if (l.sku && !clean(it.sku)) bits.push("adds SKU " + esc(l.sku));
     if (id === l.match && l.sure === "maybe") warn.push("Claude isn't sure this is the same product");
     if (id === l.match && l.packDiffers) warn.push(`This line is per ${esc(l.pack || "a different pack")}; you count it in ${esc(it.units || "other units")}. Adjust Qty and Price to match`);
@@ -5644,9 +5872,10 @@ async function docApply(rows, D, r, sup){
       const price = pr != null && pr > 0 ? "$" + pr.toFixed(2) : "";
       if (it) {
         const patch = {}, said = [];
-        if (pr != null && pr > 0 && sup) patch.offers = upsertOffer(it.offers, { src: sup, price: pr, pack: l.pack || it.units || "", kind: ["invoice", "packing_slip", "order_confirmation", "order_history"].includes(r.kind) ? "invoice" : "public", at: Date.now(), sure: true, mine: true, url: "", sku: l.sku || "" });
-        if (price && num(it.unitCost) !== pr) { patch.unitCost = price; said.push(`price ${it.unitCost || "–"} → ${price}`); }
-        if (l.sku && !clean(it.sku)) { patch.sku = l.sku; said.push("SKU " + l.sku); }
+        if (pr != null && pr > 0 && sup) patch.offers = upsertOffer(it.offers, { src: canonSup(sup) || sup, price: pr, pack: l.pack || it.units || "", kind: r.kind === "price_list" ? "list" : ["invoice", "packing_slip", "order_confirmation", "order_history"].includes(r.kind) ? "invoice" : "public", at: Date.now(), sure: true, mine: true, url: "", sku: l.sku || "" });
+        const otherSup = sup && it.supplier && keyOf(canonSup(sup) || sup) !== keyOf(it.supplier);   /* another supplier's price list: keep it as that supplier's price only */
+        if (price && num(it.unitCost) !== pr && !otherSup) { patch.unitCost = price; said.push(`price ${it.unitCost || "–"} → ${price}`); }
+        if (l.sku && !clean(it.sku) && !otherSup) { patch.sku = l.sku; said.push("SKU " + l.sku); }
         if (mode === "receive" && q > 0) { Object.assign(patch, { qty: (it.qty ?? 0) + q, ordered: "", orderedQty: 0, orderAmt: 0, lastReceived: today() }); }
         if (mode === "ordered" && q > 0) { Object.assign(patch, { ordered: ordDate, orderedQty: q, orderReq: 0, orderAmt: 0 }); }
         if (!Object.keys(patch).length) continue;
@@ -6478,7 +6707,7 @@ $("#moreBtn")?.addEventListener("click", e => {
     <div class="mmenu">
       <button class="mi pri" type="button" data-m="add">${ic("plus")}Add item</button>
       <button class="mi" type="button" data-m="exp">${ic("hourglass")}Expiring<small id="mExpN"></small></button>
-      <button class="mi" type="button" data-m="spend">${ic("dollar")}Spending</button>
+      <button class="mi" type="button" data-m="spend">${ic("dollar")}Spending &amp; prices</button>
       <button class="mi" type="button" data-m="log">${ic("history")}Log</button>
       <button class="mi" type="button" data-m="setup">${ic("gear")}Setup</button>
       <label class="mi">${ic("pencil")}Logging as<select id="mWho">${who ? who.innerHTML : ""}</select></label>
