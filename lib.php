@@ -366,6 +366,19 @@ function parse_json_reply(string $t) {
 }
 
 /* ---------- reading a product page ---------- */
+/* Pictures that are never the product: site chrome, award / rating badges, payment and certification seals. */
+function junk_image(string $u): bool {
+    $p = strtolower(rawurldecode((string)parse_url($u, PHP_URL_PATH)));
+    if (preg_match('/\.svg$|5[_-]?star|five[_-]?star|great[_-]?place|no[_-]?image|reality_20\d\d/', $p) || preg_match('/no[_-]?image|placeholder/i', (string)parse_url($u, PHP_URL_QUERY))) return true;
+    $w = preg_split('/[^a-z]+/', $p, -1, PREG_SPLIT_NO_EMPTY);
+    return (bool)array_intersect($w, ['logo', 'logos', 'sprite', 'sprites', 'icon', 'icons', 'favicon', 'badge', 'badges', 'banner', 'banners', 'pixel', 'spacer',
+        'award', 'awards', 'rating', 'ratings', 'townie', 'certified', 'trustpilot', 'payment', 'payments', 'paypal', 'visa', 'mastercard', 'flag', 'flags', 'placeholder', 'noimage']);
+}
+/* Image servers that resize by query (?w=80): ask for the full-size picture instead of a thumbnail. */
+function full_size_image(string $u): string {
+    if (preg_match('#^https?://images\.ctfassets\.net/#i', $u)) return preg_replace('/\?.*$/', '', $u) . '?w=1000&fm=jpg';
+    return $u;
+}
 function page_facts(string $html, string $base, string $sku = ''): array {
     $f = ['title' => '', 'description' => '', 'images' => [], 'primary' => [], 'jsonld' => [], 'text' => '', 'skus' => [], 'skuImages' => []];
     // Some supplier pages aren't valid UTF-8; clean them so the text tools below don't fail.
@@ -410,7 +423,7 @@ function page_facts(string $html, string $base, string $sku = ''): array {
             $set = attr($tag, 'data-srcset') ?: attr($tag, 'srcset');
             $big = $set !== '' ? trim(explode(' ', trim(explode(',', $set)[count(explode(',', $set)) - 1]))[0]) : '';
             $src = attr($tag, 'data-zoom-image') ?: attr($tag, 'data-large') ?: attr($tag, 'data-original') ?: attr($tag, 'data-lazy') ?: attr($tag, 'data-src') ?: $big ?: attr($tag, 'src');
-            if ($src === '' || str_starts_with($src, 'data:') || preg_match('/logo|sprite|icon|badge|banner|pixel|spacer|\.svg/i', $src)) continue;
+            if ($src === '' || str_starts_with($src, 'data:') || junk_image(abs_url($src, $base))) continue;
             $f['images'][] = abs_url(html_entity_decode($src, ENT_QUOTES | ENT_HTML5), $base);
             if (count($f['images']) > 30) break;
         }
@@ -419,7 +432,7 @@ function page_facts(string $html, string $base, string $sku = ''): array {
     // product's number from the link, e.g. .../7770454 -> .../7770454_US_Large.jpg
     if (preg_match('#(\d{5,})(?:[/?\#]|$)#', $base, $pm) && preg_match_all('#(?:https?:)?//[^\s"\'<>()\\\\]+?\.(?:jpe?g|png|webp)(?:\?[^\s"\'<>()\\\\]*)?|/[A-Za-z0-9_\-./%]+?\.(?:jpe?g|png|webp)#i', $html, $am)) {
         foreach ($am[0] as $u) {
-            if (!str_contains($u, $pm[1]) || preg_match('/logo|sprite|icon|badge|banner|pixel|spacer/i', $u)) continue;
+            if (!str_contains($u, $pm[1]) || junk_image($u)) continue;
             $u = abs_url(html_entity_decode(str_starts_with($u, '//') ? 'https:' . $u : $u, ENT_QUOTES | ENT_HTML5), $base);
             if (!in_array($u, $f['primary'], true)) $f['primary'][] = $u;
             if (count($f['primary']) > 12) break;
@@ -442,8 +455,9 @@ function page_facts(string $html, string $base, string $sku = ''): array {
         $f['primary'] = array_values(array_unique(array_merge($f['skuImages'], $f['primary'])));
         $f['images'] = array_merge($f['skuImages'], $f['images']);
     }
-    $f['images'] = array_values(array_unique(array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u))));
+    $f['images'] = array_values(array_unique(array_map('full_size_image', array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u) && !junk_image($u)))));
     $f['images'] = array_slice($f['images'], 0, 25);
+    $f['primary'] = array_values(array_unique(array_map('full_size_image', array_filter($f['primary'], fn($u) => !junk_image($u)))));
     $t = preg_replace('/<(script|style|noscript|svg|template|iframe)\b.*?<\/\1>/is', ' ', $html) ?? $html;
     $t = preg_replace('/<(br|\/p|\/div|\/li|\/tr|\/h\d)[^>]*>/i', "\n", $t) ?? $t;
     $t = html_entity_decode(strip_tags($t), ENT_QUOTES | ENT_HTML5);
@@ -504,7 +518,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v2|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -518,6 +532,8 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         $got = amazon_facts($am);
         if (!$got['ok']) return $got;
         $f = $got['facts']; $finalUrl = $got['url'];
+    } elseif (($bz = brasseler_facts($url)) !== null) {
+        $f = $bz; $finalUrl = $url;
     } else {
         $page = http_get($url);
         $looksBlocked = !$page['ok'] ? in_array($page['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($page['body']);
@@ -623,6 +639,31 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
 }
 
 /* ---------- inventory rules (same as the page) ---------- */
+/* Brasseler's shop (shop.brasselerusa.com/Product/<item>) draws its pages with scripts, so the server reads
+   the shop's own product API instead: name, item number, pack and the 900x900 product photo. Prices need sign-in. */
+function brasseler_facts(string $url): ?array {
+    if (!preg_match('#^https?://shop\.brasselerusa\.com/Product/([^/?\#]+)#i', $url, $m)) return null;
+    $seg = rawurldecode($m[1]);
+    $r = http_get('https://shop.brasselerusa.com/api/v1/products?query=' . rawurlencode($seg), 2097152, 20, ['Accept: application/json']);
+    $j = $r['ok'] ? json_decode($r['body'], true) : null;
+    if (!is_array($j) || empty($j['products'])) return null;
+    $p = null;
+    foreach ($j['products'] as $c) if (strcasecmp((string)($c['urlSegment'] ?? ''), $seg) === 0 || strcasecmp((string)($c['erpNumber'] ?? ''), $seg) === 0) { $p = $c; break; }
+    if (!$p) return null;
+    $title = trim(preg_replace('/\s+/', ' ', (string)($p['shortDescription'] ?? '')));
+    $imgs = [];
+    foreach ((array)($p['productImages'] ?? []) as $im) if (!empty($im['largeImagePath'])) $imgs[] = (string)$im['largeImagePath'];
+    foreach (['largeImagePath', 'mediumImagePath'] as $k) if (!empty($p[$k])) $imgs[] = (string)$p[$k];
+    $imgs = array_values(array_unique(array_filter($imgs, fn($u) => preg_match('#^https?://#i', $u) && !junk_image($u))));
+    $price = (float)($p['pricing']['unitNetPrice'] ?? 0) ?: (float)($p['basicListPrice'] ?? 0);
+    $ld = ['name' => $title, 'sku' => (string)($p['erpNumber'] ?? $seg), 'mpn' => (string)($p['manufacturerItem'] ?? '')];
+    if ($price > 0) $ld['offers'] = ['price' => $price];
+    $text = implode("\n", array_filter([$title, 'Item number: ' . ($p['erpNumber'] ?? $seg), ($p['erpDescription'] ?? '') ? 'Catalog description: ' . $p['erpDescription'] : '',
+        ($p['unitOfMeasureDisplay'] ?? '') ? 'Sold by: ' . $p['unitOfMeasureDisplay'] : '', ($p['packDescription'] ?? '') ? 'Pack: ' . $p['packDescription'] : '',
+        ($p['modelNumber'] ?? '') ? 'Product line: ' . $p['modelNumber'] : '', strip_tags((string)($p['htmlContent'] ?? '')),
+        $price > 0 ? '' : 'Price: shown only after signing in.']));
+    return ['title' => $title, 'description' => '', 'images' => $imgs, 'primary' => $imgs, 'jsonld' => [$ld], 'text' => $text, 'skus' => [sku_norm((string)($p['erpNumber'] ?? $seg))], 'skuImages' => []];
+}
 function numv($v): ?float {
     if ($v === null || $v === '') return null;
     if (is_numeric($v)) return (float)$v;
