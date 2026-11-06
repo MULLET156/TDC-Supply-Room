@@ -724,9 +724,11 @@ body.on-products .filters{display:none!important}
 .iloc{font-size:13.5px;font-weight:700;color:var(--fg)}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
 .manrow{flex-wrap:nowrap!important;gap:8px!important}
-.istatus:has(> .btn){display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;padding-bottom:6px}
+.istatus:has(> .btn){display:flex;align-items:center;gap:8px;padding-top:6px;padding-bottom:6px}
+.istatus:has(> .btn) > span:first-child{margin-right:auto;min-width:0}
+.istatus > .ishop{text-decoration:none;color:var(--fg)}
 .istatus > .btn{flex:none;white-space:nowrap;min-height:36px;padding:0 10px!important;font-size:13.5px;background:var(--surface)}
-@media (max-width:640px){.istatus > .btn .ao-x{display:none}}
+@media (max-width:640px){.istatus > .btn .ao-x{display:none}.istatus:has(> .btn){font-size:13.5px;gap:6px}.istatus > .btn{padding:0 8px!important}}
 .manrow > .btn{flex:none;white-space:nowrap;padding:0 10px!important}
 .manrow .cntgrp{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-right:auto;min-width:0;flex:1 1 auto}
 .manrow .cntgrp .cntrow{margin-right:0}
@@ -4419,7 +4421,7 @@ async function openItem(it, prefill){
     </div>
     <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">${ic("trash")}Delete this item</button></div>
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
-    <div class="istatus ${st.cls}"><span>${st.html}</span>${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
+    <div class="istatus ${st.cls}"><span>${st.html}</span>${it.link ? `<a class="btn sm ishop" href="${esc(webHref(it.link))}" target="_blank" rel="noopener" title="Open the product page${it.supplier ? " on " + esc(it.supplier) : ""}">${ic("cart")}Shop</a>` : ""}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
     <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span></div>
