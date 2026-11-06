@@ -2304,7 +2304,7 @@ function pills(i, noOrder, noExp){
   if (i.expiring && !noExp) h += `<span class="pill p-exp">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>`;
   return h;
 }
-const LEGEND = `<div class="stlegend"><span><i style="background:var(--st-ok)"></i>Above reserve</span><span><i style="background:var(--st-low)"></i>At or below reserve</span><span><i style="background:var(--st-911)"></i>911 — order now</span></div>`;
+const LEGEND = `<div class="stlegend"><span><i style="background:var(--surface)"></i>Stocked</span><span><i style="background:var(--st-low)"></i>Below reserve</span><span><i style="background:var(--st-911)"></i>911 — order now</span></div>`;
 const COL_DEFAULT = { ok: "#e6f3e1", low: "#fdf6d4", e911: "#fbe1de" };
 let colSaved = {};
 const stockColors = () => ({ ...COL_DEFAULT, ...colSaved });
@@ -2474,7 +2474,8 @@ function syncMusicBtn(){
   b.setAttribute("aria-pressed", String(on));
 }
 applyTheme();
-const stockCls = i => i.is911 ? "st-911" : (i.qty != null && i.desired != null ? (i.qty <= i.desired ? "st-low" : "st-ok") : "");
+/* rows are white unless they need attention: yellow below the desired reserve, red at or below the 911 level */
+const stockCls = i => i.is911 ? "st-911" : (i.qty != null && i.desired != null && i.qty < i.desired ? "st-low" : "");
 /* Expiring: quick "Replaced" with the new box's date, without opening the item. The open editor (and what's typed
    in it) is remembered, so a refresh from another device doesn't wipe it. */
 let expEdit = null; /* { id, draft } */
@@ -6503,7 +6504,7 @@ function setupHtml(){
   const themeSec = `<div class="sechead" id="sec-appearance"><h2>Appearance</h2></div><p class="secnote">Light, dark, or a fun theme, for this device only. Each computer and phone remembers its own choice. The 80s and 90s themes come with their own music: press ♫ at the bottom left to play or stop it.</p>
     <div class="list"><div class="setrow"><div class="themeseg" role="radiogroup" aria-label="Appearance">${[["auto", "Match device"], ["light", ic("sun") + "Light"], ["dark", ic("moon") + "Dark"], ["retro80", ic("gamepad") + "80s Retro"], ["club90", ic("disc") + "90s Club"]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${thm === v}" data-themeset="${v}">${l}</button>`).join("")}</div></div></div>`;
   const colorSec = `<div class="sechead" id="sec-colors"><h2>Stock colors</h2></div><p class="secnote">The background colors product rows get based on their count. Changes apply for everyone using the supply list.</p>
-    <div class="list">${[["ok","Above desired reserve"],["low","At or below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
+    <div class="list">${[["low","Below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
   const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
