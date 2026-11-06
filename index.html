@@ -1358,6 +1358,7 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+.sugcap{color:var(--muted)}.sugcap b{color:var(--fg);font-family:var(--f-mono)}
 /* What you've paid: the invoice history when there is one, else the simple trend from price changes */
 .phist:not(:empty) + .ptrend{display:none}
 #priceBox .ptrend{border-bottom:1px solid var(--line);margin-bottom:12px;padding-bottom:10px}
@@ -4973,7 +4974,6 @@ async function openItem(it, prefill){
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
     <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span></div>
-    ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
     <div class="isecs">
       <div class="isechead"><span>Product info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
@@ -5351,17 +5351,15 @@ function reserveSuggest(it, u){
 }
 const perWk = n => n >= 10 ? Math.round(n) : n >= 1 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(2).replace(/0$/, "");
 async function showUseHint(it){
-  const el = $("#useHint"); if (!el) return;
+  /* the suggestion replaces the small caption under Desired reserve and 911, only when it differs */
+  if (!it?.id || !window.TDC?.usage) return;
   let u; try { u = (await getUsage()).items?.[it.id]; } catch { return; }
-  if (!$("#useHint")) return;
-  const s = reserveSuggest(it, u);
-  el.hidden = false;
-  if (!s) { el.innerHTML = `<span class="hint">${ic("trend")} ${u && u.days < USE_MIN_DAYS ? `Usage-based reserve after ${USE_MIN_DAYS} days of counts (${Math.max(1, Math.ceil(USE_MIN_DAYS - u.days))} more to go).` : "Not enough use recorded yet for a usage-based reserve."}</span>`; return; }
-  const same = num(it.desired) === s.des && (num(it.urgent) || 0) === s.e911;
-  el.innerHTML = `<span>${ic("trend")} Uses about <b>${perWk(s.perWeek)}</b> a week${it.units ? " (" + esc(it.units) + ")" : ""}; delivery ${s.leadKnown ? "takes" : "assumed"} ~${fmtQ(s.lead)} days.${same ? " Your reserve matches." : ` Suggested: reserve <b>${s.des}</b>, 911 at <b>${s.e911}</b>.`}</span>${same || readOnly ? "" : `<button type="button" class="btn sm" id="useApply">Use these</button>`}`;
-  $("#useApply") && ($("#useApply").onclick = () => {
-    [["c-des", s.des], ["c-911", s.e911]].forEach(([id, v]) => { const inp = fld(id); if (inp) { inp.value = v; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); } });
-    toast("Filled in: press Save to keep them");
+  const s = reserveSuggest(it, u); if (!s) return;
+  const why = `Uses about ${perWk(s.perWeek)} a week; delivery ${s.leadKnown ? "takes" : "assumed"} ~${fmtQ(s.lead)} days`;
+  [["c-des", s.des, num(it.desired)], ["c-911", s.e911, num(it.urgent) || 0]].forEach(([id, v, cur]) => {
+    if (cur === v) return;
+    const inp = document.querySelector("#overlay .panel.item #" + id), cap = inp?.closest(".cbox")?.querySelector(".chint"); if (!cap) return;
+    cap.innerHTML = `<span class="sugcap" title="${esc(why)}">Suggested: <b>${fmtQ(v)}</b></span>`;
   });
 }
 async function suggestReserves(){
