@@ -4508,7 +4508,10 @@ async function openItem(it, prefill){
     <div class="actions savebar"${readOnly ? " hidden" : ""}><button class="btn" type="button" data-close>Cancel</button><button class="btn pri grow" id="saveBtn" type="button">Save changes</button></div>`);
   const panel = $("#overlay .panel"); panel.classList.add("item", "ro");
   panel.querySelectorAll(".isec input, .isec textarea").forEach(x => { x.readOnly = true; }); panel.querySelectorAll(".isec select").forEach(x => { x.disabled = true; });
-  if (!same || !openVals) openVals = valsOf(it);
+  if (!same || !openVals) { openVals = valsOf(it);
+    /* the starting point is what the window actually shows (an empty reserve shows 1, a date or schedule the inputs can't display shows blank),
+       so just opening an item never counts as "unsaved changes"; values passed in to fill (a scanned SKU, a label's expiry) still do */
+    const shown = readFields(); Object.keys(shown).forEach(k => { if (!(prefill && k in prefill)) openVals[k] = shown[k]; }); }
   if (keepEdit || prefill?.edit) unlockItem();
   wireCounts();
   if (readOnly) document.querySelectorAll(".panel button:not([data-close]), .panel input").forEach(x => x.disabled = true);
