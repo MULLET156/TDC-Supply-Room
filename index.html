@@ -1300,6 +1300,30 @@ body[data-view="all"] .row .meta .catpath{display:none}
 body[data-view="need"] .row .meta .m-loc{display:none}
 body[data-view="sups"] .row .meta .m-sup, body[data-view="cats"] .row .meta .m-sup, body[data-view="locs"] .row .meta .m-sup{display:none}
 body[data-view="locs"] .row .meta .m-loc{display:none}
+/* Spending */
+body[data-view="spend"] .filters, body[data-view="spend"] #pageHead{display:none!important}
+.spcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.spcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.spcard small{color:var(--muted);font-size:12.5px;font-weight:600}
+.spcard b{font-family:var(--f-mono);font-size:22px}
+.spgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px 18px}
+.spsec{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 14px 12px}
+.spsec h3.sec{margin:8px 0 6px}
+.sbar{display:grid;grid-template-columns:minmax(80px,38%) 1fr auto;gap:10px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+.sbar:first-of-type{border-top:0}
+.sbar .sk{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar .st{height:10px;background:var(--sunk);border-radius:6px;overflow:hidden}
+.sbar .st i{display:block;height:100%;background:var(--accent);border-radius:6px}
+.spsec .sbar:not(:has(.st)){grid-template-columns:1fr auto}
+.sbar .sv{font-family:var(--f-mono);font-size:13.5px}
+.hlines .hp{margin-left:auto;font-family:var(--f-mono);font-size:12.5px;white-space:nowrap}
+.hord .htot{font-family:var(--f-mono)}
+.row .rside button.xc{border:1px dashed transparent;background:none;border-radius:8px;padding:3px 6px;cursor:pointer;font:inherit;font-family:var(--f-mono);font-weight:700;color:var(--fg)}
+.row .rside button.xc:hover{border-color:var(--line);background:var(--sunk)}
+.row .rside button.xc.none{font-family:inherit;font-weight:600;color:var(--muted);font-size:12.5px}
+.row .rside button.xc.custom{color:var(--accent)}
+.row .rside .xc.xcost{margin-right:6px}
+@media (max-width:640px){ .spcards{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px} .spcard b{font-size:17px} .spcard{padding:9px 10px} .spgrid{grid-template-columns:1fr} }
 #scanHd{display:none}
 .tabs-main .cntbtn .sh{display:none}
 @media (max-width:640px){
@@ -1729,7 +1753,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
         <div class="toolrow2">
           <button class="btn pri addhdr" id="addBtn" type="button" title="Add item (shortcut: N)"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
-          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
+          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
       </div>
     </div>
@@ -2389,9 +2413,41 @@ async function countOne(it, btn){
 /* price as a number ("$12.50", "12.5" -> 12.5); null when it isn't a plain price */
 function priceNum(v){ v = clean(v); if (!/^\$?\s*[\d,]*\.?\d+$/.test(v)) return null; const n = Number(v.replace(/[$,\s]/g, "")); return isFinite(n) && n > 0 ? n : null; }
 const money = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const lineTotal = i => { const p = priceNum(i.unitCost), q = Number(i.orderQty) || 0; return p != null && q > 0 ? p * q : null; };
+const lineTotal = i => { const p = ordPrice(i), q = Number(i.orderQty) || 0; return p != null && q > 0 ? p * q : null; };
 const daysSince = s => { const t = Date.parse(s); return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : null; };
 /* extra facts on the right of a row, depending on the page */
+function orderPriceEdit(it){
+  if (!it) return;
+  const cur = ordPrice(it);
+  openPanel(`<div class="ph"><h2>Price for this order</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p class="hint" style="margin-top:0">${esc(it.name)}${it.units ? ` · per ${esc(it.units)}` : ""}${clean(it.unitCost) ? ` · saved price ${esc(priceTxt(it.unitCost))}` : ""}</p>
+    <label class="fld"><span>Price per unit for this order</span><input id="opIn" inputmode="decimal" placeholder="e.g. 42.50" value="${cur != null ? cur.toFixed(2) : ""}"></label>
+    <label class="chkline" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="opSave" ${clean(it.unitCost) ? "" : "checked"}> Also make this the item's saved price</label>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button>${Number(it.orderPrice) > 0 ? `<button class="btn" id="opClear" type="button">Use saved price</button>` : ""}<button class="btn pri grow" id="opGo" type="button">Save</button></div>`);
+  setTimeout(() => $("#opIn")?.focus(), 50);
+  $("#opClear") && ($("#opClear").onclick = async () => { try { await write(it.id, { orderPrice: null }); closePanel(); } catch(e) { toast(dbErr(e)); } });
+  $("#opGo").onclick = async () => {
+    const v = priceNum($("#opIn").value); if (v == null) { toast("Type a price, e.g. 42.50"); return; }
+    if (!needMe()) return;
+    try {
+      const patch = $("#opSave").checked ? { unitCost: v.toFixed(2), orderPrice: null } : { orderPrice: v };
+      await write(it.id, patch);
+      if ($("#opSave").checked) logIt("Edited", it, `price ${it.unitCost || "–"} → ${v.toFixed(2)}`);
+      closePanel(); toast("Price saved");
+    } catch(e) { toast(dbErr(e)); }
+  };
+}
+/* the price this order will be placed at: one typed for this order, else the item's saved price */
+const ordPrice = i => { const o = Number(i.orderPrice); return o > 0 ? o : priceNum(i.unitCost); };
+/* put the real (invoiced) price on the order line this item came from */
+async function setOrderLinePrice(it, price){
+  let o = null, oid = it.orderId || "";
+  if (oid) { try { const s = await db.doc("orders/" + oid).get(); if (s?.exists) o = { id: oid, ...s.data() }; } catch {} }
+  if (!o) { const snap = await db.collection("orders").orderBy("at", "desc").limit(60).get(); const d = snap.docs.find(x => (x.data().lines || []).some(l => l.id === it.id)); if (d) o = { id: d.id, ...d.data() }; }
+  if (!o) return;
+  const lines = (o.lines || []).map(l => l.id === it.id ? { ...l, price, invoiced: true } : l);
+  await db.doc("orders/" + o.id).update({ lines });
+}
 function grpTotal(rows, intro){
   const ts = rows.map(lineTotal), known = ts.filter(t => t != null), sum = known.reduce((a, b) => a + b, 0);
   if (!known.length) return "";
@@ -2399,8 +2455,8 @@ function grpTotal(rows, intro){
   return intro ? ` (about <b>${money(sum)}</b>${miss ? `, ${miss} without a price` : ""})` : ` · <span class="gtot" title="${tip}">${miss ? "≈ " : ""}${money(sum)}</span>`;
 }
 function xcols(i){
-  if (tab === "need") { const t = lineTotal(i); return t != null ? `<span class="xc xtot" title="${esc(priceTxt(i.unitCost))} × ${fmtQ(i.orderQty)}">${money(t)}</span>` : ""; }
-  if (tab === "ordered" && i.onOrder) { const d = daysSince(i.ordered); return d != null ? `<span class="xc xwait${d >= 10 ? " late" : ""}" title="Ordered ${esc(i.ordered)}">${d === 0 ? "Today" : d === 1 ? "1 day" : d + " days"}</span>` : ""; }
+  if (tab === "need") { const t = lineTotal(i), op = Number(i.orderPrice) > 0; return readOnly ? (t != null ? `<span class="xc xtot">${money(t)}</span>` : "") : `<button type="button" class="xc xtot${t == null ? " none" : ""}${op ? " custom" : ""}" data-ordprice="${esc(i.id)}" title="${t != null ? `${money(ordPrice(i))} × ${fmtQ(i.orderQty)}${op ? " (price set for this order)" : ""}. Tap to change the price for this order` : "Add a price for this order"}">${t != null ? money(t) : "+ price"}</button>`; }
+  if (tab === "ordered" && i.onOrder) { const d = daysSince(i.ordered), c = Number(i.orderedPrice) > 0 ? Number(i.orderedPrice) * (Number(i.orderedQty) || 0) : null; return `${c ? `<span class="xc xcost" title="${money(Number(i.orderedPrice))} × ${fmtQ(i.orderedQty)}">${money(c)}</span>` : ""}${d != null ? `<span class="xc xwait${d >= 10 ? " late" : ""}" title="Ordered ${esc(i.ordered)}">${d === 0 ? "Today" : d === 1 ? "1 day" : d + " days"}</span>` : ""}`; }
   if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
   return "";
 }
@@ -2762,6 +2818,7 @@ function renderInner(){
   document.body.classList.toggle("on-add", tab === "add"); document.body.classList.toggle("on-setup", tab === "setup"); document.body.classList.toggle("on-products", tab === "products");
   if (tab === "add") { if (!addBuilt) buildAddPage(); return; }
   const banner = (!me() || !team.includes(me())) && !readOnly ? `<div class="notice"><b>Who's logging?</b><span class="hint">Pick your initials next to "Logging as" at the top. This device remembers them, and every count, order and change is stamped with them.</span></div>` : "";
+  if (tab === "spend") { v.innerHTML = banner + spendHtml(); wireSpend(); return; }
   if (tab === "log") { v.innerHTML = banner + logHtml(); wireLog(); return; }
   if (tab === "products" && isPhone()) { v.innerHTML = `<div class="list"><div class="empty"><b>The Editor needs a bigger screen.</b><br>Open it on a computer or tablet. On a phone, tick items on All items to add them to the order list or print labels, or open an item to change it.</div></div>`; return; }
   if (tab === "products") { const ae = document.activeElement; if (ae?.closest?.("#pgrid") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + productsHtml(items); wireProducts(all); return; }
@@ -2789,6 +2846,7 @@ function renderInner(){
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
     document.querySelectorAll("[data-cart]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.cart); const tick = grp.filter(i => selected.has(i.id)); cartStart(b.dataset.cart, tick.length ? tick : grp); });
     $("#markOrd").onclick = () => markOrdered(list.filter(i=>selected.has(i.id)));
+    document.querySelectorAll("[data-ordprice]").forEach(b => b.onclick = e => { e.stopPropagation(); orderPriceEdit(byId(b.dataset.ordprice)); });
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
@@ -3052,9 +3110,55 @@ function histHtml(){
     const sups = [...new Set((o.lines||[]).map(l=>l.supplier).filter(Boolean))];
     const by = o.initials || "";
     const L = o.lines || [];
-    return `<details class="hord"><summary><span class="hwhen">${esc(when(o.at))}</span><span class="hsup">${esc(sups.join(", ") || "Order")}</span><span class="hcnt">${L.length} item${L.length === 1 ? "" : "s"}${by ? ` · <span class="init">${esc(by)}</span>` : ""}</span></summary>
-      <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}</li>`).join("")}</ul></details>`;
+    const tot = L.reduce((a, l) => a + (Number(l.price) > 0 ? Number(l.price) * (Number(l.qty) || 0) : 0), 0), miss = L.some(l => !(Number(l.price) > 0));
+    return `<details class="hord"><summary><span class="hwhen">${esc(when(o.at))}</span><span class="hsup">${esc(sups.join(", ") || "Order")}</span><span class="hcnt">${tot ? `<b class="htot">${miss ? "≈ " : ""}${money(tot)}</b> · ` : ""}${L.length} item${L.length === 1 ? "" : "s"}${by ? ` · <span class="init">${esc(by)}</span>` : ""}</span></summary>
+      <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}<span class="hp">${Number(l.price) > 0 ? `${money(Number(l.price) * (Number(l.qty) || 0))}${l.invoiced ? ` <small title="Price from the invoice">inv.</small>` : ""}` : ""}</span></li>`).join("")}</ul></details>`;
   }).join("")}</div>`;
+}
+/* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
+let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "";
+async function loadSpend(){
+  if (spendLoading) return; spendLoading = true;
+  try { const s = await db.collection("orders").orderBy("at", "desc").limit(3000).get(); spendOrders = s.docs.map(d => ({ id: d.id, ...d.data() })); }
+  catch(e) { spendOrders = []; toast(dbErr(e)); }
+  spendLoading = false; if (tab === "spend") render();
+}
+function spendRange(){
+  const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  return { "12m": [new Date(y, m - 11, 1), "the last 12 months"], month: [new Date(y, m, 1), "this month"], quarter: [new Date(y, m - (m % 3), 1), "this quarter"], year: [new Date(y, 0, 1), "this year"], all: [new Date(0), "all time"] }[spendPer] || [new Date(0), "all time"];
+}
+function spendHtml(){
+  if (!spendOrders) { loadSpend(); return `<div class="list"><div class="empty">Loading orders…</div></div>`; }
+  const [from, label] = spendRange();
+  const catOf = l => l.cat || byId(l.id)?.cat || "", supOf = l => l.supplier || byId(l.id)?.supplier || "No supplier";
+  const lines = [];
+  spendOrders.forEach(o => { if (o.at < +from) return; (o.lines || []).forEach(l => { if (spendCat && catOf(l) !== spendCat) return; if (spendSup && supOf(l) !== spendSup) return; lines.push({ ...l, at: o.at, oid: o.id }); }); });
+  const priced = lines.filter(l => Number(l.price) > 0), amt = l => Number(l.price) * (Number(l.qty) || 0);
+  const total = priced.reduce((a, l) => a + amt(l), 0), nOrd = new Set(priced.map(l => l.oid)).size, missing = lines.length - priced.length;
+  const group = key => { const m = new Map(); priced.forEach(l => { const k = key(l); m.set(k, (m.get(k) || 0) + amt(l)); }); return m; };
+  const bars = (m, sortByKey) => { const rows = [...m.entries()].sort(sortByKey ? (a, b) => b[0].localeCompare(a[0]) : (a, b) => b[1] - a[1]); const max = Math.max(1, ...rows.map(r => r[1]));
+    return rows.length ? rows.map(([k, v]) => `<div class="sbar"><span class="sk">${esc(sortByKey ? new Date(k + "-01T12:00").toLocaleDateString([], { month: "short", year: "numeric" }) : k)}</span><span class="st"><i style="width:${Math.max(2, v / max * 100).toFixed(1)}%"></i></span><b class="sv">${money(v)}</b></div>`).join("") : `<p class="hint">Nothing yet.</p>`; };
+  const ym = l => { const d = new Date(l.at); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
+  const months = spendPer === "month" ? 1 : Math.max(1, new Set(priced.map(ym)).size);
+  const items = [...group(l => l.name || "Item").entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const cats = [...new Set(spendOrders.flatMap(o => (o.lines || []).map(catOf)).filter(Boolean))].sort();
+  const sups = [...new Set(spendOrders.flatMap(o => (o.lines || []).map(supOf)))].sort();
+  const opt = (v, cur, l) => `<option value="${esc(v)}" ${v === cur ? "selected" : ""}>${esc(l ?? v)}</option>`;
+  return `<div class="toolbar spendtools"><p>What's been ordered, from the price saved with each order. Prices are saved when items are marked ordered and updated from invoices when you receive.</p>
+    <div class="logfilt"><label>Period <select id="spPer">${[["12m", "Last 12 months"], ["month", "This month"], ["quarter", "This quarter"], ["year", "This year"], ["all", "All time"]].map(([v, l]) => opt(v, spendPer, l)).join("")}</select></label>
+    <label>Category <select id="spCat"><option value="">All categories</option>${cats.map(c => opt(c, spendCat)).join("")}</select></label>
+    <label>Supplier <select id="spSup"><option value="">All suppliers</option>${sups.map(c => opt(c, spendSup)).join("")}</select></label></div></div>
+    <div class="spcards"><div class="spcard"><small>Spent ${esc(label)}</small><b>${money(total)}</b></div><div class="spcard"><small>Orders</small><b>${nOrd}</b></div><div class="spcard"><small>Per month (avg)</small><b>${money(total / months)}</b></div></div>
+    ${missing ? `<p class="hint">${missing} order line${missing > 1 ? "s" : ""} in this period ${missing > 1 ? "have" : "has"} no saved price and ${missing > 1 ? "aren't" : "isn't"} counted (orders placed before prices were saved, or items without a price).</p>` : ""}
+    <div class="spgrid"><section class="spsec"><h3 class="sec">By month</h3>${bars(group(ym), true)}</section>
+    <section class="spsec"><h3 class="sec">By supplier</h3>${bars(group(supOf))}</section>
+    ${spendCat ? "" : `<section class="spsec"><h3 class="sec">By category</h3>${bars(group(l => catOf(l) || "No category"))}</section>`}
+    <section class="spsec"><h3 class="sec">Top items</h3>${items.length ? items.map(([k, v]) => `<div class="sbar"><span class="sk">${esc(k)}</span><b class="sv">${money(v)}</b></div>`).join("") : `<p class="hint">Nothing yet.</p>`}</section></div>`;
+}
+function wireSpend(){
+  $("#spPer") && ($("#spPer").onchange = e => { spendPer = e.target.value; render(); });
+  $("#spCat") && ($("#spCat").onchange = e => { spendCat = e.target.value; render(); });
+  $("#spSup") && ($("#spSup").onchange = e => { spendSup = e.target.value; render(); });
 }
 let logType = "", logWho = "";   /* Activity log filters: kind of activity and initials */
 function logRows(src){
@@ -3180,15 +3284,18 @@ function showText(txt){
 async function markOrdered(list){
   if (!list.length || !needMe()) return;
   sync("busy", "Saving…");
-  const lines = list.map(i => ({ id: i.id, name: i.name, qty: i.orderQty, units: i.units || "", supplier: i.supplier || "" }));
+  const lines = list.map(i => { const p = ordPrice(i); return { id: i.id, name: i.name, qty: i.orderQty, units: i.units || "", supplier: i.supplier || "", ...(p != null ? { price: p, cat: i.cat || "" } : { cat: i.cat || "" }) }; });
+  let oid = ""; try { const ref = await db.collection("orders").add({ at: Date.now(), initials: me(), lines }); oid = ref?.id || ""; } catch {}
   let ok = 0;
   for (const it of list) {
-    try { await write(it.id, { ordered: today(), orderedQty: it.orderQty, orderReq: 0, orderAmt: 0 }); logIt("Ordered", it, `${fmtQ(it.orderQty)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""}`); ok++; }
+    const p = ordPrice(it);
+    try { await write(it.id, { ordered: today(), orderedQty: it.orderQty, orderReq: 0, orderAmt: 0, orderedPrice: p ?? null, orderPrice: null, orderId: oid }); logIt("Ordered", it, `${fmtQ(it.orderQty)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""}`); ok++; }
     catch(e) { toast(dbErr(e)); break; }
   }
   if (ok < list.length) sync("err", "Not all saved");
   if (ok) Sfx.play("order");
-  if (ok) { try { await db.collection("orders").add({ at: Date.now(), initials: me(), lines: lines.slice(0, ok) }); } catch {} }
+  if (oid && ok < list.length) { try { await db.doc("orders/" + oid).update({ lines: lines.slice(0, ok) }); } catch {} }
+  if (!oid && ok) { try { await db.collection("orders").add({ at: Date.now(), initials: me(), lines: lines.slice(0, ok) }); } catch {} }
   selected.clear(); if (ok === list.length) { sync("ok", "Saved"); toast(`${ok} item${ok!==1?"s":""} marked ordered`); } render();
 }
 async function markReceivedMany(list){
@@ -5346,7 +5453,8 @@ async function docApply(rows, D, r, sup){
         if (!Object.keys(patch).length) continue;
         await write(it.id, patch);
         if (mode === "receive" && q > 0) { logIt("Received", it, `+${fmtQ(q)}, now ${fmtQ((it.qty ?? 0) + q)} on hand (from ${src})`); recv++; }
-        else if (mode === "ordered" && q > 0) { logIt("Ordered", it, `${fmtQ(q)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""} (from ${src})`); ordd++; orderLines.push({ id: it.id, name: it.name, qty: q, units: it.units || "", supplier: it.supplier || "" }); }
+        else if (mode === "ordered" && q > 0) { logIt("Ordered", it, `${fmtQ(q)}${it.units ? " × " + it.units : ""}${it.supplier ? " from " + it.supplier : ""} (from ${src})`); ordd++; orderLines.push({ id: it.id, name: it.name, qty: q, units: it.units || "", supplier: it.supplier || "", cat: it.cat || "", ...(priceNum(price || it.unitCost) != null ? { price: priceNum(price || it.unitCost) } : {}) }); }
+        if (mode === "receive" && q > 0 && priceNum(price) != null) { try { await setOrderLinePrice(it, priceNum(price)); } catch {} }
         if (said.length) logIt("Edited", it, `${said.join(", ")} (from ${src})`);
         ok++;
       } else {
@@ -5357,7 +5465,7 @@ async function docApply(rows, D, r, sup){
           lastReceived: mode === "receive" && q > 0 ? today() : "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() };
         const ref = await addItemDoc(doc);
         logIt("Added", { id: ref.id, name }, `From ${src}${sup ? " · " + sup : ""}`);
-        if (doc.ordered) orderLines.push({ id: ref.id, name, qty: q, units: doc.units, supplier: sup });
+        if (doc.ordered) orderLines.push({ id: ref.id, name, qty: q, units: doc.units, supplier: sup, ...(priceNum(price) != null ? { price: priceNum(price) } : {}) });
         ok++; added++;
       }
     }
@@ -6171,6 +6279,7 @@ $("#moreBtn")?.addEventListener("click", e => {
     <div class="mmenu">
       <button class="mi pri" type="button" data-m="add">${ic("plus")}Add item</button>
       <button class="mi" type="button" data-m="exp">${ic("hourglass")}Expiring<small id="mExpN"></small></button>
+      <button class="mi" type="button" data-m="spend">${ic("dollar")}Spending</button>
       <button class="mi" type="button" data-m="log">${ic("history")}Log</button>
       <button class="mi" type="button" data-m="setup">${ic("gear")}Setup</button>
       <label class="mi">${ic("pencil")}Logging as<select id="mWho">${who ? who.innerHTML : ""}</select></label>
@@ -6188,7 +6297,7 @@ $("#moreBtn")?.addEventListener("click", e => {
 });
 $("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
 /* reopen on the last page used on this device */
-try { if (isPhone()) { const cb = $(".tab.cntbtn"); if (cb) tabClick(cb); } else { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "log", "setup"].includes(v)) setTab(v); } } catch {}
+try { if (isPhone()) { const cb = $(".tab.cntbtn"); if (cb) tabClick(cb); } else { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "spend", "log", "setup"].includes(v)) setTab(v); } } catch {}
 function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
@@ -6383,7 +6492,7 @@ async function boot(){
     sync(readOnly ? "" : "ok", readOnly ? "View only" : "Live");
   }, e => { sync("err", "Disconnected"); $("#view").innerHTML = `<div class="notice err"><b>Lost the connection to the supply list</b><span>${esc(dbErr(e))} Reload the page to reconnect.</span></div>`; });
   db.collection("orders").orderBy("at", "desc").limit(30).onSnapshot(snap => {
-    orders = snap.docs.map(d => d.data());
+    orders = snap.docs.map(d => d.data()); spendOrders = null;
     if (tab === "ordered") render();
   }, () => {});
   db.doc("settings/docsSeen").onSnapshot(snap => { docsSeen = (snap.exists && snap.data().list) || []; }, () => {});
