@@ -4233,9 +4233,9 @@ function photoBlock(src, canEditPhoto, skuSrc){
   const can = assets && canEditPhoto;
   const menu = can ? `<div class="pmenu" id="pMenu" hidden>
       <button type="button" class="pmi" data-pullphoto>${ic("globe")}Pull from reorder link</button>
+      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">${ic("search")}Find photo online ↗</a>
       <label class="pmi filebtn">${ic("camera")}Take a photo<input type="file" id="pCam" accept="image/*" capture="environment"></label>
       <label class="pmi filebtn">${ic("image")}Choose from photos<input type="file" id="pLib" accept="image/*"></label>
-      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">${ic("search")}Find photo online ↗</a>
       <label class="pmi filebtn">${ic("tag")}${skuSrc ? "Retake" : "Add"} SKU / label photo<input type="file" id="pSku" accept="image/*" capture="environment"></label>
       ${src ? `<button type="button" class="pmi danger" id="pDel">${ic("trash")}Remove photo</button>` : ""}
       <p class="hint">Tip: copy a picture from any website and press Ctrl/⌘+V here.</p>
