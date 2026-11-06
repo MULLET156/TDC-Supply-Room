@@ -2616,7 +2616,7 @@ function expRowHtml(i){
     <div class="info" tabindex="0" role="button">${i.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(i.photo)}" onerror="this.remove()">` : ""}<div class="txt">
       <div class="nm">${esc(i.name)}</div>
       <div class="xdate ${i.expDays < 0 ? "gone" : i.expDays <= 30 ? "soon" : ""}"><b>${w.date}</b>${w.rel ? `<span>${esc(w.rel)}</span>` : ""}</div>
-      <div class="meta">${i.loc ? `<span>${esc(i.loc)}</span>` : ""}${i.supplier ? `<span>${esc(i.supplier)}</span>` : ""}<span>${fmtQ(i.qty ?? 0)} on hand${i.units ? " · " + esc(i.units) : ""}</span>${i.onOrder ? `<span class="pill p-ord">On the way</span>` : i.need ? `<span class="pill p-need">On order list</span>` : ""}</div>
+      <div class="meta">${i.loc ? `<span>${esc(i.loc)}</span>` : ""}<span>${fmtQ(i.qty ?? 0)} on hand</span>${i.onOrder ? `<span class="pill p-ord">On the way</span>` : i.need ? `<span class="pill p-need">On order list</span>` : ""}</div>
     </div></div>
     ${readOnly ? "" : `<div class="xacts exprep" data-expid="${esc(i.id)}">${expEdit?.id === i.id ? expEditor(i) : `<button type="button" class="btn sm" data-expreplace title="Replaced it: enter the new box's expiration date">${ic("calcheck")}New date</button><button type="button" class="btn sm${armed ? " armed" : ""}" data-expused title="Used up or thrown out: sets on hand to 0 and clears the date">${ic("trash")}${armed ? "Tap again" : "Used up"}</button>${i.need || i.onOrder ? "" : `<button type="button" class="btn sm" data-expord title="Put it on the order list">${ic("cart")}Order</button>`}`}</div>`}
   </div>`;
