@@ -191,6 +191,10 @@ try {
             out(200, $r);
         }
 
+        case 'usage': {
+            out(200, usage_stats($pdo));
+        }
+
         case 'pricesearch': {
             $q = is_array($req['q'] ?? null) ? $req['q'] : [];
             $sites = is_array($req['sites'] ?? null) ? array_slice($req['sites'], 0, 20) : [];

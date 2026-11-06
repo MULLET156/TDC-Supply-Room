@@ -1193,6 +1193,50 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     return ['ok' => true, 'candidates' => array_map(fn($c) => ['url' => $c['url'], 'title' => $c['title'], 'supplier' => $c['supplier'] ?: $c['host'], 'mine' => $c['supplier'] !== '', 'sure' => $c['sure']], $keep)];
 }
 
+/* ---------- usage: how fast each item gets used, from the activity log ----------
+   Counting down (the - button, a count, Claude's set_count) is what records use; a delivery (Received) is not use.
+   Delivery time per supplier comes from orders: the gap between Mark ordered and the first Received for that item. */
+function usage_stats(PDO $pdo): array {
+    $now = (int)round(microtime(true) * 1000);
+    $ev = [];
+    foreach (all_docs($pdo, 'log') as $l) {
+        $id = (string)($l['itemId'] ?? ''); $a = (string)($l['action'] ?? ''); $d = (string)($l['detail'] ?? ''); $at = (int)($l['at'] ?? 0);
+        if ($id === '' || !$at) continue;
+        if ($a === 'Count' && preg_match('/(–|-|[\d.]+)\s*→\s*([\d.]+)/u', $d, $m)) $ev[$id][] = [$at, 'c', is_numeric($m[1]) ? (float)$m[1] : null, (float)$m[2]];
+        elseif ($a === 'Counted' && preg_match('/^([\d.]+) on hand/', $d, $m)) $ev[$id][] = [$at, 'c', null, (float)$m[1]];
+        elseif ($a === 'Received' && preg_match('/\+([\d.]+), now ([\d.]+)/', $d, $m)) $ev[$id][] = [$at, 'r', (float)$m[2] - (float)$m[1], (float)$m[2]];
+    }
+    // delivery days per supplier
+    $recv = []; foreach ($ev as $id => $L) foreach ($L as $e) if ($e[1] === 'r') $recv[$id][] = $e[0];
+    $lead = [];
+    foreach (all_docs($pdo, 'orders') as $o) {
+        $oat = (int)($o['at'] ?? 0); if (!$oat) continue;
+        foreach ((array)($o['lines'] ?? []) as $ln) {
+            $id = (string)($ln['id'] ?? ''); $sup = trim((string)($ln['supplier'] ?? '')); if ($id === '' || $sup === '') continue;
+            $first = null; foreach ($recv[$id] ?? [] as $t) if ($t > $oat && $t < $oat + 45 * 864e5 && ($first === null || $t < $first)) $first = $t;
+            if ($first && $first - $oat >= 864e5 / 2) $lead[mb_strtolower($sup)][] = ($first - $oat) / 864e5;   // same-day "received" is a catch-up, not a delivery
+        }
+    }
+    $leadDays = [];
+    foreach ($lead as $s => $L) { sort($L); $leadDays[$s] = round($L[intdiv(count($L), 2)], 1); }
+    $out = [];
+    foreach (all_docs($pdo, 'items') as $id => $it) {
+        if (empty($it['name']) || !empty($it['archived'])) continue;
+        $L = $ev[$id] ?? []; usort($L, fn($x, $y) => $x[0] <=> $y[0]);
+        $used = 0.0; $lvl = null; $n = 0;
+        foreach ($L as [$at, $k, $before, $after]) {
+            $b = $before ?? $lvl;
+            if ($k === 'c' && $b !== null && $after < $b) { $used += $b - $after; $n++; }
+            $lvl = $after;
+        }
+        $since = $L ? $L[0][0] : (int)($it['createdAt'] ?? $now);
+        $days = max(0, ($now - $since) / 864e5);
+        $sup = mb_strtolower(trim((string)($it['supplier'] ?? '')));
+        $out[$id] = ['used' => round($used, 2), 'days' => round($days, 1), 'drops' => $n, 'perWeek' => $days >= 1 ? round($used / $days * 7, 2) : null, 'leadDays' => $leadDays[$sup] ?? null];
+    }
+    return ['ok' => true, 'items' => $out, 'leadDays' => $leadDays, 'since' => $ev ? min(array_map(fn($L) => min(array_column($L, 0)), $ev)) : null];
+}
+
 /* ---------- reading invoices, packing slips, order confirmations and screenshots ---------- */
 // $files: list of ['type' => mime, 'data' => base64] (pictures or PDFs). Matches each product line to the inventory.
 function read_document(PDO $pdo, array $files, array $ctx = []): array {

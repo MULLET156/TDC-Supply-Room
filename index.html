@@ -1348,6 +1348,15 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+.usehint{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:13.5px;background:var(--sunk);border-radius:8px;padding:8px 10px;margin-top:-4px}
+.usehint .ic{vertical-align:-3px}
+.rslist{display:grid;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.rsrow{display:grid;grid-template-columns:28px minmax(0,1fr) 64px 76px 70px;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);cursor:pointer}
+.rsrow:first-child{border-top:0}.rsrow input{width:18px;height:18px;accent-color:var(--accent)}
+.rsrow small{display:block;color:var(--muted);font-size:12px}
+.rshead{font-size:12px;font-weight:700;color:var(--muted);background:var(--sunk);cursor:default}
+.rsn{font-family:var(--f-mono);font-size:13.5px;text-align:right;white-space:nowrap}
+@media (max-width:520px){.rsrow{grid-template-columns:24px minmax(0,1fr) 70px 64px}.rsrow > :nth-child(3){display:none}}
 .altcard{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 .altpic{width:72px;height:72px;border-radius:8px;object-fit:contain;background:#fff;border:1px solid var(--line)}
 div.altpic{background:var(--sunk)}
@@ -2047,13 +2056,14 @@ window.TDC = (function(){
   async function fetchPhoto(url, page){ const j = await call("fetchphoto", { url, page: page || "" }); return unb64(j.photo.data, j.photo.type); }
   async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
+  async function usage(){ return call("usage", {}); }
   async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -4867,6 +4877,7 @@ async function openItem(it, prefill){
     <div class="istatus ${st.cls}"><span>${st.html}</span>${it.link ? `<a class="btn sm ishop" href="${esc(webHref(it.link))}" target="_blank" rel="noopener" title="Open the product page${it.supplier ? " on " + esc(it.supplier) : ""}">${ic("cart")}Shop</a>` : `<a class="btn sm ishop" data-pfind="${it.supplier ? "sup" : "shop"}" href="#" target="_blank" rel="noopener" title="No product link saved yet. Searches ${it.supplier ? esc(it.supplier) : "online stores"} for this item">${ic("cart")}Shop</a>`}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
+    ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
     <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span></div>
     <div class="isecs">
       <div class="isechead"><span>Item info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
@@ -4945,6 +4956,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
   $("#tArch") && ($("#tArch").onclick = () => { $("#ptoolsMenu").hidden = true; const go = () => archiveItem(it); if (cardDirty()) leavePrompt(go); else go(); });
   $("#tPrices") && ($("#tPrices").onclick = () => { $("#ptoolsMenu").hidden = true; const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ behavior: "smooth", block: "start" }); } runPriceCheck(it, "mine"); });
   wirePriceBox(it);
+  showUseHint(it);
   $("#tHist") && ($("#tHist").onclick = () => itemHistory(it));
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true, stay: true }); b.disabled = false;
     if (!ok) return;
@@ -5219,6 +5231,60 @@ async function checkOrderPrices(list){
   const el = $("#ordPrices"); if (el) { el.disabled = false; el.innerHTML = was || (ic("dollar") + "Check prices"); }
   render();
   toast(cheaper ? `${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper elsewhere: about ${money(total)} in all. Look for the green Save tags.` : "Checked. Your current suppliers have the best prices found.");
+}
+/* ---------- usage-based reserves ----------
+   Use = drops in the on-hand count (the − button, counts, Claude's set_count); deliveries don't count as use.
+   Suggested reserve = enough for the supplier's delivery time plus two weeks; 911 = enough for the delivery time. */
+const USE_MIN_DAYS = 21, USE_BUFFER_DAYS = 14, USE_LEAD_DEFAULT = 7;
+let useCache = null, useAt = 0;
+async function getUsage(force){
+  if (!force && useCache && Date.now() - useAt < 6e5) return useCache;
+  useCache = await TDC.usage(); useAt = Date.now(); return useCache;
+}
+function reserveSuggest(it, u){
+  if (!u || u.used <= 0 || u.drops < 2 || u.days < USE_MIN_DAYS) return null;
+  const perDay = u.used / u.days, lead = u.leadDays ?? USE_LEAD_DEFAULT;
+  return { perWeek: perDay * 7, lead, leadKnown: u.leadDays != null, days: u.days, des: Math.max(1, Math.ceil(perDay * (lead + USE_BUFFER_DAYS))), e911: Math.ceil(perDay * lead) };
+}
+const perWk = n => n >= 10 ? Math.round(n) : n >= 1 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(2).replace(/0$/, "");
+async function showUseHint(it){
+  const el = $("#useHint"); if (!el) return;
+  let u; try { u = (await getUsage()).items?.[it.id]; } catch { return; }
+  if (!$("#useHint")) return;
+  const s = reserveSuggest(it, u);
+  el.hidden = false;
+  if (!s) { el.innerHTML = `<span class="hint">${ic("trend")} ${u && u.days < USE_MIN_DAYS ? `Usage-based reserve after ${USE_MIN_DAYS} days of counts (${Math.max(1, Math.ceil(USE_MIN_DAYS - u.days))} more to go).` : "Not enough use recorded yet for a usage-based reserve."}</span>`; return; }
+  const same = num(it.desired) === s.des && (num(it.urgent) || 0) === s.e911;
+  el.innerHTML = `<span>${ic("trend")} Uses about <b>${perWk(s.perWeek)}</b> a week${it.units ? " (" + esc(it.units) + ")" : ""}; delivery ${s.leadKnown ? "takes" : "assumed"} ~${fmtQ(s.lead)} days.${same ? " Your reserve matches." : ` Suggested: reserve <b>${s.des}</b>, 911 at <b>${s.e911}</b>.`}</span>${same || readOnly ? "" : `<button type="button" class="btn sm" id="useApply">Use these</button>`}`;
+  $("#useApply") && ($("#useApply").onclick = () => {
+    [["c-des", s.des], ["c-911", s.e911]].forEach(([id, v]) => { const inp = fld(id); if (inp) { inp.value = v; inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); } });
+    toast("Filled in: press Save to keep them");
+  });
+}
+async function suggestReserves(){
+  openPanel(`<div class="ph"><h2>Suggest reserves</h2><button class="iconbtn" data-close type="button">Close</button></div><div class="bstat" id="rsStat">Working out how fast each item is used…</div>`);
+  let U; try { U = await getUsage(true); } catch(e) { const s = $("#rsStat"); if (s) { s.className = "notice err"; s.textContent = "Couldn't load usage: " + (e?.message || e); } return; }
+  if (!$("#rsStat")) return;
+  const rows = items.map(it => ({ it, s: reserveSuggest(it, U.items?.[it.id]) })).filter(r => r.s && (num(r.it.desired) !== r.s.des || (num(r.it.urgent) || 0) !== r.s.e911)).sort((a, b) => a.it.name.localeCompare(b.it.name));
+  const tracked = Object.values(U.items || {}).filter(u => u.drops > 0).length;
+  const since = U.since ? new Date(U.since) : null, ready = since ? new Date(+since + USE_MIN_DAYS * 864e5) : null;
+  const leads = Object.entries(U.leadDays || {});
+  const sh = d => d.toLocaleDateString([], { month: "short", day: "numeric" });
+  openPanel(`<div class="ph"><h2>Suggest reserves</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p class="hint">From how fast each item is used (drops in its count) and how long its supplier takes to deliver. Suggested reserve = enough for delivery plus ${USE_BUFFER_DAYS} days; 911 = enough for the delivery time.${leads.length ? ` Delivery times: ${leads.map(([s, d]) => `${esc(s.replace(/\b\w/g, c => c.toUpperCase()))} ~${fmtQ(d)} days`).join(", ")}.` : ` No delivery times measured yet, so ${USE_LEAD_DEFAULT} days is assumed.`}</p>
+    ${rows.length ? `<div class="rslist"><div class="rsrow rshead"><span><input type="checkbox" id="rsAll" checked aria-label="Tick all"></span><span>Item</span><span>Use / week</span><span>Reserve</span><span>911 at</span></div>
+      ${rows.map((r, i) => `<label class="rsrow"><span><input type="checkbox" data-rs="${i}" checked></span><span><b>${esc(r.it.name)}</b><small>${esc(r.it.units || "")}${r.it.supplier ? " · " + esc(r.it.supplier) : ""} · ${Math.round(r.s.days)} days of counts</small></span><span class="rsn">${perWk(r.s.perWeek)}</span><span class="rsn">${fmtQ(r.it.desired ?? 1)} → <b>${r.s.des}</b></span><span class="rsn">${fmtQ(r.it.urgent ?? 0)} → <b>${r.s.e911}</b></span></label>`).join("")}</div>`
+      : `<div class="notice">${tracked ? `Every item with enough history already has a reserve that fits its use.` : `Not enough history yet.`} Suggestions need ${USE_MIN_DAYS} days of counts for an item${ready && ready > new Date() ? `; usage has been recorded since ${sh(since)}, so the first suggestions arrive around <b>${sh(ready)}</b>` : ""}. Counting down with the − button as things are used, and regular counts, are what feed this.</div>`}
+    <div class="actions savebar"><button class="btn" data-close type="button">Close</button>${rows.length && !readOnly ? `<button class="btn pri grow" id="rsGo" type="button">Apply to ticked items</button>` : ""}</div>`);
+  $("#rsAll") && ($("#rsAll").onchange = e => document.querySelectorAll("[data-rs]").forEach(c => c.checked = e.target.checked));
+  $("#rsGo") && ($("#rsGo").onclick = async () => {
+    if (!needMe()) return;
+    const pick = [...document.querySelectorAll("[data-rs]")].filter(c => c.checked).map(c => rows[+c.dataset.rs]);
+    if (!pick.length) { toast("Tick the items to change"); return; }
+    $("#rsGo").disabled = true; let ok = 0;
+    for (const r of pick) { try { await write(r.it.id, { desired: r.s.des, urgent: r.s.e911 }); logIt("Edited", r.it, `reserve ${fmtQ(r.it.desired ?? 1)} → ${r.s.des}, 911 ${fmtQ(r.it.urgent ?? 0)} → ${r.s.e911} (from usage)`); ok++; } catch {} }
+    closePanel(); toast(`Updated ${ok} reserve${ok === 1 ? "" : "s"}`);
+  });
 }
 /* ---------- alternatives / backup products ---------- */
 function backupsHtml(it){
@@ -6353,7 +6419,8 @@ function setupHtml(){
     <form class="addline" id="teamForm"><div class="f"><label for="newInit">Add initials</label><input id="newInit" maxlength="4" style="width:100px;text-transform:uppercase" autocomplete="off"></div><button class="btn pri" type="submit">Add</button></form></div>`;
   const ruleSec = `<div class="sechead" id="sec-alerts"><h2>Alerts</h2></div><p class="secnote">How far ahead an expiration date puts an item on the Expiring tab. Items land on the Order list when on hand drops below the desired reserve.</p>
     <div class="list"><div class="setrow two"><label for="expDays">Warn before expiration</label><span class="actions"><input id="expDays" type="number" min="0" max="365" value="${rules.expDays ?? 60}" style="width:80px;font-family:var(--f-mono)"><span class="hint">days</span></span></div>
-    <div class="setrow two"><label for="cntDef">Count each item <span class="hint">(office default; change single items in their window, or many at once in the Editor)</span></label><span class="actions"><select id="cntDef">${CNT_OPTS.map(([k, l]) => `<option value="${k}"${String(cntDefault()) === k ? " selected" : ""}>${l}</option>`).join("")}</select></span></div></div>`;
+    <div class="setrow two"><label for="cntDef">Count each item <span class="hint">(office default; change single items in their window, or many at once in the Editor)</span></label><span class="actions"><select id="cntDef">${CNT_OPTS.map(([k, l]) => `<option value="${k}"${String(cntDefault()) === k ? " selected" : ""}>${l}</option>`).join("")}</select></span></div>
+    ${window.TDC?.usage ? `<div class="setrow two"><span>Reserves from usage <span class="hint">(how fast each item is used, from counts, plus each supplier's delivery time)</span></span><span class="actions"><button type="button" class="btn" id="resSug">${ic("trend")}Suggest reserves</button></span></div>` : ""}</div>`;
   const C = stockColors();
   const thm = getThemePref();
   const themeSec = `<div class="sechead" id="sec-appearance"><h2>Appearance</h2></div><p class="secnote">Light, dark, or a fun theme, for this device only. Each computer and phone remembers its own choice. The 80s and 90s themes come with their own music: press ♫ at the bottom left to play or stop it.</p>
@@ -6687,6 +6754,7 @@ async function renameAll(field, from, to, label){
   sync("ok", "Saved"); toast(`Updated ${ok} item${ok!==1?"s":""}`); document.activeElement?.blur(); render();
 }
 function wireSetup(){
+  $("#resSug") && ($("#resSug").onclick = () => suggestReserves());
   document.querySelectorAll("[data-unarch]").forEach(b => b.onclick = async () => { const it = archived.find(i => i.id === b.dataset.unarch); if (!it || !needMe()) return; try { await write(it.id, { archived: false }); logIt("Restored", it, "restored from the archive"); toast("Restored " + it.name); } catch(e) { toast(dbErr(e)); } });
   const chips = $("#teamChips"); if (!chips) return;
   chips.onclick = async e => {
