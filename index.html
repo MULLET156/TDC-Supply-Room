@@ -3503,13 +3503,13 @@ function supplierSite(sup){
 async function hostedSearch(it, status){
   const name = clean(it.name), sku = clean(it.sku), sup = clean(it.supplier);
   if (!name && !sku) throw { code: "no_match", message: "Give it a name or SKU first, or paste the product's web link." };
-  status(`Searching ${sup || "supplier sites"} for ${sku ? "SKU " + sku : name}…`);
+  status(`Looking for ${sku ? "item " + sku : name} on ${sup || "supplier sites"}… (the first item from a supplier can take about a minute)`);
   let r;
   try { r = await TDC.findProduct({ name, sku, supplier: sup, site: sup ? supplierSite(sup) : "" }, { name, sku, nameRule: NAME_RULE }); }
   catch(e) { throw { code: "no_match", message: e?.code === "blocked" ? "The search found a page, but the supplier's site wouldn't let the server read it. Paste the product's web link, or add it from Claude." : (e?.message || "No product page turned up for that search.") }; }
   const wantPhoto = !B || B.opts.photo === "always" || (B.opts.photo === "missing" && !it.photo);
   const names = Array.isArray(r.names) ? r.names.map(v => withShade(v, r.pageTitle, "", it.name)) : [];
-  return { same: true, pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
+  return { same: r.skuCheck !== "missing", pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
     description: r.description || "", supplier: r.supplier || "", note: [r.note, r.priceNote].filter(Boolean).join(" "), url: r.url || "",
     photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "", morePhotos: wantPhoto ? (r.morePhotos || []) : [], pageUrl: r.pageUrl || r.url || "" };
 }
@@ -3527,7 +3527,7 @@ async function hostedScrape(it, status){
   }
   const wantPhoto = !B || B.opts.photo === "always" || (B.opts.photo === "missing" && !it.photo);
   const names = Array.isArray(r.names) ? r.names.map(v => withShade(v, r.pageTitle, "", it.name)) : [];
-  return { same: true, pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
+  return { same: r.skuCheck !== "missing", pageTitle: r.pageTitle || "", names, sku: r.sku || "", mfrNumber: r.mfrNumber || "", price: r.price ?? "", units: r.units || "",
     description: r.description || "", supplier: r.supplier || "", note: [r.note, r.priceNote].filter(Boolean).join(" "), url: r.url || link,
     photo: wantPhoto ? r.photo : null, photoNote: wantPhoto && !r.photo ? (r.photoNote || "") : "", morePhotos: wantPhoto ? (r.morePhotos || []) : [], pageUrl: r.pageUrl || r.url || "" };
 }

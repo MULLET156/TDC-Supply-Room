@@ -80,6 +80,8 @@ The token also lets the Supply Room look products up when there's no link: **Add
 
 The same token is the fallback for any other supplier site that blocks the server or shows a robot check (Net32, for example): the page is opened in a real browser by Apify's RAG Web Browser (`apify/rag-web-browser`) and read the same way. Sites that let the server in (Henry Schein, Safco, Blue Sky Bio…) are read directly, free and in a few seconds. Neither way is signed in to your supplier accounts, so account-only prices still don't come through.
 
+**Items without a link (added from an invoice or packing slip).** **Update from supplier pages** first looks for the item's SKU on the supplier's own store: the server walks the store's pages, notes every item number and which page lists it, and keeps that index for a week per site (the first item from a supplier can take about a minute; the rest are quick). This finds products on stores that list a whole size range in one table, like Blue Sky Bio, which web search can't. It uses the website saved for the supplier under Setup, or the built-in address for well-known suppliers (Blue Sky Bio, Henry Schein, Net32, Benco, Patterson, Darby, Safco). Only if the SKU isn't on the store does it fall back to a web search (needs APIFY_TOKEN). A result whose page doesn't show the item's SKU is flagged as possibly a different product. Approving a match saves its link, so later updates go straight to the page.
+
 ### 7. Connect Claude (optional)
 1. Put a long random key in `config.php` as `MCP_KEY` (40 or more letters and numbers; a password manager's generator works).
 2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: `https://<your site>/mcp.php?key=<your MCP_KEY>`.

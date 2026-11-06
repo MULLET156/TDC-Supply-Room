@@ -366,8 +366,8 @@ function parse_json_reply(string $t) {
 }
 
 /* ---------- reading a product page ---------- */
-function page_facts(string $html, string $base): array {
-    $f = ['title' => '', 'description' => '', 'images' => [], 'primary' => [], 'jsonld' => [], 'text' => ''];
+function page_facts(string $html, string $base, string $sku = ''): array {
+    $f = ['title' => '', 'description' => '', 'images' => [], 'primary' => [], 'jsonld' => [], 'text' => '', 'skus' => [], 'skuImages' => []];
     // Some supplier pages aren't valid UTF-8; clean them so the text tools below don't fail.
     if (!mb_check_encoding($html, 'UTF-8')) {
         $cs = preg_match('/<meta[^>]+charset=["\']?([A-Za-z0-9_-]+)/i', $html, $cm) ? strtoupper($cm[1]) : 'Windows-1252';
@@ -426,6 +426,21 @@ function page_facts(string $html, string $base): array {
         }
         // larger versions first when the site offers sizes in the name
         usort($f['primary'], fn($a, $b) => (preg_match('/large|zoom|xl|big|original|1200|1000|800/i', $b) <=> preg_match('/large|zoom|xl|big|original|1200|1000|800/i', $a)));
+    }
+    // Pictures named after the item we want (…/HJH4305.jpg), wherever they are on the page: on pages listing a
+    // whole size range they are the only way to tell this row's photo from the others.
+    $f['skus'] = sku_tokens($html);
+    $want = sku_norm($sku);
+    if ($want !== '' && preg_match_all('#(?:https?:)?//[^\s"\'<>()]+?\.(?:jpe?g|png|webp)(?:\?[^\s"\'<>()]*)?|/[A-Za-z0-9_\-./%]+?\.(?:jpe?g|png|webp)#i', $html, $sm)) {
+        foreach ($sm[0] as $u) {
+            $stem = preg_replace('/\.\w+$/', '', rawurldecode(basename((string)parse_url($u, PHP_URL_PATH))));
+            $parts = array_map('sku_norm', preg_split('/[_\s]+/', $stem) ?: []);
+            if (sku_norm($stem) !== $want && !in_array($want, $parts, true)) continue;
+            $f['skuImages'][] = abs_url(html_entity_decode(str_starts_with($u, '//') ? 'https:' . $u : $u, ENT_QUOTES | ENT_HTML5), $base);
+        }
+        $f['skuImages'] = array_values(array_unique($f['skuImages']));
+        $f['primary'] = array_values(array_unique(array_merge($f['skuImages'], $f['primary'])));
+        $f['images'] = array_merge($f['skuImages'], $f['images']);
     }
     $f['images'] = array_values(array_unique(array_filter($f['images'], fn($u) => preg_match('#^https?://#i', $u))));
     $f['images'] = array_slice($f['images'], 0, 25);
@@ -520,11 +535,14 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
             return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
         }
-        $f = page_facts($page['body'], $page['url']);
+        $f = page_facts($page['body'], $page['url'], (string)($ctx['sku'] ?? ''));
         $finalUrl = $page['url'];
     }
     $res = ['url' => $finalUrl, 'pageTitle' => $f['title'], 'names' => [], 'sku' => '', 'mfrNumber' => '', 'price' => null,
-            'units' => '', 'description' => $f['description'], 'supplier' => '', 'note' => '', 'photo' => null, 'photoNote' => ''];
+            'units' => '', 'description' => $f['description'], 'supplier' => '', 'note' => '', 'photo' => null, 'photoNote' => '', 'skuCheck' => ''];
+    // Does the page actually show the SKU we're after? ('' when we weren't given one, or for Amazon)
+    $wantSku = trim((string)($ctx['sku'] ?? ''));
+    if ($wantSku !== '' && $am === null) $res['skuCheck'] = sku_in($f['skus'] ?? [], $wantSku) ? 'found' : 'missing';
     // Without Claude: use what the page states in its product data.
     foreach ($f['jsonld'] as $p) {
         if (!empty($p['name']) && !$res['names']) $res['names'][] = is_string($p['name']) ? $p['name'] : '';
@@ -542,7 +560,9 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         $prompt = "You are adding a product to a dental office's supply inventory from a supplier's product web page.\n"
             . "Page address: {$finalUrl}\nPage title: {$f['title']}\n"
             . (!empty($ctx['name']) ? "The office calls it: \"{$ctx['name']}\"\n" : '')
-            . (!empty($ctx['sku']) ? "Expected SKU: {$ctx['sku']}\n" : '')
+            . (!empty($ctx['sku']) ? "Expected SKU: {$ctx['sku']}\n"
+                . "The page may list several sizes or variants (for example a table of item numbers with prices). Describe ONLY the variant whose item number is {$ctx['sku']} (ignore dashes, spaces and leading zeros): its name, size, price, units and photo. "
+                . ($res['skuCheck'] === 'missing' ? "Item {$ctx['sku']} does not appear on this page: say so in note, and leave sku empty unless the page is clearly this exact product under another number.\n" : "\n") : '')
             . "Structured product data on the page: " . mb_substr($ld ?: '[]', 0, 6000) . "\n"
             . "Pictures on the page (index: address):\n" . ($imgs ?: '(none)') . "\n"
             . (!empty($f['primary']) ? "The page itself marks these as the product picture: " . implode(', ', array_slice($f['primary'], 0, 4)) . "\n" : '') . "\n"
@@ -563,12 +583,21 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             $res['note'] = $a['message'] ?? '';
         }
     }
+    // Check what Claude read against the SKU we asked for.
+    if ($res['skuCheck'] === 'found') {
+        if ($res['sku'] === '') $res['sku'] = $wantSku;
+        elseif (sku_norm($res['sku']) !== sku_norm($wantSku) && stripos(sku_norm($res['mfrNumber']), sku_norm($wantSku)) === false)
+            $res['note'] = trim('This page lists item ' . $wantSku . ', but the details read are for ' . $res['sku'] . '; check the size and price. ' . $res['note']);
+    } elseif ($res['skuCheck'] === 'missing') {
+        $res['note'] = trim('Item ' . $wantSku . ' isn\'t shown on this page, so it may be a different product or size. ' . $res['note']);
+    }
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
     $primary = $f['primary'] ?? [];
     $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $primary, $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
     // Front-of-box shots first (Henry Schein names them ..._front_01), back/side shots last; Claude's pick leads its group.
-    $rank = fn($u) => preg_match('/front|main|hero|primary/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 0 : (preg_match('/back|side|top|bottom|label|detail|group|lifestyle|spec/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 2 : 1);
+    $skuImgs = array_flip($f['skuImages'] ?? []);
+    $rank = fn($u) => isset($skuImgs[$u]) ? -1 : (preg_match('/front|main|hero|primary/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 0 : (preg_match('/back|side|top|bottom|label|detail|group|lifestyle|spec/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 2 : 1));
     $order = array_values(array_unique($order));
     $pos = array_flip($order);
     usort($order, fn($a, $b) => [$rank($a), $pos[$a]] <=> [$rank($b), $pos[$b]]);
@@ -742,12 +771,193 @@ function apify_page_run(string $url, string $tool, int $secs, bool $residential 
     return ['ok' => true, 'html' => $html, 'url' => (string)($it['metadata']['url'] ?? $url)];
 }
 
+/* ---------- supplier catalogs: find the page that lists a SKU by walking the supplier's own store ---------- */
+// Many stores (Blue Sky Bio, for example) list a whole size range on one page as a table of item numbers, and web
+// search doesn't index those numbers, so searching for the SKU finds nothing (or other companies with similar names).
+// Instead the server walks the store's own pages, notes every item number it sees and on which page, and keeps that
+// index for a week per site. A lookup that runs out of time picks up where the last one stopped.
+const KNOWN_SUPPLIER_SITES = [
+    'blue sky' => 'blueskybio.com', 'henry schein' => 'henryschein.com', 'schein' => 'henryschein.com',
+    'net32' => 'net32.com', 'benco' => 'shop.benco.com', 'patterson' => 'pattersondental.com',
+    'darby' => 'darbydental.com', 'safco' => 'safcodental.com', 'dental city' => 'dentalcity.com',
+];
+const CATALOG_MAX_PAGES = 1500;   // per site, per week
+const CATALOG_BUDGET    = 35;     // seconds of page reading per lookup
+// Used when the supplier has no website saved under Setup and none of its items has a link yet.
+function supplier_site_guess(string $sup): string {
+    $s = ' ' . trim(strtolower(preg_replace('/[^a-z0-9]+/i', ' ', $sup))) . ' ';
+    foreach (KNOWN_SUPPLIER_SITES as $k => $site) if (str_contains($s, ' ' . $k . ' ') || str_contains(str_replace(' ', '', $s), str_replace(' ', '', $k))) return $site;
+    return '';
+}
+function sku_norm(string $s): string { return strtoupper(preg_replace('/[^A-Za-z0-9]+/', '', $s)); }
+// Every item-number-looking word on a page (letters and digits, dashes and dots ignored), plus picture file names,
+// which stores often name after the item (…/store/HJH4302.jpg). Returned as a set: [NORMALIZED => true].
+function sku_tokens(string $html): array {
+    $t = preg_replace('/<(script|style|noscript|svg|template)\b.*?<\/\1>/is', ' ', $html) ?? $html;
+    preg_match_all('#/([A-Za-z0-9][A-Za-z0-9_\-.]{2,40})\.(?:jpe?g|png|webp|gif)\b#i', $html, $im);
+    $txt = html_entity_decode(strip_tags(str_replace('<', ' <', $t)), ENT_QUOTES | ENT_HTML5) . ' ' . str_replace('_', ' ', implode(' ', $im[1] ?? []));
+    preg_match_all('/[A-Za-z0-9](?:[A-Za-z0-9]|[\-.\/](?=[A-Za-z0-9])){2,30}/', $txt, $m);
+    $out = [];
+    foreach ($m[0] as $tok) {
+        $n = sku_norm($tok);
+        if (strlen($n) < 4 || strlen($n) > 24 || !preg_match('/\d/', $n)) continue;
+        if (ctype_digit($n) && strlen($n) < 5) continue;          // years, sizes, quantities
+        $out[$n] = true;
+        if (ctype_digit($n)) $out[ltrim($n, '0')] = true;
+    }
+    return $out;
+}
+function sku_in(array $set, string $sku): bool {
+    $n = sku_norm($sku);
+    return $n !== '' && (isset($set[$n]) || (ctype_digit($n) && isset($set[ltrim($n, '0')])));
+}
+function name_words(string $name): array {
+    $stop = ['the', 'and', 'for', 'with', 'blue', 'sky', 'bio', 'each', 'box', 'boxes', 'pack', 'case', 'size', 'platform', 'system', 'collar', 'dental'];
+    $w = preg_split('/[^a-z]+/', strtolower($name)) ?: [];
+    return array_values(array_unique(array_filter($w, fn($x) => strlen($x) >= 3 && !in_array($x, $stop, true))));
+}
+// Several pages at once (same site only). Redirects are not followed blindly: a same-site redirect is returned so the
+// caller can queue it. Returns [url => ['ok', 'code', 'type', 'body', 'loc']].
+function http_get_many(array $urls, int $max = 2097152, int $timeout = 15): array {
+    $mh = curl_multi_init(); $hs = []; $bufs = []; $out = [];
+    foreach (array_values($urls) as $i => $u) {
+        $bufs[$i] = '';
+        $ch = curl_init($u);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false, CURLOPT_TIMEOUT => $timeout, CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_ENCODING => '', CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36',
+            CURLOPT_HTTPHEADER => ['Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5', 'Accept-Language: en-US,en;q=0.9'],
+            CURLOPT_WRITEFUNCTION => function ($c, $chunk) use (&$bufs, $i, $max) { $bufs[$i] .= $chunk; return strlen($bufs[$i]) > $max ? 0 : strlen($chunk); },
+        ]);
+        curl_multi_add_handle($mh, $ch); $hs[$i] = [$ch, $u];
+    }
+    do { $st = curl_multi_exec($mh, $running); if ($running) curl_multi_select($mh, 1.0); } while ($running && $st === CURLM_OK);
+    foreach ($hs as $i => [$ch, $u]) {
+        $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $out[$u] = ['ok' => $code >= 200 && $code < 300, 'code' => $code, 'type' => (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE),
+                    'body' => $bufs[$i], 'loc' => $code >= 300 && $code < 400 ? (string)curl_getinfo($ch, CURLINFO_REDIRECT_URL) : ''];
+        curl_multi_remove_handle($mh, $ch); curl_close($ch);
+    }
+    curl_multi_close($mh);
+    return $out;
+}
+function catalog_host(string $site): string {
+    $h = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($site)));
+    return (string)preg_replace('#[/:?\#].*$#', '', $h);
+}
+// Same-site page address in one canonical form, or '' for anything that isn't a catalog page.
+function catalog_url(string $u, string $host): string {
+    $p = parse_url($u);
+    if (!$p || !in_array(strtolower($p['scheme'] ?? ''), ['http', 'https'], true)) return '';
+    if (preg_replace('/^www\./', '', strtolower($p['host'] ?? '')) !== $host) return '';
+    $path = $p['path'] ?? '/';
+    if (preg_match('#\.(pdf|jpe?g|png|gif|webp|svg|ico|zip|css|js|xml|json|mp4|mov|docx?|xlsx?)$#i', $path)) return '';
+    if (preg_match('#/(cart|checkout|login|logout|signin|sign-in|register|account|my-account|password|forgot|wishlist|compare|contact|privacy|terms|careers|cdn-cgi|wp-admin|wp-json|feed)(/|$|[-_])#i', $path)) return '';
+    $q = '';
+    if (isset($p['query']) && preg_match('/(?:^|&)((?:page|p|pg|pagenumber)=\d{1,3})(?:&|$)/i', $p['query'], $qm)) $q = '?' . $qm[1];   // keep paging only
+    return strtolower($p['scheme']) . '://' . strtolower($p['host']) . $path . $q;
+}
+function catalog_links(string $html, string $base, string $host): array {
+    $out = [];
+    if (!preg_match_all('#<a\b[^>]*?\bhref\s*=\s*["\']([^"\']+)["\'][^>]*>(.*?)</a>#is', $html, $m, PREG_SET_ORDER)) return $out;
+    foreach ($m as $a) {
+        $href = html_entity_decode(trim($a[1]), ENT_QUOTES | ENT_HTML5);
+        if ($href === '' || preg_match('#^(mailto|tel|javascript):#i', $href)) continue;
+        $u = catalog_url(abs_url(preg_replace('/#.*$/', '', $href), $base), $host);
+        if ($u === '') continue;
+        $txt = mb_substr(trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($a[2]), ENT_QUOTES | ENT_HTML5))), 0, 100);
+        if (!isset($out[$u]) || strlen($txt) > strlen($out[$u])) $out[$u] = $txt;
+    }
+    return $out;
+}
+function catalog_sitemap(string $host): array {
+    $urls = []; $maps = [];
+    $r = http_get('https://' . $host . '/robots.txt', 262144, 10);
+    if ($r['ok'] && preg_match_all('/^\s*sitemap:\s*(\S+)/im', $r['body'], $m)) $maps = $m[1];
+    if (!$maps) $maps = ['https://' . $host . '/sitemap.xml'];
+    for ($i = 0; $i < count($maps) && $i < 8; $i++) {
+        $s = http_get($maps[$i], 8388608, 15, ['Accept: application/xml,text/xml,*/*']);
+        if (!$s['ok']) continue;
+        $body = $s['body'];
+        if (str_starts_with($body, "\x1f\x8b")) $body = (string)@gzdecode($body);
+        if (!preg_match_all('#<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)#i', $body, $lm)) continue;
+        foreach ($lm[1] as $loc) {
+            $loc = html_entity_decode($loc, ENT_QUOTES | ENT_XML1);
+            if (stripos($body, '<sitemapindex') !== false) { if (count($maps) < 8) $maps[] = $loc; continue; }
+            $u = catalog_url($loc, $host);
+            if ($u !== '') $urls[$u] = '';
+            if (count($urls) >= 4000) break 2;
+        }
+    }
+    return $urls;
+}
+// Returns ['ok' => found, 'url' => page that lists the SKU, 'pages' => pages read so far, 'done' => whole site read, 'blocked' => site refused].
+function catalog_find(string $site, string $sku, string $name = '', int $budget = CATALOG_BUDGET): array {
+    $host = catalog_host($site); $want = sku_norm($sku);
+    if ($host === '' || strlen($want) < 3) return ['ok' => false, 'url' => '', 'pages' => 0, 'done' => false, 'blocked' => false];
+    $dir = sys_get_temp_dir() . '/tdc-catalog';
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $fh = @fopen($dir . '/' . preg_replace('/[^a-z0-9.\-]/', '_', $host) . '.json', 'c+');
+    if ($fh) flock($fh, LOCK_EX);
+    $st = $fh ? json_decode((string)stream_get_contents($fh), true) : null;
+    if (!is_array($st) || ($st['v'] ?? 0) !== 1 || ($st['started'] ?? 0) < time() - 7 * 86400) {
+        $st = ['v' => 1, 'host' => $host, 'started' => time(), 'seeded' => false, 'seen' => [], 'queue' => [], 'index' => [], 'pages' => 0, 'done' => false, 'blocked' => false];
+    }
+    $look = function () use (&$st, $want) {
+        if (isset($st['index'][$want])) return $st['index'][$want];
+        if (ctype_digit($want) && isset($st['index'][ltrim($want, '0')])) return $st['index'][ltrim($want, '0')];
+        return null;
+    };
+    $hit = $look();
+    if ($hit === null && !$st['done'] && public_url('https://' . $host . '/')) {
+        @set_time_limit($budget + 120);
+        $t0 = microtime(true);
+        $enqueue = function (array $links) use (&$st) {
+            foreach ($links as $u => $txt) { if (isset($st['seen'][$u])) continue; $st['seen'][$u] = 1; $st['queue'][] = [$u, (string)$txt]; }
+        };
+        if (!$st['seeded']) {
+            $st['seeded'] = true;
+            $enqueue(['https://' . $host . '/' => '']);
+            $enqueue(catalog_sitemap($host));
+        }
+        // Pages whose address or link text share words with the item's name go first (healing, abutment, implant…).
+        $words = name_words($name);
+        $score = function (array $q) use ($words): float {
+            $hay = strtolower(urldecode($q[0]) . ' ' . $q[1]); $s = 0.0;
+            foreach ($words as $w) if (str_contains($hay, $w)) $s += 2;
+            if (preg_match('#/(store|shop|products?|catalog|category|categories|collections?|p|c)(/|$)#i', $q[0])) $s += 1;
+            return $s - substr_count((string)parse_url($q[0], PHP_URL_PATH), '/') * 0.1;
+        };
+        $wall = 0;
+        while ($hit === null && $st['queue'] && $st['pages'] < CATALOG_MAX_PAGES && microtime(true) - $t0 < $budget) {
+            usort($st['queue'], fn($a, $b) => $score($b) <=> $score($a));
+            $take = array_splice($st['queue'], 0, 6);
+            $got = http_get_many(array_column($take, 0));
+            foreach ($got as $u => $r) {
+                $st['pages']++;
+                if ($r['loc'] !== '') { $nu = catalog_url(abs_url($r['loc'], $u), $st['host']); if ($nu !== '') $enqueue([$nu => '']); continue; }
+                if (!$r['ok'] || stripos($r['type'], 'html') === false) continue;
+                if (bot_wall($r['body'])) { $wall++; continue; }
+                foreach (array_keys(sku_tokens($r['body'])) as $tok) if (!isset($st['index'][$tok]) && count($st['index']) < 80000) $st['index'][$tok] = $u;
+                $enqueue(catalog_links($r['body'], $u, $st['host']));
+            }
+            if ($wall >= 3 && $st['pages'] <= 12) { $st['blocked'] = true; $st['done'] = true; break; }   // the store turns servers away
+            $hit = $look();
+        }
+        if (!$st['queue'] || $st['pages'] >= CATALOG_MAX_PAGES) $st['done'] = true;
+    }
+    if ($fh) { ftruncate($fh, 0); rewind($fh); fwrite($fh, (string)json_encode($st, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); flock($fh, LOCK_UN); fclose($fh); }
+    return ['ok' => $hit !== null, 'url' => (string)$hit, 'pages' => (int)$st['pages'], 'done' => (bool)$st['done'], 'blocked' => (bool)$st['blocked']];
+}
+
 /* ---------- finding a product page by name / SKU (web search through Apify's RAG Web Browser) ---------- */
 // $q: name, sku, supplier, site (the supplier's web address, e.g. henryschein.com)
 function find_product_page(array $q, array $ctx = []): array {
     $name = trim((string)($q['name'] ?? '')); $sku = trim((string)($q['sku'] ?? '')); $sup = trim((string)($q['supplier'] ?? ''));
     $site = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($q['site'] ?? ''))));
     $site = preg_replace('#/.*$#', '', $site);
+    if ($site === '') $site = supplier_site_guess($sup);   // no website saved for the supplier yet: use the one we know
     if ($name === '' && $sku === '') return ['ok' => false, 'error' => 'no_match', 'message' => 'Give a product name or SKU to look up.'];
     // Henry Schein: the product page address is just the item number (900-7438 -> /p/x/9007438), so go straight there.
     $hsNum = preg_replace('/[\s\-\.\/_]+/', '', $sku);
@@ -778,13 +988,32 @@ function find_product_page(array $q, array $ctx = []): array {
             return $direct;
         }
     }
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
+    // Any other supplier with a known website: look for the SKU on the store's own pages (see catalog_find).
+    $cat = null;
+    if ($sku !== '' && $site !== '') {
+        $cat = catalog_find($site, $sku, $name);
+        if ($cat['ok']) {
+            $direct = read_product_link($cat['url'], array_merge($ctx, ['sku' => $sku]));
+            if ($direct['ok'] && ($direct['skuCheck'] ?? '') !== 'missing') {
+                $direct['note'] = trim('Found item ' . $sku . ' on ' . $site . '. ' . ($direct['note'] ?? ''));
+                $direct['catalog'] = true;
+                return $direct;
+            }
+        }
+    }
+    $catMsg = '';
+    if ($cat !== null && !$cat['ok']) {
+        $catMsg = $cat['blocked'] ? $site . ' turns the server away, so its pages couldn\'t be checked.'
+            : ($cat['done'] ? 'Item ' . $sku . ' isn\'t listed anywhere on ' . $site . ' (' . $cat['pages'] . ' pages checked).'
+            : 'Item ' . $sku . ' wasn\'t on the ' . $cat['pages'] . ' pages of ' . $site . ' checked so far; run it again to keep looking.');
+    }
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => $catMsg !== '' ? $catMsg . ' Or add the product\'s web link.' : 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.
     $bare = preg_replace('/[\s\-\.\/_]+/', '', $sku);
     $skus = array_values(array_unique(array_filter([$sku, $bare])));
     $where = $site !== '' ? ' site:' . $site : '';
-    $tail = $sup !== '' ? $sup : 'dental supply';
+    $tail = $sup !== '' ? $sup . ' dental' : 'dental supply';   // "dental" keeps e.g. Blue Sky Bio from matching biotech companies
     $queries = [];
     foreach ($skus as $v) $queries[] = trim('"' . $v . '" ' . $name . $where);          // exact number on the supplier's site
     foreach (array_reverse($skus) as $v) { $queries[] = trim($v . ' ' . $name . ' ' . $tail); break; }   // number without separators, anywhere
@@ -798,7 +1027,7 @@ function find_product_page(array $q, array $ctx = []): array {
         foreach ($r['results'] as $c) $cands[$c['url']] = $c;
         if ($cands) break;
     }
-    if (!$cands) return ['ok' => false, 'error' => 'no_match', 'message' => $lastErr ?: 'No product page turned up for that search. Add the product\'s web link instead.'];
+    if (!$cands) return ['ok' => false, 'error' => 'no_match', 'message' => trim($catMsg . ' ' . ($lastErr ?: 'No product page turned up in a web search either. Add the product\'s web link instead.'))];
     $cands = array_values($cands);
     // Prefer the office's supplier; then let Claude pick the page that is this exact product.
     usort($cands, fn($a, $b) => (int)($site !== '' && str_contains(strtolower((string)parse_url($b['url'], PHP_URL_HOST)), $site)) <=> (int)($site !== '' && str_contains(strtolower((string)parse_url($a['url'], PHP_URL_HOST)), $site)));
@@ -809,7 +1038,7 @@ function find_product_page(array $q, array $ctx = []): array {
             . ".\nSearch results:\n$list\n\nReply with {\"pick\": index of the result that is the product page for this exact item (prefer $sup" . ($site !== '' ? " / $site" : '') . "), or -1 if none is}.", [], 'quick');
         if ($a['ok'] && isset($a['value']['pick']) && is_numeric($a['value']['pick'])) $pick = (int)$a['value']['pick'];
     }
-    if ($pick < 0 || !isset($cands[$pick])) return ['ok' => false, 'error' => 'no_match', 'message' => 'The search didn\'t find this exact product. Add its web link instead.'];
+    if ($pick < 0 || !isset($cands[$pick])) return ['ok' => false, 'error' => 'no_match', 'message' => trim($catMsg . ' The web search didn\'t find this exact product either. Add its web link instead.')];
     $res = read_product_link($cands[$pick]['url'], $ctx);
     if (!$res['ok']) return $res;
     $res['searched'] = true;
