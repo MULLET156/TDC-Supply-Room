@@ -3360,7 +3360,7 @@ function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false &
 function similarAt(it, sup){ const k = keyOf(sup); return offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure === false).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null; }
 function cmpRows(){
   const sups = compareSups();
-  let list = cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice();
+  let list = (cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice()).filter(compareable);
   const q = keyOf(cmpQ || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.supplier].join(" ")).includes(q));
   return list.sort((a, b) => a.name.localeCompare(b.name)).map(it => {
     const cells = sups.map(s => ({ s, o: offerAt(it, s) }));
@@ -5135,6 +5135,7 @@ function bestOffer(it, mineOnly = true){
 }
 /* "Save $X at Benco": the cheapest of your suppliers vs what this item is ordered at now */
 function saving(it){
+  if (!compareable(it)) return null;
   const b = bestOffer(it); if (!b || keyOf(b.src) === keyOf(it.supplier)) return null;
   const cur = { price: ordPrice(it), pack: it.units };
   if (!(cur.price > 0)) return null;
@@ -6091,8 +6092,12 @@ function readCsv(text){
   if (f || row.length) { row.push(f); rows.push(row); }
   return rows.filter(r => r.some(c => clean(c)));
 }
-const COMPARE_DEFAULT = ["Henry Schein", "Benco", "Net32", "Darby Dental"];
-const compareSups = () => { const v = rules.compareSups; const L = Array.isArray(v) && v.length ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };
+const COMPARE_DEFAULT = ["Henry Schein", "Benco", "Net32", "Darby Dental", "Safco Dental Supply"];
+/* suppliers whose products aren't compared (manufacturers and proprietary lines sold nowhere else) */
+const NOCMP_DEFAULT = /ultradent|blue ?sky|brasseler/i;
+const noCompareSup = sup => { if (!sup) return false; const v = infoOf(sup).noCompare; return v === true || (v == null && NOCMP_DEFAULT.test(sup)); };
+const compareable = it => !noCompareSup(it.supplier);
+const compareSups = () => { const v = rules.compareSups; const old = ["henry schein","benco","net32","darby dental"]; const L = Array.isArray(v) && v.length && !(v.length === 4 && v.every((s, i) => keyOf(s) === old[i])) ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };
 function openPriceListImport(preSup){
   if (!needMe()) return;
   if (!sample) { toast("Reading price lists needs Claude, which isn't set up here"); return; }
@@ -6819,7 +6824,7 @@ function supDetail(name){
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
-  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  </div><label class="showpw cartopt"><input type="checkbox" data-nocmp="${esc(name)}" ${noCompareSup(name) ? "checked" : ""}> No price comparison on products bought from this supplier <span class="hint">(manufacturers and products sold only here)</span></label>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){
@@ -7015,6 +7020,14 @@ function wireSetup(){
         toast("Saved");
       } catch(e) { toast(dbErr(e)); }
     };
+  });
+  document.querySelectorAll("[data-nocmp]").forEach(cb => cb.onchange = async () => {
+    if (!needMe()) { render(); return; }
+    const name = cb.dataset.nocmp, id = supSlug(name);
+    try {
+      await db.doc("supinfo/" + id).set({ ...(supInfo[id] || {}), key: keyOf(name), noCompare: cb.checked, updatedAt: Date.now(), updatedBy: me() });
+      logIt("Setup", null, `${name}: price comparison ${cb.checked ? "off" : "on"}`); toast(cb.checked ? `${name} products left out of price comparison` : `${name} products included in price comparison`);
+    } catch(e) { toast(dbErr(e)); }
   });
   document.querySelectorAll("[data-cartopt]").forEach(cb => cb.onchange = async () => {
     if (!needMe()) { render(); return; }
