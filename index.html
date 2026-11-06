@@ -1491,7 +1491,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .jumprow select{min-height:40px!important}
   .jumprow + .hint, .jumprow .hint{display:none!important}
   header .pagehead .phn{white-space:nowrap}
-  .dock .wrap > #scanBtn{flex:1 1 100%!important;min-height:44px!important;white-space:nowrap}
+  .dock .wrap > #scanBtn{flex:1 1 0!important;min-width:0;min-height:44px!important;white-space:nowrap;padding:0 10px!important}
   .list .grp.cathead{padding:8px 10px!important;gap:4px 8px!important;align-items:center}
   .list .grp.cathead > span:first-child{font-size:16px!important}
   .list .grp.cathead .grprep{display:inline!important;margin:0 0 0 6px!important;font-size:12.5px!important}
@@ -1500,8 +1500,13 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .list .grp .grpsel{min-height:34px!important;padding:0 11px!important;font-size:13px!important;display:inline-flex!important;flex-direction:row!important;align-items:center;border-radius:999px!important;white-space:nowrap}
   .list .grp .grpsel .ic{width:15px!important;height:15px!important;margin:0 5px 0 0!important}
   /* bottom: the action button only shows once something is ticked */
-  .dock .dockord:has(> .btn.pri:disabled){display:none!important}
-  .dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:has(> .btn.pri:disabled)))){display:none!important}
+  .dock .dockord:not(#dockCnt):has(> .btn.pri:disabled){display:none!important}
+  .dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
+  .dock .wrap:has(> #dockCnt:not([hidden])){display:flex!important;flex-wrap:nowrap!important;gap:8px!important}
+  .dock .wrap > #dockCnt{flex:1 1 0!important;min-width:0;display:flex;gap:6px}
+  .dock .wrap > #dockCnt .btn{flex:1 1 auto;white-space:nowrap;padding:0 10px!important}
+  .dock .wrap > #dockCnt .dh{display:none}
+  .dock .wrap:has(#dockCntClear:not([hidden])) > #scanBtn{display:none!important}
   .dock .wrap{padding-top:6px!important;padding-bottom:6px!important}
   .dock .btn{min-height:44px!important;font-size:15px!important}
   .dock .tabs-main{grid-template-columns:repeat(6,minmax(0,1fr))!important}
@@ -2421,7 +2426,7 @@ function updateOrdFloat(){
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
   if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").innerHTML = ic("listplus") + (n ? `Add ${n} to order list` : "Tick items, then Add to order list"); $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
-  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : "Tick items, then Mark counted"); $("#dockCntClear").hidden = !selected.size; }
+  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick items, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
@@ -2456,6 +2461,8 @@ $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
+$("#dockCntGo")?.addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
+$("#dockCntClear")?.addEventListener("click", () => { selected.clear(); render(); });
 $("#bulkForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (!needMe()) return;
