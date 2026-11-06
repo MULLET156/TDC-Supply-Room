@@ -726,6 +726,8 @@ body.on-products .filters{display:none!important}
 .istatus:has(.icnt){display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;padding-bottom:6px}
 .istatus .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
 .istatus .cntok.icnt .ic{width:20px;height:20px;margin:0}
+.cbox .cntlab{display:block;margin-top:6px}
+.cbox .cntsel{display:block;width:100%;margin-top:2px;min-height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;font-size:12.5px;font-weight:600;padding:0 4px;text-align:center;text-align-last:center;cursor:pointer}
 @media (max-width:640px){
   .counts.three{gap:6px!important}
   .counts.three .cbox{padding:8px 4px!important;min-width:0}
@@ -3118,13 +3120,14 @@ function detFields(it){
     ${fwrap("", it.sub, `<label for="e-sub">Subcategory</label><input id="e-sub" list="dl-sub" value="${esc(it.sub)}" placeholder="Optional">`)}
     ${fwrap("", it.loc, `<label for="e-loc">Storage location</label><input id="e-loc" list="dl-loc" value="${esc(it.loc)}">`)}
     ${fwrap("", it.exp, `<label for="e-exp">Expiration</label><div class="expwrap"><input id="e-exp" value="${esc(it.exp)}" placeholder="M/D/YYYY or M/YYYY"><label class="exppick" title="Pick a date">${ic("cal")}<input type="date" tabindex="-1" aria-label="Pick the expiration date" data-exppick="e-exp"></label></div>`)}
-    ${fwrap("", "x", `<label for="e-cnt">Count schedule</label><select id="e-cnt">${cntOptsHtml(it.countEvery, `Office default (${cntName(cntDefault())})`)}</select>`)}
     ${fwrap("full", it.desc, `<label for="e-desc">Description</label><textarea id="e-desc" rows="2" placeholder="What it is and what it's used for">${esc(it.desc)}</textarea>`)}
     ${fwrap("full", it.notes, `<label for="e-notes">Notes</label><input id="e-notes" value="${esc(it.notes)}">`)}
   </div>${dl("dl-cat", catTree().map(t => t.name))}${dl("dl-sub", [...new Set(catTree().flatMap(t => (keyOf(t.name) === keyOf(it.cat) || !it.cat ? t.subs : []).map(x => x.name)))])}${dl("dl-loc", locNames())}`;
 }
-function countBoxes(q, d, u){
-  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}</div>`;
+function countBoxes(q, d, u, cnt){
+  const short = { "7": "Weekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" };
+  const sched = `<span class="chint cntlab">Count schedule</span><select id="e-cnt" class="cntsel" aria-label="Count schedule" title="How often this item is counted. Default follows Setup › Alerts (now ${esc(cntName(cntDefault()).toLowerCase())}).">${`<option value="">Default (${esc(short[String(cntDefault())] || cntName(cntDefault()))})</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(cnt ?? "") === k ? " selected" : ""}>${short[k]}</option>`).join("")}</select>`;
+  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" ? sched : ""}</div>`;
   return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
 }
 /* The Add page and the item window use the same field ids. Look inside the open window first so one never
@@ -4362,7 +4365,7 @@ async function openItem(it, prefill){
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
     <div class="istatus ${st.cls}"><span>${st.html}</span>${countB}</div>
     ${primary}${primaryTail}
-    ${countBoxes(f.qty, f.desired, f.urgent)}
+    ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery)}
     ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button></div>` : ""}
     <div class="isecs">
       <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
@@ -4412,6 +4415,14 @@ async function openItem(it, prefill){
   catch(err) { b.disabled = false; toast(dbErr(err)); } });
 $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
+  { const cs = $("#overlay #e-cnt"); if (cs) cs.onchange = async () => {
+      if (!needMe()) { cs.value = clean(it.countEvery ?? ""); return; }
+      const v = cs.value, was = openVals ? openVals.countEvery : undefined; if (openVals) openVals.countEvery = v; try { syncDirty(); } catch {}
+      try { await write(it.id, { countEvery: v }); it.countEvery = v;
+        logIt("Edited", it, `count schedule → ${v === "" ? "office default" : cntName(v)}`); sync("ok", "Saved"); toast(v === "0" ? "Won't be counted (off the Count page)" : `Count ${(v === "" ? cntName(cntDefault()) + " (default)" : cntName(v)).toLowerCase()}`);
+        const cb = $("#countBtn"); if (cb) { const on = countedToday(it); cb.classList.toggle("on", on); cb.querySelector("span").textContent = on ? "Counted" : "Mark counted"; }
+      } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
+    }; }
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true }); if (!ok) b.disabled = false; });
   $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0, orderAmt: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
   $("#saveBtn").onclick = () => saveItem(it);
@@ -4644,7 +4655,7 @@ function buildAddPage(){
       ${inp("e-sku", "SKU / catalog #", f.sku, 'class="mono" autocapitalize="characters"')}
       ${inp("e-units", "Unit / package size", f.units, 'placeholder="e.g. Box of 100"')}
     </div><div class="addmatch" id="addMatch" hidden></div></section>
-    <section class="addcard"><h3>How many</h3>${countBoxes(f.qty, f.desired, f.urgent)}<p class="hint" style="margin:0">It shows on the Order list when on hand drops below the desired reserve, and is flagged 🚨 911 (order right away) when it reaches the 911 amount. Leave 911 at 0 to turn it off.</p></section>
+    <section class="addcard"><h3>How many</h3>${countBoxes(f.qty, f.desired, f.urgent, f.countEvery)}<p class="hint" style="margin:0">It shows on the Order list when on hand drops below the desired reserve, and is flagged 🚨 911 (order right away) when it reaches the 911 amount. Leave 911 at 0 to turn it off.</p></section>
     <section class="addcard"><h3>Where it goes</h3><div class="fields">
       ${inp("e-cat", "Category", f.cat, 'list="dl-cat"')}
       ${inp("e-sub", "Subcategory", f.sub, 'list="dl-sub" placeholder="Optional"')}
