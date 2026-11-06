@@ -4518,7 +4518,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
   wirePhoto(f => setItemPhoto(it, f), () => removeItemPhoto(it));
   /* the photo actions live in the Tools menu (no separate Photos section) */
   { const pm = $("#pMenu"), pt = $("#ptoolsMenu"); if (pm && pt) { pm.removeAttribute("id"); pm.className = "pmsub"; pm.hidden = true;
-      const pull = pm.querySelector("[data-pullphoto]"), lk = $("#toolsMenu"); if (pull && lk) lk.insertBefore(pull, lk.firstChild);
+      const pull = pm.querySelector("[data-pullphoto]"); if (pull) pm.insertBefore(pull, pm.firstChild);
       const pb = document.createElement("button"); pb.type = "button"; pb.className = "pmi"; pb.id = "tPhotos"; pb.setAttribute("aria-expanded", "false");
       pb.innerHTML = ic("camera") + `${it.photo ? "Photos" : "Add a photo"}<span class="pmarr">▸</span>`;
       pb.onclick = () => { pm.hidden = !pm.hidden; pb.setAttribute("aria-expanded", String(!pm.hidden)); pb.querySelector(".pmarr").textContent = pm.hidden ? "▸" : "▾"; };
