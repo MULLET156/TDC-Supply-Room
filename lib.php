@@ -1189,8 +1189,15 @@ function signed_in_prices(PDO $pdo, string $sup, array $pages): array {
     if (stripos($sup, 'schein') === false) return ['ok' => false, 'error' => 'unsupported', 'message' => 'Signed-in price checks are being tested with Henry Schein only.'];
     $login = supplier_login($pdo, $sup);
     if (!$login) return ['ok' => false, 'error' => 'no_login', 'message' => "Save the $sup login username and password in Setup › Suppliers first."];
-    $pages = array_values(array_filter(array_slice($pages, 0, 10), fn($p) => is_array($p) && preg_match('#^https://(www\.)?henryschein\.com/#i', (string)($p['url'] ?? ''))));
-    if (!$pages) return ['ok' => false, 'error' => 'no_pages', 'message' => 'None of these items has a Henry Schein product link yet.'];
+    // each page: a known Henry Schein product link, or a search (item #, part # or name) to find it on Henry Schein while signed in
+    $pages = array_values(array_filter(array_map(function($p) {
+        if (!is_array($p)) return null;
+        $u = (string)($p['url'] ?? ''); $q = trim((string)($p['q'] ?? ''));
+        if (preg_match('#^https://(www\.)?henryschein\.com/#i', $u)) return ['id' => (string)($p['id'] ?? ''), 'name' => (string)($p['name'] ?? ''), 'url' => $u, 'q' => ''];
+        if ($q !== '') return ['id' => (string)($p['id'] ?? ''), 'name' => (string)($p['name'] ?? ''), 'url' => '', 'q' => mb_substr($q, 0, 80)];
+        return null;
+    }, array_slice($pages, 0, 10))));
+    if (!$pages) return ['ok' => false, 'error' => 'no_pages', 'message' => 'Nothing to look up.'];
     @set_time_limit(330);
     $fn = <<<'JS'
 async function pageFunction(context) {
@@ -1219,16 +1226,24 @@ async function pageFunction(context) {
     if (/verification code|one[- ]time (code|pass)|captcha|verify (it'?s|that it'?s) you|security code|enter the code/i.test(t)) { out.stage = 'challenge'; return out; }
     if (/(incorrect|invalid|wrong).{0,40}(user|password|credentials)|(user|password).{0,40}(incorrect|invalid)/i.test(t)) { out.stage = 'bad_login'; return out; }
     out.stage = 'logged_in';
-    for (const url of customData.urls) {
-      try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await sleep(6000);
-        out.results.push({ url, text: scrub((await page.innerText('body')).slice(0, 7000)) }); }
-      catch (e) { out.results.push({ url, error: String(e).slice(0, 200) }); }
+    for (const job of customData.jobs) {
+      try {
+        let url = job.url, cands = [];
+        if (!url) {
+          await page.goto('https://www.henryschein.com/en-us/search/' + encodeURIComponent(job.q) + '?type=Products', { waitUntil: 'domcontentloaded', timeout: 45000 }); await sleep(6000);
+          cands = await page.$$eval('a[href*="/p/"]', as => { const seen = new Set(), out = []; for (const a of as) { const h = a.href.split('?')[0]; if (seen.has(h)) continue; seen.add(h); out.push({ url: h, title: (a.innerText || a.title || '').trim().slice(0, 120) }); if (out.length >= 6) break; } return out; });
+          if (!cands.length) { out.results.push({ q: job.q, error: 'not found by search' }); continue; }
+          url = cands[0].url;
+        }
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await sleep(6000);
+        out.results.push({ url, q: job.q || '', cands, text: scrub((await page.innerText('body')).slice(0, 7000)) });
+      } catch (e) { out.results.push({ url: job.url || '', q: job.q || '', error: String(e).slice(0, 200) }); }
     }
   } catch (e) { out.error = String(e).slice(0, 300); out.url = page.url(); }
   return out;
 }
 JS;
-    $input = ['startUrls' => [['url' => 'https://www.henryschein.com/en-us/login']], 'pageFunction' => $fn, 'customData' => ['u' => $login['u'], 'p' => $login['p'], 'urls' => array_column($pages, 'url')],
+    $input = ['startUrls' => [['url' => 'https://www.henryschein.com/en-us/login']], 'pageFunction' => $fn, 'customData' => ['u' => $login['u'], 'p' => $login['p'], 'jobs' => array_map(fn($p) => ['url' => $p['url'], 'q' => $p['q']], $pages)],
               'proxyConfiguration' => ['useApifyProxy' => true, 'apifyProxyGroups' => ['RESIDENTIAL'], 'apifyProxyCountry' => 'US'],
               'launcher' => 'chromium', 'headless' => true, 'maxRequestRetries' => 0, 'maxConcurrency' => 1, 'pageLoadTimeoutSecs' => 60, 'pageFunctionTimeoutSecs' => 280, 'ignoreSslErrors' => false, 'downloadMedia' => true, 'downloadCss' => true];
     $actor = (string)cfg('APIFY_LOGIN_ACTOR', 'apify~playwright-scraper');
@@ -1245,12 +1260,15 @@ JS;
     if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 600)]];
     $out = [];
     foreach ((array)($o['results'] ?? []) as $k => $r) {
-        $pg = $pages[$k] ?? ['url' => $r['url'] ?? '', 'name' => ''];
-        if (empty($r['text'])) { $out[] = ['url' => $pg['url'], 'price' => null, 'note' => $r['error'] ?? 'Page didn\'t load']; continue; }
+        $pg = $pages[$k] ?? ['url' => '', 'name' => '', 'id' => '', 'q' => ''];
+        $url = (string)($r['url'] ?? $pg['url']);
+        if (empty($r['text'])) { $out[] = ['id' => $pg['id'], 'url' => $url, 'price' => null, 'note' => $r['error'] ?? 'Page didn\'t load']; continue; }
+        $found = $pg['url'] === '';
         $a = ai_json("This is the text of a Henry Schein product page seen while signed in to the office's account. The office calls the product: \"" . ($pg['name'] ?? '') . "\".\n"
-            . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), and what one unit is.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
+            . ($found ? "This page was found by searching Henry Schein for \"{$pg['q']}\", so it may be a different product: say whether it is the same product (same brand, product, size/shade; pack may differ).\n" : '')
+            . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), what one unit is, and Henry Schein's item number.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"sku\": \"item #\", \"same\": true/false, \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
         $v = $a['ok'] ? (array)$a['value'] : [];
-        $out[] = ['url' => $pg['url'], 'id' => $pg['id'] ?? '', 'price' => is_numeric($v['price'] ?? null) ? (float)$v['price'] : null, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? '')];
+        $out[] = ['id' => $pg['id'], 'url' => $url, 'found' => $found, 'same' => $found ? !empty($v['same']) : true, 'sku' => (string)($v['sku'] ?? ''), 'price' => is_numeric($v['price'] ?? null) ? (float)$v['price'] : null, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? '')];
     }
     return ['ok' => true, 'results' => $out];
 }

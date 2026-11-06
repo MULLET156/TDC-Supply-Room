@@ -3321,8 +3321,10 @@ function hsPage(it){
   return "";
 }
 async function hsSignedIn(list){
-  const pages = list.map(i => byId(i.id) || i).map(it => ({ id: it.id, name: it.name, url: hsPage(it) })).filter(p => p.url).slice(0, 10);
-  if (!pages.length) { toast("None of these items has a Henry Schein product link yet"); return; }
+  /* items with a Henry Schein link are opened directly; the rest are searched for on Henry Schein (part #, else name) */
+  const query = it => clean(it.mfr) || (/schein/i.test(it.supplier || "") ? clean(it.sku) : "") || searchWords(it.name);
+  const pages = list.map(i => byId(i.id) || i).map(it => ({ id: it.id, name: it.name, url: hsPage(it), q: hsPage(it) ? "" : query(it) })).filter(p => p.url || p.q).slice(0, 10);
+  if (!pages.length) { toast("No items to look up"); return; }
   openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <p class="hint" id="hsStat">Logging in to Henry Schein and reading ${pages.length} product page${pages.length > 1 ? "s" : ""}. This takes 1–4 minutes; keep this open.</p><div class="fpbar"><i class="indet"></i></div>`);
   let r;
@@ -3340,11 +3342,12 @@ async function hsSignedIn(list){
   let saved = 0; const rows = [];
   for (const x of r.results || []) {
     const it = byId(x.id); if (!it) continue;
-    if (x.price > 0) {
-      const offers = upsertOffer(it.offers, { src: "Henry Schein", price: x.price, pack: clean(x.units) || (/schein/i.test(it.supplier || "") ? it.units || "" : ""), url: x.url, kind: "live", at: Date.now(), sure: true, mine: true });
-      try { await write(it.id, { offers }); it.offers = offers; saved++; } catch {}
+    /* a page found by search is kept as Henry Schein's link for this item (hidden until you switch), flagged if it may be another product */
+    if (x.url) {
+      const offers = upsertOffer(it.offers, { src: "Henry Schein", price: x.price > 0 ? x.price : null, pack: clean(x.units) || (/schein/i.test(it.supplier || "") ? it.units || "" : ""), url: x.url, sku: clean(x.sku), kind: x.price > 0 ? "live" : "signin", at: Date.now(), sure: x.same !== false, mine: true });
+      try { await write(it.id, { offers }); it.offers = offers; if (x.price > 0) saved++; } catch {}
     }
-    rows.push(`<li>${esc(it.name)}: ${x.price > 0 ? `<b>${esc(money(x.price))}</b>${x.units ? " / " + esc(x.units) : ""}` : `<span class="hint">no price (${esc(x.note || "not shown")})</span>`}</li>`);
+    rows.push(`<li>${esc(it.name)}: ${x.price > 0 ? `<b>${esc(money(x.price))}</b>${x.units ? " / " + esc(x.units) : ""}${x.found ? ` <span class="hint">(found by search${x.same === false ? ", may be a different product" : ""})</span>` : ""}` : `<span class="hint">no price (${esc(x.note || "not shown")})</span>`}</li>`);
   }
   if (saved) logIt("Price checked", null, `Henry Schein signed-in prices for ${saved} item${saved > 1 ? "s" : ""} (test)`);
   openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
