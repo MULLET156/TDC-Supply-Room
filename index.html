@@ -1200,6 +1200,16 @@ header .wrap{position:relative}
 body[data-view="sups"] #fSup, body[data-view="cats"] #fCat, body[data-view="locs"] #fLoc{display:none !important}
 
 .exprep{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 14px 10px 14px}
+.explist .row.xrow{grid-template-columns:minmax(0,1fr) auto;background:var(--surface)}
+.xrow .xacts{padding:0;justify-content:flex-end;gap:6px}
+.xrow .xacts .btn{white-space:nowrap}
+.xrow .xacts .btn.armed{background:var(--bad);border-color:var(--bad);color:#fff}
+.xdate{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline;font-size:13.5px;margin-top:2px}
+.xdate b{font-family:var(--f-mono);font-size:13.5px}
+.xdate span{color:var(--muted)}
+.xdate.gone b,.xdate.gone span{color:var(--bad)}.xdate.soon b{color:var(--warn)}
+.xgrp.x-gone{color:var(--bad)}.xgrp.x-soon{color:var(--warn)}
+
 .exprep label{font-size:13px;font-weight:700;color:var(--muted)}
 .exprep.inrow{padding:0;justify-content:flex-end;max-width:300px;gap:6px}
 .exprep.inrow label{flex-basis:100%;text-align:right}
@@ -1913,6 +1923,15 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
 #signinForm button{min-height:44px;font-size:15px}
 #signinMsg{min-height:1.2em;margin:0;color:var(--bad);font-size:13.5px;font-weight:600}
 .sg-note{margin:0;font-size:12.5px;color:var(--muted)}
+/* Expiring rows on phones: info on top, the three actions in one row underneath */
+@media (max-width:640px){
+  .explist .list .row.xrow, .explist .row.xrow{grid-template-columns:minmax(0,1fr)!important;padding:10px 12px!important;gap:8px!important}
+  .explist .row.xrow .xacts{display:flex!important;justify-content:stretch;gap:6px;flex-wrap:nowrap}
+  .explist .row.xrow .xacts .btn{flex:1 1 0;min-height:40px;justify-content:center;padding:0 6px;font-size:14px}
+  .explist .row.xrow .xacts:has(input[type=date]){flex-wrap:wrap}
+  .explist .row.xrow .info .meta{white-space:normal!important}
+  .xdate, .xdate b{font-size:13px}
+}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
@@ -2562,6 +2581,41 @@ function xcols(i){
   if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
   return "";
 }
+/* Expiring page row: the date and how long ago / how soon, then the actions (new date, used up, order) */
+function expWhen(i){
+  const d = parseExp(i.exp); if (!d) return { date: esc(i.exp), rel: "" };
+  const monthOnly = /^\s*\d{1,2}[\/.\-](\d{2}|\d{4})\s*$/.test(i.exp) || /^\d{4}-\d{1,2}$/.test(clean(i.exp));
+  const date = monthOnly ? d.toLocaleDateString([], { month: "short", year: "numeric" }) : d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  const n = Math.abs(i.expDays), span = n < 14 ? `${n} day${n === 1 ? "" : "s"}` : n < 60 ? `${Math.round(n / 7)} weeks` : n < 730 ? `${Math.round(n / 30.4)} months` : `${Math.round(n / 365)} years`;
+  return { date, rel: i.expDays < 0 ? `expired ${span} ago` : i.expDays === 0 ? "expires today" : `in ${span}` };
+}
+let expArm = null; /* { id, at } the Used up button waiting for a second tap */
+function expRowHtml(i){
+  const w = expWhen(i), armed = expArm?.id === i.id && Date.now() - expArm.at < 4000;
+  return `<div class="row xrow" data-id="${esc(i.id)}">
+    <div class="info" tabindex="0" role="button">${i.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(i.photo)}" onerror="this.remove()">` : ""}<div class="txt">
+      <div class="nm">${esc(i.name)}</div>
+      <div class="xdate ${i.expDays < 0 ? "gone" : i.expDays <= 30 ? "soon" : ""}"><b>${w.date}</b>${w.rel ? `<span>${esc(w.rel)}</span>` : ""}</div>
+      <div class="meta">${i.loc ? `<span>${esc(i.loc)}</span>` : ""}${i.supplier ? `<span>${esc(i.supplier)}</span>` : ""}<span>${fmtQ(i.qty ?? 0)} on hand${i.units ? " · " + esc(i.units) : ""}</span>${i.onOrder ? `<span class="pill p-ord">On the way</span>` : i.need ? `<span class="pill p-need">On order list</span>` : ""}</div>
+    </div></div>
+    ${readOnly ? "" : `<div class="xacts exprep" data-expid="${esc(i.id)}">${expEdit?.id === i.id ? expEditor(i) : `<button type="button" class="btn sm" data-expreplace title="Replaced it: enter the new box's expiration date">${ic("calcheck")}New date</button><button type="button" class="btn sm${armed ? " armed" : ""}" data-expused title="Used up or thrown out: sets on hand to 0 and clears the date">${ic("trash")}${armed ? "Tap again" : "Used up"}</button>${i.need || i.onOrder ? "" : `<button type="button" class="btn sm" data-expord title="Put it on the order list">${ic("cart")}Order</button>`}`}</div>`}
+  </div>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest?.("[data-expused], [data-expord]"); if (!b) return;
+  e.stopPropagation();
+  const it = byId(b.closest(".exprep")?.dataset.expid); if (!it || !needMe()) return;
+  if (b.hasAttribute("data-expused")) {
+    if (!(expArm?.id === it.id && Date.now() - expArm.at < 4000)) { expArm = { id: it.id, at: Date.now() }; render(); setTimeout(() => { if (expArm?.id === it.id) { expArm = null; if (tab === "exp") render(); } }, 4000); return; }
+    expArm = null;
+    try { await write(it.id, { qty: 0, exp: "", countedAt: Date.now(), countedBy: me() }); logIt("Count", it, `${fmtQ(it.qty ?? 0)} → 0${it.units ? " " + it.units : ""}`); logIt("Expiration updated", it, `${it.exp || "none"} → no date (used up or thrown out)`); toast(`${it.name}: used up${num(it.desired) > 0 ? ", now on the order list" : ""}`); }
+    catch(err) { toast(dbErr(err)); }
+    return;
+  }
+  const q = Math.max(1, num(it.desired) || 1);
+  try { await write(it.id, { orderReq: q, orderAmt: 0 }); logIt("Added to order list", it, `order ${fmtQ(q)}${it.units ? " × " + it.units : ""}`); toast(`Added ${it.name} to the order list`); }
+  catch(err) { toast(dbErr(err)); }
+});
 function rowHtml(i, withChk){
   const openNow = typeof curItem !== "undefined" && curItem?.id === i.id && document.querySelector("#overlay .panel.item") ? " open-now" : "";
   return `<div class="row ${stockCls(i)}${openNow}" data-id="${esc(i.id)}">
@@ -2814,7 +2868,7 @@ function pageHead(){
     all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list."],
     need: ["Order list", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On the way", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
-    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
+    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap New date. Used it up or threw it out? Tap Used up.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
     count: [isPhone() ? "Count" : "Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that item's schedule (Setup › Alerts, or per item). Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
@@ -2995,7 +3049,9 @@ function renderInner(){
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "exp") {
     const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
-    v.innerHTML = banner + (list.length ? `<div class="list">${list.map(i=>rowHtml(i,false)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
+    const lim = rules.expDays ?? 60, soon = Math.min(30, lim);
+    const groups = [["Expired", list.filter(i => i.expDays < 0), "x-gone"], [`Next ${soon} days`, list.filter(i => i.expDays >= 0 && i.expDays <= soon), "x-soon"], [`${soon + 1}–${lim} days`, list.filter(i => i.expDays > soon), "x-later"]].filter(g => g[1].length);
+    v.innerHTML = banner + (list.length ? `<div class="list explist">${groups.map(([t, L, c]) => `<div class="grp xgrp ${c}"><span>${esc(t)} <span class="gn">${L.length}</span></span></div>${L.map(expRowHtml).join("")}`).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${lim} days.</div></div>`);
   } else {
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
