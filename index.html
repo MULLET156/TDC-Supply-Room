@@ -1326,6 +1326,7 @@ body[data-view="spend"] .filters, body[data-view="spend"] #pageHead{display:none
 @media (max-width:640px){ .spcards{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px} .spcard b{font-size:17px} .spcard{padding:9px 10px} .spgrid{grid-template-columns:1fr} }
 body[data-view="need"] .ordbar .actions{display:flex;width:100%}
 body[data-view="need"] .ordbar #copyList{margin-left:auto}
+.pmenu .pmi.pmsep{border-top:1px solid var(--line);margin-top:4px;padding-top:10px}
 #scanHd{display:none}
 .tabs-main .cntbtn .sh{display:none}
 @media (max-width:640px){
@@ -4661,9 +4662,8 @@ async function openItem(it, prefill){
   openPanel(`<div class="ph ihead">
       <button type="button" class="ithumb" id="thumbBtn" aria-label="${it.photo ? "Product photo" : "Add a photo"}">${photoSrc ? `<img src="${esc(photoSrc)}" alt="" onerror="this.replaceWith('📷')">` : "📷"}</button>
       <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc || clean(it.unitCost) ? `<div class="iloc">${it.loc ? `<span>${ic("pin")}${esc(it.loc)}</span>` : ""}${clean(it.unitCost) ? `<span class="iprice" title="Price${it.supplier ? " at " + esc(it.supplier) : ""}">${esc(priceTxt(it.unitCost))}${it.units ? `<small> / ${esc(it.units)}</small>` : ""}</span>` : ""}</div>` : ""}</div>
-      <span class="phbtns"><button class="iconbtn" type="button" id="moreBtn" aria-label="More actions" aria-expanded="false" aria-controls="moreMenu">⋯</button><button class="iconbtn" data-close type="button">Close</button></span>
+      <span class="phbtns"><button class="iconbtn" data-close type="button">Close</button></span>
     </div>
-    <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">${ic("trash")}Delete this item</button></div>
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
     <div class="istatus ${st.cls}"><span>${st.html}</span>${it.link ? `<a class="btn sm ishop" href="${esc(webHref(it.link))}" target="_blank" rel="noopener" title="Open the product page${it.supplier ? " on " + esc(it.supplier) : ""}">${ic("cart")}Shop</a>` : `<a class="btn sm ishop" data-pfind="${it.supplier ? "sup" : "shop"}" href="#" target="_blank" rel="noopener" title="No product link saved yet. Searches ${it.supplier ? esc(it.supplier) : "online stores"} for this item">${ic("cart")}Shop</a>`}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
     ${primary}${primaryTail}
@@ -4677,6 +4677,7 @@ async function openItem(it, prefill){
       <button type="button" class="pmi" id="tHist">${ic("history")}Item history</button>
       <button type="button" class="pmi" id="tLabel">${ic("tag")}Print shelf label</button>
       <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
+      ${it.id ? `<button type="button" class="pmi danger pmsep" id="delBtn">${ic("trash")}Delete this item</button>` : ""}
     </div>`}
     <div class="pmenu imenu" id="toolsMenu" hidden>
       <button type="button" class="pmi" data-autoscrape>${ic("refresh")}Update from supplier page <span class="aitag">${ic("sparkle")}Claude</span></button>
@@ -4708,7 +4709,7 @@ async function openItem(it, prefill){
   wireCounts();
   if (readOnly) document.querySelectorAll(".panel button:not([data-close]), .panel input").forEach(x => x.disabled = true);
   const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn, #pDel, #tPhotos")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
-  menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu"); menu("#ptoolsBtn", "#ptoolsMenu");
+  menu("#toolsBtn", "#toolsMenu"); menu("#ptoolsBtn", "#ptoolsMenu");
   { const a = $("#ptoolsBtn"), b = $("#toolsBtn"); a?.addEventListener("click", () => { const m = $("#toolsMenu"); if (m && !m.hidden) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); b?.addEventListener("click", () => { const m = $("#ptoolsMenu"); if (m && !m.hidden) { m.hidden = true; a?.setAttribute("aria-expanded", "false"); } }); }
   $("#editBtn").onclick = () => { unlockItem(); openSec("ord"); openSec("det"); $("#e-sup")?.focus(); };
   $("#tChgPhoto") && ($("#tChgPhoto").onclick = () => { openSec("ph"); $("#sec-ph")?.scrollIntoView({ block: "center", behavior: "smooth" }); const m = $("#pMenu"); if (m && m.hidden) $("#pMenuBtn")?.click(); });
@@ -4766,7 +4767,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       const sk = it.skuPhoto ? "blob.php?id=" + it.skuPhoto : ""; if (sk) { const b = document.createElement("button"); b.type = "button"; b.className = "pmi"; b.innerHTML = ic("tag") + "View SKU / label photo"; b.onclick = () => showBigPic(sk, "SKU / label"); pm.insertBefore(b, pm.querySelector("p.hint")); } } }
   $("#pSku") && ($("#pSku").onclick = e => { if (!needMe()) e.preventDefault(); }) && ($("#pSku").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setItemPhoto(it, f, null, "skuPhoto"); });
   $(".skupic img") && ($(".skupic img").onclick = e => showBigPic(e.target.src, "SKU photo"));
-  $("#delBtn").onclick = async e => {
+  if ($("#delBtn")) $("#delBtn").onclick = async e => {
     const b = e.currentTarget;
     if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Tap again to delete " + it.name; return; }
     if (!needMe()) return;
