@@ -737,7 +737,7 @@ function amazon_facts(string $url): array {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify: $code $m");
         $msg = $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
-             : ($code === 402 || stripos($m, 'credit') !== false || stripos($m, 'usage') !== false ? 'The Apify account is out of monthly credit.'
+             : ($code === 402 || stripos($m, 'credit') !== false || stripos($m, 'usage') !== false ? 'Apify refused the run (' . $code . ($m ? ': ' . $m : '') . ').'
              : ($code === 408 ? 'Amazon took too long to answer. Try again.' : 'Apify couldn\'t read that Amazon page' . ($m ? ": $m" : '.')));
         return ['ok' => false, 'error' => 'unavailable', 'message' => $msg];
     }
@@ -803,7 +803,7 @@ function apify_page_run(string $url, string $tool, int $secs, bool $residential 
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify page ($tool): $code $m");
         return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
-            : ($code === 402 ? 'The Apify account is out of monthly credit.' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
+            : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
     }
     $it = array_is_list($j) ? ($j[0] ?? null) : $j;
     $html = is_array($it) ? (string)($it['html'] ?? '') : '';
@@ -1109,7 +1109,7 @@ function apify_search(string $query): array {
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify search: $code $m");
-        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.' : ($code === 402 ? 'The Apify account is out of monthly credit.' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
+        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.' : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
     }
     $out = [];
     foreach ((array_is_list($j) ? $j : [$j]) as $it) {
