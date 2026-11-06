@@ -197,6 +197,12 @@ try {
             out(200, $r);
         }
 
+        case 'fetchlogo': {
+            $r = fetch_logo((string)($req['site'] ?? ''));
+            if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);
+            out(200, $r);
+        }
+
         case 'dump': {
             // Every document in one collection (full backup, export and clean-up; the normal reads stop at 2,000).
             $col = col_ok($req['col'] ?? null);

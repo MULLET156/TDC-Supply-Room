@@ -904,3 +904,54 @@ function fetch_photo(string $u, string $referer = ''): array {
     if (!$im) return ['ok' => false, 'error' => 'no_photo', 'message' => 'That picture couldn\'t be downloaded (' . $why . ').'];
     return ['ok' => true, 'photo' => ['type' => $im['type'], 'data' => base64_encode($im['bytes'])]];
 }
+
+/*
+ * Supplier logo for Setup › Suppliers › Get logo. Reads the supplier's home page and collects
+ * likely logo pictures (touch icon, schema.org logo, <img> named "logo", og:image, site icon),
+ * then Google's site-icon service as a fallback. Returns up to 4 pictures to pick from.
+ */
+function fetch_logo(string $site): array {
+    $site = trim($site);
+    if ($site === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'Add the supplier\'s website first.'];
+    if (!preg_match('#^https?://#i', $site)) $site = 'https://' . $site;
+    $host = strtolower((string)parse_url($site, PHP_URL_HOST));
+    if ($host === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'That website address doesn\'t look right.'];
+    $home = parse_url($site, PHP_URL_SCHEME) . '://' . $host . '/';
+    $cands = [];
+    $add = function (string $u, string $why) use (&$cands) { $u = html_entity_decode(trim($u), ENT_QUOTES); if ($u !== '' && !preg_match('#^data:#i', $u) && !isset($cands[$u])) $cands[$u] = $why; };
+    $page = http_get($home, 2097152, 15, ['Accept: text/html']);
+    if ($page['ok'] && stripos((string)$page['type'], 'html') !== false) {
+        $html = $page['body']; $base = $page['url'] ?: $home;
+        if (preg_match_all('#<link\b[^>]*>#i', $html, $m)) foreach ($m[0] as $tag) {
+            if (!preg_match('#\brel\s*=\s*["\']([^"\']+)#i', $tag, $r) || !preg_match('#\bhref\s*=\s*["\']([^"\']+)#i', $tag, $h)) continue;
+            $rel = strtolower($r[1]);
+            if (str_contains($rel, 'apple-touch-icon')) $add(abs_url($h[1], $base), 'touch icon');
+        }
+        if (preg_match_all('#"logo"\s*:\s*(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"#i', $html, $m)) foreach ($m[1] as $u) $add(abs_url(stripslashes($u), $base), 'logo');
+        if (preg_match_all('#<img\b[^>]*>#i', $html, $m)) foreach (array_slice($m[0], 0, 80) as $tag) {
+            if (!preg_match('#logo#i', $tag)) continue;
+            if (preg_match('#\b(?:data-src|src)\s*=\s*["\']([^"\']+)#i', $tag, $s) && !preg_match('#\.svg(\?|$)#i', $s[1])) $add(abs_url($s[1], $base), 'logo');
+            if (preg_match('#\bsrcset\s*=\s*["\']([^"\'\s,]+)#i', $tag, $s) && !preg_match('#\.svg(\?|$)#i', $s[1])) $add(abs_url($s[1], $base), 'logo');
+        }
+        if (preg_match('#<meta\b[^>]*property\s*=\s*["\']og:image["\'][^>]*content\s*=\s*["\']([^"\']+)#i', $html, $s)
+            || preg_match('#<meta\b[^>]*content\s*=\s*["\']([^"\']+)["\'][^>]*property\s*=\s*["\']og:image#i', $html, $s)) $add(abs_url($s[1], $base), 'page picture');
+        if (preg_match_all('#<link\b[^>]*>#i', $html, $m)) foreach ($m[0] as $tag) {
+            if (preg_match('#\brel\s*=\s*["\'][^"\']*\bicon\b#i', $tag) && preg_match('#\bhref\s*=\s*["\']([^"\']+)#i', $tag, $h) && !preg_match('#\.(svg|ico)(\?|$)#i', $h[1])) $add(abs_url($h[1], $base), 'site icon');
+        }
+    }
+    $add('https://www.google.com/s2/favicons?domain=' . rawurlencode($host) . '&sz=128', 'site icon');
+    $out = [];
+    foreach (array_slice($cands, 0, 10, true) as $u => $why) {
+        if (count($out) >= 4) break;
+        if (!preg_match('#^https?://#i', $u)) continue;
+        $r = http_get($u, 2097152, 12, ['Accept: image/png,image/jpeg,image/webp,image/gif;q=0.8', 'Referer: ' . $home]);
+        if (!$r['ok']) continue;
+        $mime = sniff_mime($r['body']) ?? strtolower(trim(explode(';', (string)$r['type'])[0]));
+        if (!in_array($mime, IMG_TYPES, true) || strlen($r['body']) < 300) continue;
+        $sz = @getimagesizefromstring($r['body']);
+        if ($sz && ($sz[0] < 24 || $sz[1] < 24)) continue;
+        $out[] = ['type' => $mime, 'data' => base64_encode($r['body']), 'why' => $why, 'w' => $sz[0] ?? 0, 'h' => $sz[1] ?? 0];
+    }
+    if (!$out) return ['ok' => false, 'error' => 'no_logo', 'message' => 'Couldn\'t find a logo on ' . $host . '. Upload one instead.'];
+    return ['ok' => true, 'logos' => $out];
+}

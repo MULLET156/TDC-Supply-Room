@@ -1312,6 +1312,19 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .step button{min-width:44px;min-height:44px}
 }
 .grpicon .ic{margin:0}
+
+/* supplier logos */
+.suplogo{height:26px;width:auto;max-width:78px;object-fit:contain;border-radius:6px;background:#fff;padding:2px 4px;border:1px solid var(--line);vertical-align:middle;margin-right:9px;flex:none}
+.suplogo.big{height:48px;max-width:150px;margin:0}
+.grpname{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px}
+.logorow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.logorow .nologo{color:var(--muted);font-size:13.5px;margin-right:4px}
+.logorow .filebtn input{display:none}
+.logopick{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.logopick button.lp{border:2px solid var(--line);background:#fff;border-radius:10px;padding:6px;cursor:pointer;display:grid;place-items:center;min-width:72px;min-height:56px}
+.logopick button.lp:hover{border-color:var(--accent)}
+.logopick button.lp img{max-height:48px;max-width:140px;object-fit:contain}
+.flabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:4px}
 #markOrd,#markRcv{display:none!important}
 .expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
 .exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
@@ -1585,12 +1598,13 @@ window.TDC = (function(){
     return { ...j, photo: j.photo && j.photo.data ? unb64(j.photo.data, j.photo.type) : null };
   }
   async function fetchPhoto(url, page){ const j = await call("fetchphoto", { url, page: page || "" }); return unb64(j.photo.data, j.photo.type); }
+  async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, fetchPhoto, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -2045,6 +2059,7 @@ const repContact = r => [r.cell && "cell " + r.cell, r.phone && "office " + r.ph
 const supSlug = k => "s-" + keyOf(k).replace(/[^a-z0-9_\-.~]/g, "-").slice(0, 150);
 const infoOf = sup => supInfo[supSlug(sup)] || {};
 const cartOn = sup => { if (window.HOSTED) return false; const c = infoOf(sup).cart; return typeof c === "boolean" ? c : /amazon/i.test(sup || ""); };
+const supLogo = (s, cls = "") => { const l = infoOf(s).logo; return l ? `<img class="suplogo${cls ? " " + cls : ""}" src="blob.php?id=${esc(l)}" alt="" loading="lazy" onerror="this.remove()">` : ""; };
 const webHref = u => /^https?:\/\//i.test(u) ? u : "https://" + u;
 const telHref = p => "tel:" + String(p).replace(/[^0-9+]/g, "");
 function repCompact(r, sup){
@@ -2179,7 +2194,7 @@ function renderInner(){
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp"><span class="grpname">${real ? supLogo(s) : ""}${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
@@ -2192,7 +2207,7 @@ function renderInner(){
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
       <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
-      <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp">${esc(s)}<span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
+      <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp"><span class="grpname">${supLogo(s)}${esc(s)}</span><span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
       : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
     if (list.length) {
       $("#markRcv").onclick = () => markReceivedMany(list.filter(i=>selected.has(i.id)));
@@ -2208,7 +2223,7 @@ function renderInner(){
     list.forEach(i => { const l = clean(i[field]) || none, k = keyOf(l); if (!groups.has(k)) groups.set(k, { name: l, items: [] }); groups.get(k).items.push(i); });
     const ordered = [...groups.values()].filter(g => g.items.length).sort((a, b) => (a.name === none) - (b.name === none));
     const slug = n => tab + "-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
-    const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
+    const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${supLogo(g.name)}${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
     v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
       <p class="hint" style="margin:0 2px 8px">Change the order of these in Setup › ${isLoc ? "Storage locations" : "Suppliers"}.</p>
       <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
@@ -5071,6 +5086,7 @@ function supDetail(name){
   return `<div class="supdet" data-info="${esc(name)}"><div class="fields">
     <div class="f"><label for="ia-${id}">Account number</label><input id="ia-${id}" data-inf="account" class="mono" value="${esc(inf.account)}" autocomplete="off"></div>
     <div class="f full"><label for="iw-${id}">Ordering website</label><div class="linkrow"><input id="iw-${id}" data-inf="website" type="url" value="${esc(inf.website)}" placeholder="https://…" autocomplete="off"><button type="button" class="btn" data-pullweb="${esc(name)}">Find website</button></div><div class="webpull" hidden></div></div>
+    <div class="f full"><span class="flabel">Logo</span><div class="logorow">${inf.logo ? supLogo(name, "big") : `<span class="nologo">No logo yet</span>`}${window.HOSTED ? `<button type="button" class="btn" data-getlogo="${esc(name)}">${ic("image")}Get logo</button>` : ""}<label class="btn filebtn">${ic("upload")}Upload<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-uplogo="${esc(name)}"></label>${inf.logo ? `<button type="button" class="btn" data-rmlogo="${esc(name)}">${ic("trash")}Remove</button>` : ""}</div><div class="logopick" hidden></div></div>
     <div class="f full"><label for="io-${id}">Order history page</label><input id="io-${id}" data-inf="orders" type="url" value="${esc(inf.orders)}" placeholder="https://… (Claude finds it if left empty)" autocomplete="off"></div>
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
@@ -5304,6 +5320,46 @@ document.addEventListener("click", async e => {
     show(`<span class="hint">Suggested: <b>${esc(sugg.site)}</b> (${esc(sugg.why)})</span><span class="actions"><button type="button" class="btn pri" data-webuse>Use it</button><a class="btn" href="${esc(sugg.site)}" target="_blank" rel="noopener">Check it ↗</a><a class="btn" href="${esc(search)}" target="_blank" rel="noopener">Search Google ↗</a></span>`);
     box.querySelector("[data-webuse]").onclick = () => { inp.value = sugg.site; inp.onchange?.(); box.hidden = true; };
   } else show(`<span class="hint">I couldn't confidently identify ${esc(name)}'s website. Search for it, then paste the address above.</span><span class="actions"><a class="btn" href="${esc(search)}" target="_blank" rel="noopener">Search Google ↗</a></span>`);
+});
+
+/* Supplier logos: Setup › Suppliers › Get logo / Upload / Remove */
+async function saveLogo(name, blob){
+  if (!needMe()) return;
+  const id = supSlug(name), old = supInfo[id]?.logo;
+  let b = blob;
+  if (b.size > 400000) b = await shrink(b);
+  try {
+    const up = await assets.upload(b, { type: /^image\/(jpeg|png|webp|gif)$/.test(b.type) ? b.type : "image/png" });
+    await db.doc("supinfo/" + id).set({ ...(supInfo[id] || {}), key: keyOf(name), logo: up.id, updatedAt: Date.now(), updatedBy: me() });
+    if (old && old !== up.id) { try { await assets.delete(old); } catch {} }
+    logIt("Setup", null, `${name} logo ${old ? "changed" : "added"}`); toast("Logo saved");
+  } catch(e) { toast(dbErr(e)); }
+}
+document.addEventListener("click", async e => {
+  const g = e.target.closest?.("[data-getlogo]"), rm = e.target.closest?.("[data-rmlogo]");
+  if (rm) {
+    if (!needMe()) return; const name = rm.dataset.rmlogo, id = supSlug(name), old = supInfo[id]?.logo; if (!old) return;
+    try { const { logo, ...rest } = supInfo[id]; await db.doc("supinfo/" + id).set({ ...rest, updatedAt: Date.now(), updatedBy: me() }); try { await assets.delete(old); } catch {} logIt("Setup", null, `${name} logo removed`); toast("Logo removed"); } catch(err) { toast(dbErr(err)); }
+    return;
+  }
+  if (!g) return;
+  const name = g.dataset.getlogo, site = clean(infoOf(name).website), box = g.closest(".f").querySelector(".logopick");
+  if (!site) { toast("Add the ordering website first (Find website can look it up)"); g.closest(".supdet")?.querySelector('[data-inf="website"]')?.focus(); return; }
+  g.disabled = true; const lab = g.innerHTML; g.innerHTML = ic("image") + "Looking…";
+  try {
+    const logos = await window.TDC.fetchLogo(site);
+    box.hidden = false;
+    box.innerHTML = `<span class="hint">Tap the one to use:</span>` + logos.map((l, k) => `<button type="button" class="lp" data-lp="${k}" title="${esc(l.why)}${l.w ? ` · ${l.w}×${l.h}` : ""}"><img alt="Logo option ${k + 1}"></button>`).join("") + `<button type="button" class="btn sm" data-lpclose>Cancel</button>`;
+    box.querySelectorAll("[data-lp]").forEach(b => { const l = logos[+b.dataset.lp]; const u = URL.createObjectURL(l.blob); b.querySelector("img").src = u; b.onclick = async () => { box.hidden = true; await saveLogo(name, l.blob); }; });
+    box.querySelector("[data-lpclose]").onclick = () => { box.hidden = true; };
+  } catch(err) { toast(err?.message || "Couldn't find a logo. Upload one instead."); }
+  g.disabled = false; g.innerHTML = lab;
+});
+document.addEventListener("change", async e => {
+  const f = e.target.closest?.("input[data-uplogo]"); if (!f || !f.files?.[0]) return;
+  const file = f.files[0]; f.value = "";
+  if (!/^image\//.test(file.type)) { toast("Pick a picture file"); return; }
+  await saveLogo(f.dataset.uplogo, file);
 });
 function goSection(k){
   const el = document.getElementById("sec-" + k); if (!el) return;
