@@ -4522,7 +4522,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       const pb = document.createElement("button"); pb.type = "button"; pb.className = "pmi"; pb.id = "tPhotos"; pb.setAttribute("aria-expanded", "false");
       pb.innerHTML = ic("camera") + `${it.photo ? "Photos" : "Add a photo"}<span class="pmarr">▸</span>`;
       pb.onclick = () => { pm.hidden = !pm.hidden; pb.setAttribute("aria-expanded", String(!pm.hidden)); pb.querySelector(".pmarr").textContent = pm.hidden ? "▸" : "▾"; };
-      pt.insertBefore(pb, pt.firstChild); pt.insertBefore(pm, pb.nextSibling); $("#tChgPhoto")?.remove();
+      const cp = pt.querySelector('[data-pfind="shop"]'); pt.insertBefore(pb, pt.firstChild); pt.insertBefore(pm, pb.nextSibling); if (cp) pt.insertBefore(cp, pt.firstChild); $("#tChgPhoto")?.remove();
       const sk = it.skuPhoto ? "blob.php?id=" + it.skuPhoto : ""; if (sk) { const b = document.createElement("button"); b.type = "button"; b.className = "pmi"; b.innerHTML = ic("tag") + "View SKU / label photo"; b.onclick = () => showBigPic(sk, "SKU / label"); pm.insertBefore(b, pm.querySelector("p.hint")); } } }
   $("#pSku") && ($("#pSku").onclick = e => { if (!needMe()) e.preventDefault(); }) && ($("#pSku").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setItemPhoto(it, f, null, "skuPhoto"); });
   $(".skupic img") && ($(".skupic img").onclick = e => showBigPic(e.target.src, "SKU photo"));
