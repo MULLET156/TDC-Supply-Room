@@ -4448,9 +4448,9 @@ async function openItem(it, prefill){
       <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
     </div>`}
     <div class="pmenu imenu" id="toolsMenu" hidden>
-      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
       <button type="button" class="pmi" data-autoscrape>${ic("refresh")}Update from supplier page <span class="aitag">${ic("sparkle")}Claude</span></button>
       <button type="button" class="pmi" data-pfill id="pfillHidden">${ic("clipboard")}Paste page text <span class="aitag">${ic("sparkle")}Claude</span></button>
+      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
     </div>
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
