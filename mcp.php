@@ -44,7 +44,7 @@ $params = is_array($msg['params'] ?? null) ? $msg['params'] : [];
 if (!array_key_exists('id', $msg)) { http_response_code(202); exit; }
 
 /* ---------- tools ---------- */
-const FIELDS = ['name', 'sku', 'supplier', 'link', 'unitCost', 'units', 'desc', 'cat', 'sub', 'loc', 'qty', 'desired', 'urgent', 'notes', 'exp'];
+const FIELDS = ['name', 'sku', 'supplier', 'link', 'unitCost', 'units', 'desc', 'cat', 'sub', 'loc', 'qty', 'desired', 'urgent', 'notes', 'exp', 'countEvery'];
 function tools(): array {
     $s = fn(string $d) => ['type' => 'string', 'description' => $d];
     $n = fn(string $d) => ['type' => 'number', 'description' => $d];
@@ -61,6 +61,7 @@ function tools(): array {
         'qty' => $n('On hand'), 'desired' => $n('Desired reserve: reorder when on hand drops below this'),
         'urgent' => $n('911 level: at or below this it is urgent'),
         'notes' => $s('Notes'), 'exp' => $s('Expiration date, M/D/YYYY'),
+        'countEvery' => ['type' => 'string', 'enum' => ['', '7', '30', '91', '182', '365', '0'], 'description' => 'How often to count it, in days: 7 weekly, 30 monthly, 91 quarterly, 182 every 6 months, 365 yearly, 0 = never count; "" = the office default'],
     ];
     $who = ['initials' => $s('Initials to record in the activity log (default "CL" for Claude)')];
     return [

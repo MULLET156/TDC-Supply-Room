@@ -593,6 +593,9 @@ body{margin:0}
 .pgrid td input:not([type=checkbox]){border:0;background:transparent;width:100%;min-width:0;padding:9px 8px;font:inherit;color:var(--fg)}
 .pgrid td input:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface)}
 .pgrid td input.saving{background:var(--warn-soft)}.pgrid td input.saved{background:var(--accent-soft)}.pgrid td input.err{background:var(--bad-soft)}
+.pgrid td select.gcnt{border:0;background:transparent;width:100%;min-width:0;padding:9px 4px;font:inherit;font-size:14px;color:var(--fg);cursor:pointer}.pgrid td select.gcnt:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--surface)}
+.pgrid td select.gcnt.saving{background:var(--warn-soft)}.pgrid td select.gcnt.saved{background:var(--accent-soft)}.pgrid td select.gcnt.err{background:var(--bad-soft)}
+#bulkCnt{min-height:38px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);padding:0 8px;font:inherit}
 .pgrid .gchk{width:40px;text-align:center;position:sticky;left:0;z-index:1;background:var(--surface)}
 .pgrid th.gchk{z-index:3;background:var(--accent-soft)}
 .pgrid .gchk input{width:20px;height:20px;accent-color:var(--accent)}
@@ -1568,7 +1571,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
 </div></main>
 
 <div class="bulkbar ordfloat" id="ordFloat" hidden><div class="in"><b id="ofN">0 ticked</b><button class="btn pri" type="button" id="ofGo">Mark ordered</button><button class="btn ghost" type="button" id="ofClear">Clear</button></div></div>
-<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
+<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn" id="scanBtn" type="button"><i data-ic="barcode"></i>Scan to count</button>
   <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled><i data-ic="listplus"></i>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
@@ -2159,8 +2162,18 @@ function bumpOrd(it, d){
   }, 800);
 }
 /* ✓ next to the count: one tap marks this item counted now (with the count shown) */
-const countedToday = i => !!i.countedAt && new Date(i.countedAt).toDateString() === new Date().toDateString();
-const cntBtn = i => `<button type="button" class="cntok${countedToday(i) ? " on" : ""}" data-cntok aria-label="Mark ${esc(i.name)} counted" title="${countedToday(i) ? "Counted today" + (i.countedBy ? " by " + esc(i.countedBy) : "") + ". Tap to count again" : "Mark counted"}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+/* Count schedule: each item can be counted weekly, monthly, quarterly, every 6 months, yearly, or not at all.
+   Blank = the office default from Setup › Alerts. "Counted" (green check) means counted within its schedule. */
+const CNT_OPTS = [["7", "Weekly"], ["30", "Monthly"], ["91", "Quarterly"], ["182", "Every 6 months"], ["365", "Yearly"], ["0", "Don't count"]];
+const cntName = v => (CNT_OPTS.find(o => o[0] === String(v)) || [, v ? `Every ${v} days` : ""])[1];
+const cntDefault = () => { const d = rules.countEvery; return d == null || d === "" ? 30 : Number(d); };
+const cycleOf = i => { const v = i.countEvery; return v == null || v === "" ? cntDefault() : (Number(v) || 0); };
+const countable = i => cycleOf(i) > 0;
+const dayNo = t => { const d = new Date(t); return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5); };
+const countedToday = i => countable(i) && !!i.countedAt && dayNo(Date.now()) - dayNo(i.countedAt) < cycleOf(i);
+const nextDue = i => i.countedAt && countable(i) ? new Date(i.countedAt + cycleOf(i) * 864e5) : null;
+const cntOptsHtml = (v, deflabel) => `<option value="">${esc(deflabel)}</option>` + CNT_OPTS.map(([k, l]) => `<option value="${k}"${String(v ?? "") === k ? " selected" : ""}>${l}</option>`).join("");
+const cntBtn = i => `<button type="button" class="cntok${countedToday(i) ? " on" : ""}" data-cntok aria-label="Mark ${esc(i.name)} counted" title="${countedToday(i) ? "Counted " + esc(shortDate(i.countedAt)) + (i.countedBy ? " by " + esc(i.countedBy) : "") + (nextDue(i) ? ". Next due " + esc(shortDate(+nextDue(i))) : "") + ". Tap to count again" : "Mark counted"}"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
 async function countOne(it, btn){
   if (!needMe()) return;
   btn.disabled = true;
@@ -2204,7 +2217,7 @@ function qcShow(){
       <div class="qcname">${esc(cur.name)}</div>
       <div class="qcmeta">${[cur.loc, cur.units, cur.sku].filter(Boolean).map(esc).join(" · ")}</div>
       <div class="qcstep"><button type="button" data-qd="-1" aria-label="One less">−</button><input id="qcQ" inputmode="decimal" value="${fmtQ(q0)}" aria-label="On hand"><button type="button" data-qd="1" aria-label="One more">+</button></div>
-      <div class="hint qcwas">Was ${fmtQ(q0)}${cur.desired != null ? ` · desired reserve ${fmtQ(cur.desired)}` : ""}${countedToday(cur) ? " · already counted today" : ""}</div></div>
+      <div class="hint qcwas">Was ${fmtQ(q0)}${cur.desired != null ? ` · desired reserve ${fmtQ(cur.desired)}` : ""}${countedToday(cur) ? ` · already counted ${esc(shortDate(cur.countedAt))}` : ""}</div></div>
     <div class="actions savebar"><button class="btn" type="button" id="qcBack" ${QC.i ? "" : "disabled"} aria-label="Previous item">${ic("undo")}</button><button class="btn" type="button" id="qcSkip">Skip</button><button class="btn pri grow" type="button" id="qcNext">${ic("check")}Save &amp; next</button></div>`);
   const inp = $("#qcQ");
   document.querySelectorAll("#overlay [data-qd]").forEach(b => b.onclick = () => { inp.value = fmtQ(Math.max(0, (num(inp.value) ?? 0) + +b.dataset.qd)); });
@@ -2352,8 +2365,8 @@ function orderOnline(sup){
 }
 function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
-  const cnt = list.filter(i => i.countedAt).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
-  const note = oldest ? `Counted ${shortDate(oldest)}` : cnt ? `${cnt} of ${list.length} counted` : "Not counted yet";
+  const cnt = list.filter(countedToday).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
+  const note = oldest ? `All counted ✓` : cnt ? `${cnt} of ${list.length} counted` : "Nothing counted yet";
   return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? ic("boxcheck") + "All selected" : ic("box") + "Select all"}</button>${CNT_MODES.includes(tab) && list.length ? `<button type="button" class="grpsel qc" data-qcount="${esc(ids.join(","))}" data-qlabel="${esc(label.replace(/^(Supplier|Category|Location) /, ""))}">${ic("zap")}Quick count</button>` : ""}`}</span>`;
 }
 async function markCounted(list){
@@ -2416,7 +2429,7 @@ function pageHead(){
     ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
-    count: ["Inventory counter", `${n(i => i.countedAt)} of ${s(items.length)} counted`, "Count by supplier, category or location. Tick what you've counted, then Mark counted."]
+    count: ["Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that item's schedule (Setup › Alerts, or per item). Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
   h.hidden = !P; if (!P) return;
@@ -2459,7 +2472,8 @@ function fillBulkList(){
   $("#bulkList").innerHTML = vals.map(v => `<option value="${esc(v)}">`).join("");
   $("#bulkVal").placeholder = "Pick or type…";
 }
-$("#bulkField").addEventListener("change", () => { $("#bulkVal").value = ""; fillBulkList(); });
+function syncBulkCnt(){ const c = $("#bulkField").value === "countEvery"; $("#bulkVal").hidden = c; $("#bulkCnt").hidden = !c; if (c) $("#bulkCnt").innerHTML = cntOptsHtml("30", `Office default (${cntName(cntDefault())})`); }
+$("#bulkField").addEventListener("change", () => { $("#bulkVal").value = ""; fillBulkList(); syncBulkCnt(); });
 $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
@@ -2471,9 +2485,9 @@ $("#dockCntClear")?.addEventListener("click", () => { selected.clear(); render()
 $("#bulkForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (!needMe()) return;
-  const f = $("#bulkField").value, v = clean($("#bulkVal").value);
-  const label = { cat: "category", sub: "subcategory", supplier: "supplier", loc: "location" }[f];
-  if (!v && f !== "sub") { toast(`Type or pick a ${label}`); $("#bulkVal").focus(); return; }
+  const f = $("#bulkField").value, v = f === "countEvery" ? $("#bulkCnt").value : clean($("#bulkVal").value);
+  const label = { cat: "category", sub: "subcategory", supplier: "supplier", loc: "location", countEvery: "count schedule" }[f];
+  if (!v && f !== "sub" && f !== "countEvery") { toast(`Type or pick a ${label}`); $("#bulkVal").focus(); return; }
   const ids = [...selected]; let ok = 0;
   sync("busy", `Updating ${ids.length}…`);
   for (const id of ids) {
@@ -2482,7 +2496,7 @@ $("#bulkForm").addEventListener("submit", async e => {
     if (f === "cat" && keyOf(it.cat) !== keyOf(v)) patch.sub = "";
     try { await write(id, patch); ok++; } catch(err) { toast(dbErr(err)); break; }
   }
-  logIt("Bulk edit", null, `Set ${label} to "${v || "none"}" on ${ok} item${ok === 1 ? "" : "s"}`);
+  logIt("Bulk edit", null, `Set ${label} to "${f === "countEvery" ? (v === "" ? "office default" : cntName(v)) : (v || "none")}" on ${ok} item${ok === 1 ? "" : "s"}`);
   sync("ok", "Saved"); toast(`Updated ${ok} item${ok === 1 ? "" : "s"}`);
   $("#bulkVal").value = ""; selected.clear(); document.activeElement?.blur(); render();
 });
@@ -2541,7 +2555,7 @@ function renderInner(){
   } else if (tab === "locs" || tab === "sups") {
     /* items grouped by storage location or by supplier, in the order set in Setup */
     const isLoc = tab === "locs", field = isLoc ? "loc" : "supplier", none = isLoc ? "No location set" : "No supplier listed";
-    const list = all;
+    const list = all.filter(countable);
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const groups = new Map();
     (isLoc ? orderedLocs() : orderedSuppliers()).forEach(g => groups.set(keyOf(g.name), { name: g.name, items: [] }));
@@ -2555,7 +2569,7 @@ function renderInner(){
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "cats") {
-    const list = all;
+    const list = all.filter(countable);
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const groups = new Map();
     list.forEach(i => { const c = clean(i.cat) || "Uncategorized", k = keyOf(c); if (!groups.has(k)) groups.set(k, { name: c, subs: new Map(), n: 0 }); const g = groups.get(k); g.n++; const sb = clean(i.sub) || ""; const sk = keyOf(sb); if (!g.subs.has(sk)) g.subs.set(sk, { name: sb, items: [] }); g.subs.get(sk).items.push(i); });
@@ -2582,7 +2596,7 @@ function renderInner(){
   }
 }
 /* ---------- products master list (grid editing) ---------- */
-const PCOLS = [["name","Item name","text",300],["link","Reorder link","text",136],["sku","SKU / catalog #","text",90],["units","Package size","text",125],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the item window */
+const PCOLS = [["name","Item name","text",300],["link","Reorder link","text",136],["sku","SKU / catalog #","text",90],["units","Package size","text",125],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["countEvery","Count","cnt",96],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the item window */
 let pSort = { k: "name", dir: 1 };
 /* Products editor's own search and filters (the header search is hidden here) */
 let pF = { q: "", sup: "", cat: "", loc: "", flag: "" };
@@ -2621,7 +2635,7 @@ function productsHtml(all){
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
     <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="findPhotos" ${sample && items.some(i => !i.photo) ? "" : "disabled"} title="${sample ? "Look up a photo for every product that has none, one at a time" : "Needs Claude"}">${ic("images")}Find missing photos (${items.filter(i => !i.photo).length})</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
-    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${t === "cnt" ? `<select data-cf="countEvery" class="gcnt" aria-label="Count schedule for ${esc(i.name)}" ${readOnly ? "disabled" : ""}>${cntOptsHtml(i.countEvery, `Default (${cntName(cntDefault())})`)}</select>` : `${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
 }
 /* Merge safety: point out when the two products look different */
@@ -2742,6 +2756,18 @@ function wireProducts(all){
   $("#mergeSel").onclick = () => { const two = [...selected].map(byId).filter(Boolean); if (two.length !== 2) { toast("Tick exactly 2 products to merge"); return; } mergeDialog(two[0], two[1]); };
 }
 $("#view").addEventListener("change", async e => {
+  const cs = e.target.closest?.("#pgrid select[data-cf]");
+  if (cs) {
+    const it = byId(cs.closest("tr").dataset.id); if (!it) return;
+    const v = cs.value, old = it.countEvery == null ? "" : String(it.countEvery);
+    if (v === old) return;
+    if (!needMe()) { cs.value = old; return; }
+    cs.classList.add("saving");
+    try { await write(it.id, { countEvery: v }); it.countEvery = v; logIt("Edited", it, `count schedule → ${v === "" ? "office default" : cntName(v)}`);
+      cs.classList.remove("saving"); cs.classList.add("saved"); setTimeout(() => cs.classList.remove("saved"), 1200); sync("ok", "Saved"); }
+    catch(err) { cs.classList.remove("saving"); cs.classList.add("err"); toast(dbErr(err)); }
+    return;
+  }
   const inp = e.target.closest?.("#pgrid input[data-f]"); if (!inp) return;
   const it = byId(inp.closest("tr").dataset.id); if (!it) return;
   const f = inp.dataset.f, num_ = f === "qty" || f === "desired" || f === "urgent";
@@ -3030,6 +3056,7 @@ function detFields(it){
     ${fwrap("", it.sub, `<label for="e-sub">Subcategory</label><input id="e-sub" list="dl-sub" value="${esc(it.sub)}" placeholder="Optional">`)}
     ${fwrap("", it.loc, `<label for="e-loc">Storage location</label><input id="e-loc" list="dl-loc" value="${esc(it.loc)}">`)}
     ${fwrap("", it.exp, `<label for="e-exp">Expiration</label><div class="expwrap"><input id="e-exp" value="${esc(it.exp)}" placeholder="M/D/YYYY or M/YYYY"><label class="exppick" title="Pick a date">${ic("cal")}<input type="date" tabindex="-1" aria-label="Pick the expiration date" data-exppick="e-exp"></label></div>`)}
+    ${fwrap("", "x", `<label for="e-cnt">Count schedule</label><select id="e-cnt">${cntOptsHtml(it.countEvery, `Office default (${cntName(cntDefault())})`)}</select>`)}
     ${fwrap("full", it.desc, `<label for="e-desc">Description</label><textarea id="e-desc" rows="2" placeholder="What it is and what it's used for">${esc(it.desc)}</textarea>`)}
     ${fwrap("full", it.notes, `<label for="e-notes">Notes</label><input id="e-notes" value="${esc(it.notes)}">`)}
   </div>${dl("dl-cat", catTree().map(t => t.name))}${dl("dl-sub", [...new Set(catTree().flatMap(t => (keyOf(t.name) === keyOf(it.cat) || !it.cat ? t.subs : []).map(x => x.name)))])}${dl("dl-loc", locNames())}`;
@@ -3046,7 +3073,7 @@ function wireCounts(){
 }
 function readFields(){
   const g = id => clean(fld(id)?.value);
-  return { name:g("e-name"), sku:g("e-sku"), units:g("e-units"), cat:g("e-cat"), sub:g("e-sub"), loc:g("e-loc"), supplier:g("e-sup"), exp:g("e-exp"), unitCost:g("e-cost"), link:g("e-link"), notes:g("e-notes"), desc:clean(fld("e-desc")?.value), qty:num(g("c-qty")) ?? 0, desired:num(g("c-des")) ?? 0, urgent:num(g("c-911")) ?? 0 };
+  return { name:g("e-name"), sku:g("e-sku"), units:g("e-units"), cat:g("e-cat"), sub:g("e-sub"), loc:g("e-loc"), supplier:g("e-sup"), exp:g("e-exp"), unitCost:g("e-cost"), link:g("e-link"), notes:g("e-notes"), desc:clean(fld("e-desc")?.value), ...(fld("e-cnt") ? { countEvery: g("e-cnt") } : {}), qty:num(g("c-qty")) ?? 0, desired:num(g("c-des")) ?? 0, urgent:num(g("c-911")) ?? 0 };
 }
 
 /* ---------- price lookup ---------- */
@@ -4213,13 +4240,13 @@ async function removeItemPhoto(it){
 let curItem = null, openVals = null;
 /* the item's saved values when its window opened, in readFields() shape: saves write only what was changed in the
    window, so a count tapped on the list row meanwhile isn't overwritten by the window's older number */
-const FKEYS_TXT = ["name","sku","units","cat","sub","loc","supplier","exp","unitCost","link","notes","desc"];
+const FKEYS_TXT = ["name","sku","units","cat","sub","loc","supplier","exp","unitCost","link","notes","desc","countEvery"];
 function valsOf(it){ const o = {}; FKEYS_TXT.forEach(k => { o[k] = clean(it[k] ?? ""); }); o.qty = num(it.qty) ?? 0; o.desired = num(it.desired) ?? 0; o.urgent = num(it.urgent) ?? 0; return o; }
 function openSec(k){ const d = $("#overlay #sec-" + k); if (d && !d.open) d.open = true; }
 function unlockItem(){
   const p = $("#overlay .panel.item"); if (!p || !p.classList.contains("ro") || readOnly) return;
   p.classList.remove("ro");
-  p.querySelectorAll(".isec input, .isec textarea").forEach(x => { x.readOnly = false; });
+  p.querySelectorAll(".isec input, .isec textarea").forEach(x => { x.readOnly = false; }); p.querySelectorAll(".isec select").forEach(x => { x.disabled = false; });
   const eb = p.querySelector("#editBtn"); if (eb) eb.hidden = true;
   const sb = p.querySelector(".savebar"); if (sb) sb.hidden = false;
 }
@@ -4243,7 +4270,7 @@ async function openItem(it, prefill){
   const st = itemStatus(it);
   const photoSrc = it.photo ? "blob.php?id=" + it.photo : "";
   const ordSum = [it.supplier, it.unitCost, it.units].map(clean).filter(Boolean).map(esc).join(" · ") || "No supplier yet";
-  const detSum = [it.cat ? it.cat + (it.sub ? " › " + it.sub : "") : "", it.exp ? "Exp " + it.exp : ""].map(clean).filter(Boolean).map(esc).join(" · ") || "Category, location, notes";
+  const detSum = [it.cat ? it.cat + (it.sub ? " › " + it.sub : "") : "", it.exp ? "Exp " + it.exp : "", it.countEvery == null || it.countEvery === "" ? "" : String(it.countEvery) === "0" ? "Not counted" : "Count " + cntName(it.countEvery).toLowerCase()].map(clean).filter(Boolean).map(esc).join(" · ") || "Category, location, notes";
   const phSum = it.photo ? "Product photo" + (it.skuPhoto ? " · SKU photo" : "") : (it.skuPhoto ? "SKU photo only" : "No photo yet. Tap to add one");
   /* Ordering starts closed; it stays open only if you had it open (e.g. after a save) */
   const ordOpen = keepOpen ? keepOpen.includes("sec-ord") : false;
@@ -4299,7 +4326,7 @@ async function openItem(it, prefill){
     </div>
     <div class="actions savebar"${readOnly ? " hidden" : ""}><button class="btn" type="button" data-close>Cancel</button><button class="btn pri grow" id="saveBtn" type="button">Save changes</button></div>`);
   const panel = $("#overlay .panel"); panel.classList.add("item", "ro");
-  panel.querySelectorAll(".isec input, .isec textarea").forEach(x => { x.readOnly = true; });
+  panel.querySelectorAll(".isec input, .isec textarea").forEach(x => { x.readOnly = true; }); panel.querySelectorAll(".isec select").forEach(x => { x.disabled = true; });
   if (!same || !openVals) openVals = valsOf(it);
   if (keepEdit || prefill?.edit) unlockItem();
   wireCounts();
@@ -4369,7 +4396,7 @@ async function saveItem(it, opt = {}){
     if ("qty" in patch && base.qty !== f.qty) ch.push(`count ${fmtQ(base.qty)} → ${fmtQ(f.qty)}`);
     if ("urgent" in patch) ch.push(`911 level ${fmtQ(base.urgent)} → ${fmtQ(f.urgent)}`);
     if ("desired" in patch) ch.push(`desired ${fmtQ(base.desired)} → ${fmtQ(f.desired)}`);
-    FKEYS_TXT.forEach(k => { if (k in patch) ch.push({cat:"category",sub:"subcategory",loc:"location",unitCost:"price",exp:"expiration",sku:"SKU"}[k] || k); });
+    FKEYS_TXT.forEach(k => { if (k in patch) ch.push(k === "countEvery" ? `count schedule → ${patch[k] === "" ? "office default" : cntName(patch[k])}` : ({cat:"category",sub:"subcategory",loc:"location",unitCost:"price",exp:"expiration",sku:"SKU"}[k] || k)); });
     if (ch.length) logIt(ch.length === 1 && ch[0].startsWith("count") ? "Count" : "Edited", { id: it.id, name: f.name }, ch.join(", "));
     Object.assign(it, patch); if (curItem?.id === it.id) openVals = { ...base, ...patch };
     if (counted && !opt.quiet) Sfx.play("count");
@@ -5151,7 +5178,8 @@ function setupHtml(){
     <div class="list"><div class="chips listpad" id="teamChips">${team.map(i => `<span class="chip">${esc(i)}<button type="button" data-rm="${esc(i)}" aria-label="Remove ${esc(i)}">×</button></span>`).join("") || '<span class="hint">No initials yet.</span>'}</div>
     <form class="addline" id="teamForm"><div class="f"><label for="newInit">Add initials</label><input id="newInit" maxlength="4" style="width:100px;text-transform:uppercase" autocomplete="off"></div><button class="btn pri" type="submit">Add</button></form></div>`;
   const ruleSec = `<div class="sechead" id="sec-alerts"><h2>Alerts</h2></div><p class="secnote">How far ahead an expiration date puts an item on the Expiring tab. Items land on the Order list when on hand drops below the desired reserve.</p>
-    <div class="list"><div class="setrow two"><label for="expDays">Warn before expiration</label><span class="actions"><input id="expDays" type="number" min="0" max="365" value="${rules.expDays ?? 60}" style="width:80px;font-family:var(--f-mono)"><span class="hint">days</span></span></div></div>`;
+    <div class="list"><div class="setrow two"><label for="expDays">Warn before expiration</label><span class="actions"><input id="expDays" type="number" min="0" max="365" value="${rules.expDays ?? 60}" style="width:80px;font-family:var(--f-mono)"><span class="hint">days</span></span></div>
+    <div class="setrow two"><label for="cntDef">Count each item <span class="hint">(office default; change single items in their window, or many at once in the Editor)</span></label><span class="actions"><select id="cntDef">${CNT_OPTS.map(([k, l]) => `<option value="${k}"${String(cntDefault()) === k ? " selected" : ""}>${l}</option>`).join("")}</select></span></div></div>`;
   const C = stockColors();
   const thm = getThemePref();
   const themeSec = `<div class="sechead" id="sec-appearance"><h2>Appearance</h2></div><p class="secnote">Light, dark, or a fun theme, for this device only. Each computer and phone remembers its own choice. The 80s and 90s themes come with their own music: press ♫ at the bottom left to play or stop it.</p>
@@ -5503,6 +5531,11 @@ function wireSetup(){
     try { await db.doc("settings/colors").set(next); logIt("Setup", null, "Stock colors changed"); toast("Color saved"); } catch(e) { toast(dbErr(e)); }
   });
   $("#colReset") && ($("#colReset").onclick = async () => { if (!needMe()) return; try { await db.doc("settings/colors").set({ ...COL_DEFAULT }); toast("Colors reset"); } catch(e) { toast(dbErr(e)); } });
+  $("#cntDef") && ($("#cntDef").onchange = async e => {
+    if (!needMe()) { e.target.value = String(cntDefault()); return; }
+    const v = e.target.value;
+    try { await db.doc("settings/rules").set({ ...rules, countEvery: v }); rules.countEvery = v; logIt("Setup", null, `Default count schedule set to ${cntName(v)}`); toast(`Items count ${cntName(v).toLowerCase()} unless set otherwise`); render(); } catch(err) { toast(dbErr(err)); }
+  });
   $("#expDays").onchange = async e => {
     const n = Math.max(0, Math.min(365, Math.round(num(e.target.value) ?? 60)));
     try { await db.doc("settings/rules").set({ ...rules, expDays: n }); logIt("Setup", null, `Expiration warning set to ${n} days`); toast(`Warning ${n} days before expiration`); } catch(err) { toast(dbErr(err)); }
