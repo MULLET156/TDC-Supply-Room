@@ -291,6 +291,7 @@ body.is-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .catpath{color:var(--fg)}
 .rmbtn{border:1px solid transparent;background:transparent;border-radius:6px;padding:4px 8px;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
 .rmbtn:hover{color:var(--bad);border-color:var(--line)}
+.rmbtn{min-width:84px;text-align:center}
 .rmbtn.armed{background:var(--bad);color:var(--surface);border-color:var(--bad)}
 .subrow{grid-template-columns:auto minmax(0,1fr) auto auto}
 .addrow{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px dashed var(--line);background:var(--sunk)}
@@ -1277,6 +1278,97 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   header .toolrow{grid-area:tools1;grid-column:auto;justify-self:start;padding-top:0}
   header .toolrow2{justify-self:start}
 }
+.ic{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em;flex:none;display:inline-block}
+.btn .ic,.pmi .ic,.qlink .ic,.grpsel .ic,.hint > .ic,.notice .ic,.pastord > .ic,.iloc > .ic,.repinfo a .ic,.grp .ic,label > .ic,h2 > .ic,.pick .ic{margin-right:5px}
+.grpicon .ic{margin-right:0}.tab .ic{margin-right:6px}
+.pk-ic .ic{width:26px;height:26px;margin:0}
+.tabs-main .tl{display:inline-flex;align-items:center;gap:5px}.tabs-main .tl .ic{margin:0}.tabs-main .bigic{width:22px;height:22px;margin:0 0 2px}
+.pill .ic{width:1.05em;height:1.05em;margin-right:3px;vertical-align:-.18em}
+
+
+@media (max-width:520px){
+  .list .row:has(.rside [data-expreplace]) .rside{grid-column:1/-1!important;display:flex!important;justify-content:flex-end;padding-left:32px}
+  .list .row:has(.rside .step) .rside{grid-column:1/-1!important;display:flex!important;justify-content:flex-end;align-items:center;gap:8px;padding-left:32px}
+  .list .row:has(.rside .step) .rside .step{order:3}
+  .list .row:has(.rside .step) .rside .golink{margin-right:auto;order:1;height:40px!important}
+  .list .row:has(.rside .step) .rside .cntok{order:2}
+  .row:has(.ordstep) .rside{grid-column:1/-1!important;display:flex!important;justify-content:flex-end;align-items:center;gap:8px;padding-left:32px}
+  .row:has(.ordstep) .rside .golink{margin-right:auto;height:40px!important}
+  .row:has(.ordstep) .ordstep{flex-direction:row!important;align-items:center!important;gap:8px!important}
+  .row:has(.ordstep) .ordstep .otop{display:contents!important}
+  .row:has(.ordstep) .ordstep .ostep button{width:44px!important;height:44px}
+}
+/* Mark ordered / Mark received live in the bottom bar only (the list buttons stay as hidden targets) */
+
+/* bigger tap targets on touch screens */
+@media (pointer:coarse){
+  .grpicon{min-width:40px!important;min-height:40px!important;display:inline-grid!important;place-items:center}
+  .grpicon .ic{width:19px;height:19px;margin:0}
+  .rside .golink{min-height:44px!important;min-width:44px!important}
+  .cntok{min-width:44px!important;min-height:44px!important}
+  .chips .chip, .setup .chip{min-height:44px!important}
+  .rmbtn, .iconbtn{min-width:44px;min-height:44px}
+  .hdrbtn{width:44px!important;height:44px!important}
+  .step button{min-width:44px;min-height:44px}
+}
+.grpicon .ic{margin:0}
+#markOrd,#markRcv{display:none!important}
+.expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
+.exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
+.exppick .ic{width:20px;height:20px;margin:0}
+.exppick input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;font-size:16px}
+/* ===== phone layout: slim header + bottom tab bar (tabs move into the dock on phones) ===== */
+.dock .navslot:empty{display:none}
+@media (max-width:640px){
+  header .top{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px 6px!important;padding-top:4px}
+  header .top > .brand, header .top > .topright, header .toolrow, header .toolrow2{display:contents!important}
+  header .top::before{content:"";order:6;flex-basis:100%;height:0}
+  header .brand > span:last-child, header .titlerow .date, header .sync, header #menuBtn{display:none!important}
+  header .top .logo{order:1;margin:0!important}
+  header .top .logo img{height:32px!important;width:auto!important}
+  header .titlerow{order:2;margin:0 auto 0 4px!important;display:block!important;min-width:0}
+  header .titlerow .apptitle{font-size:19px!important;line-height:1.1;white-space:nowrap}
+  header #musicBtn{order:3}
+  header #sndBtn{order:4}
+  header #themeBtn{order:5}
+  header #musicBtn, header #sndBtn, header #themeBtn{width:44px!important;height:44px!important}
+  header .top #addBtn{order:7;min-height:44px;padding:0 14px!important;white-space:nowrap}
+  header .top .topright .tooltabs{order:8;display:flex!important;gap:6px!important;position:static!important;background:none!important;box-shadow:none!important;border:0!important;padding:0!important;margin:0!important;flex-direction:row!important;min-width:0!important}
+  header .tooltabs .tab.tool{font-size:0!important;width:44px;height:44px;min-height:44px!important;padding:0!important;display:grid!important;place-items:center;border-radius:12px!important;flex:none}
+  header .tooltabs .tab.tool .ic{width:21px;height:21px;margin:0}
+  header .top .whoami{order:9;margin-left:auto!important;padding:0!important;background:none!important;border:0!important;min-width:0}
+  header .whoami label{display:none!important}
+  header .top .whoami select{min-height:44px;width:74px!important;min-width:0!important;max-width:74px!important;padding-left:8px!important;padding-right:20px!important;border-radius:12px!important;font-size:16px!important}
+  header #exportBtn{display:none!important}
+  header > .wrap > .tabs-main{display:none!important}
+  header .pagehead{margin-top:2px}
+  .dock{padding-bottom:env(safe-area-inset-bottom,0px)}
+  body:not(.on-add) .dock{display:block!important}
+  .dock .wrap:not(:has(> :not([hidden]):not(.navslot))){display:none!important}
+  .dock .navslot{display:block;border-top:1px solid var(--line);background:var(--surface)}
+  .dock .wrap:not(:has(> :not([hidden]):not(.navslot))) + .navslot{border-top:0}
+  .dock .tabs-main{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:2px!important;padding:4px max(6px,env(safe-area-inset-left,0px)) 4px max(6px,env(safe-area-inset-right,0px));max-width:none}
+  .dock .tabs-main > .tab, .dock .tabs-main > .tab.big{grid-column:auto!important;display:flex!important;flex-direction:column!important;align-items:center;justify-content:center;gap:1px!important;min-height:54px!important;padding:4px 2px!important;border:0!important;border-radius:12px!important;background:transparent!important;box-shadow:none!important;opacity:1!important;font-size:11px!important;font-weight:700;line-height:1.1;color:var(--muted)!important;position:relative}
+  .dock .tabs-main > .tab::after{display:none!important}
+  .dock .tabs-main .tl{display:flex!important;flex-direction:column;align-items:center;gap:2px!important;text-align:center;white-space:nowrap}
+  .dock .tabs-main .tl .ic, .dock .tabs-main .bigic{width:23px!important;height:23px!important;margin:0!important}
+  .dock .tabs-main .cntbtn .cl{font-size:11px!important;white-space:nowrap}
+  .dock .tabs-main .cntbtn .cl::before{content:"Count"}
+  .dock .tabs-main .cntbtn .cl{font-size:0!important}
+  .dock .tabs-main .cntbtn .cl::before{font-size:11px}
+  .dock .tabs-main .n{position:absolute;top:2px;left:calc(50% + 8px);font-size:10.5px!important;font-weight:800;min-width:18px;height:18px;line-height:18px;padding:0 5px;border-radius:9px;background:var(--sunk);color:var(--fg)!important;text-align:center;order:0}
+  .dock .tabs-main .tab[aria-selected="true"]{color:var(--fg)!important;background:var(--sunk)!important}
+  .dock .tabs-main .tab.allbtn[aria-selected="true"]{color:var(--accent)!important}
+  .dock .tabs-main .tab.t-need[aria-selected="true"]{color:var(--navy)!important;background:var(--navy-soft)!important}
+  .dock .tabs-main .tab.t-need .n{background:var(--navy)!important;color:var(--navy-fg)!important}
+  .dock .tabs-main .tab.t-ord[aria-selected="true"]{color:var(--purple,#7c5cc4)!important}
+  .dock .tabs-main .tab.t-exp[aria-selected="true"]{color:var(--warn)!important}
+  .dock .tabs-main .b911{position:absolute;top:0;right:2px;left:auto;transform:none;font-size:10px!important;padding:0 4px!important}
+  .dock .tabs-main .b911 .ic{width:11px;height:11px}
+  body{padding-bottom:calc(var(--dockh,70px) + 16px)!important}
+  .bulkbar{bottom:var(--dockh,70px)!important}
+  body:has(#overlay .panel.item) .dock, body:has(#overlay .panel) .dock{z-index:6}
+}
 </style>
 <header>
   <div class="wrap">
@@ -1290,18 +1382,18 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
           <div class="whoami" id="whoBox"><label for="who">Logging as</label><select id="who"><option value="">Pick…</option></select></div>
         </div>
         <div class="toolrow2">
-          <button class="btn pri addhdr" id="addBtn" type="button"><b class="plus" aria-hidden="true">+</b> Add item</button>
+          <button class="btn pri addhdr" id="addBtn" type="button"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
-          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false">Editor</button><button class="tab tool" role="tab" data-t="log" aria-selected="false">Activity log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false">Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
+          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Activity log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
       </div>
     </div>
     <div role="tablist" aria-label="Orders" class="tabs-main">
-      <button class="tab big allbtn" role="tab" data-t="all" aria-selected="false">All items <span class="n" id="n-all">–</span></button>
-      <button class="tab big t-need" role="tab" data-t="need" aria-selected="true">Order list <span class="n" id="n-need">–</span></button>
-      <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false">On order <span class="n" id="n-ordered">–</span></button>
-      <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false">Expiring <span class="n" id="n-exp">–</span></button>
-      <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><span class="n" aria-hidden="true">🔢</span><span class="cl">Inventory counter</span></button>
+      <button class="tab big allbtn" role="tab" data-t="all" aria-selected="false"><span class="tl"><i data-ic="list"></i>All items</span> <span class="n" id="n-all">–</span></button>
+      <button class="tab big t-need" role="tab" data-t="need" aria-selected="true"><span class="tl"><i data-ic="cart"></i>Order list</span> <span class="n" id="n-need">–</span></button>
+      <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false"><span class="tl"><i data-ic="truck"></i>On order</span> <span class="n" id="n-ordered">–</span></button>
+      <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false"><span class="tl"><i data-ic="hourglass"></i>Expiring</span> <span class="n" id="n-exp">–</span></button>
+      <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl">Inventory counter</span></button>
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
     <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
@@ -1327,11 +1419,11 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 <div class="bulkbar ordfloat" id="ordFloat" hidden><div class="in"><b id="ofN">0 ticked</b><button class="btn pri" type="button" id="ofGo">Mark ordered</button><button class="btn ghost" type="button" id="ofClear">Clear</button></div></div>
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
-  <button class="btn" id="scanBtn" type="button">Scan to count</button>
-  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
-  <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
+  <button class="btn" id="scanBtn" type="button"><i data-ic="barcode"></i>Scan to count</button>
+  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled><i data-ic="listplus"></i>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
+  <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled><i data-ic="clipcheck"></i>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
-</div></div>
+</div><div class="navslot" id="navSlot"></div></div>
 
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
 <input type="file" id="photoIn" accept="image/*" hidden>
@@ -1505,6 +1597,19 @@ window.claude = { use: name => window.TDC.use(name) };
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const IC = {"list": "<path d=\"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01\"/>", "listplus": "<path d=\"M11 12H3M16 6H3M16 18H3M18 9v6M21 12h-6\"/>", "cart": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "truck": "<path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14\"/><circle cx=\"17\" cy=\"18\" r=\"2\"/><circle cx=\"7\" cy=\"18\" r=\"2\"/>", "hourglass": "<path d=\"M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2\"/>", "clipcheck": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"m9 14 2 2 4-4\"/>", "clipboard": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>", "table": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18\"/>", "history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5M12 7v5l4 2\"/>", "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/>", "barcode": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M14 8v8M17 8v8\"/>", "send": "<path d=\"m22 2-7 20-4-9-9-4z\"/><path d=\"M22 2 11 13\"/>", "pkgcheck": "<path d=\"m16 16 2 2 4-4\"/><path d=\"M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "package": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "download": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3\"/>", "upload": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12\"/>", "merge": "<path d=\"m8 6 4-4 4 4\"/><path d=\"M12 2v10.3a4 4 0 0 1-1.17 2.83L4 22M20 22l-5-5\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/>", "pencil": "<path d=\"M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z\"/><path d=\"m15 5 4 4\"/>", "cal":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>","calcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4\"/>", "sparkle": "<path d=\"M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z\"/>", "plus": "<path d=\"M12 5v14M5 12h14\"/>", "minus": "<path d=\"M5 12h14\"/>", "trash": "<path d=\"M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6\"/>", "camera": "<path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "file": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8\"/>", "receipt": "<path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11\"/>", "mail": "<rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\"/><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\"/>", "msg": "<path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\"/>", "phone": "<path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/>", "mobile": "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\"/><path d=\"M12 18h.01\"/>", "alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4M12 17h.01\"/>", "urgent": "<path d=\"M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z\"/><path d=\"M12 8v4M12 16h.01\"/>", "image": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21\"/>", "globe": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20\"/>", "tag": "<path d=\"M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z\"/><circle cx=\"7.5\" cy=\"7.5\" r=\"1\"/>", "pin": "<path d=\"M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>", "refresh": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5\"/>", "dollar": "<path d=\"M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "x": "<path d=\"M18 6 6 18M6 6l12 12\"/>", "boxcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12 2 2 4-4\"/>", "box": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "music": "<path d=\"M9 18V5l12-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"18\" cy=\"16\" r=\"3\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/>", "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/>", "moon": "<path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/>", "gamepad": "<rect width=\"20\" height=\"12\" x=\"2\" y=\"6\" rx=\"2\"/><path d=\"M6 12h4M8 10v4M15 13h.01M18 11h.01\"/>", "disc": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "undo": "<path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/>", "ext": "<path d=\"M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>", "hand": "<path d=\"M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/>", "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\"/>", "images": "<path d=\"M18 22H4a2 2 0 0 1-2-2V6\"/><rect width=\"16\" height=\"16\" x=\"6\" y=\"2\" rx=\"2\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/><path d=\"m22 13-1.5-1.5a2 2 0 0 0-2.8 0L10 19\"/>", "trend": "<path d=\"M22 7 13.5 15.5 8.5 10.5 2 17M16 7h6v6\"/>"};
+const ic = (n, cls = "") => IC[n] ? `<svg class="ic${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : "";
+function hydrateIcons(root = document){ root.querySelectorAll("i[data-ic]").forEach(el => { el.outerHTML = ic(el.dataset.ic, el.className); }); }
+hydrateIcons();
+
+/* phone: the five main tabs become a bottom tab bar inside the dock */
+(function(){ const mq = matchMedia("(max-width:640px)"), tabs = document.querySelector(".tabs-main"), slot = document.getElementById("navSlot"), home = document.getElementById("pageHead");
+  function place(){ if (!tabs || !slot || !home) return; if (mq.matches) { if (tabs.parentNode !== slot) slot.appendChild(tabs); } else if (tabs.parentNode === slot) home.before(tabs); }
+  place(); try { mq.addEventListener("change", place); } catch { mq.addListener(place); }
+  const dock = document.querySelector(".dock"); const setH = () => document.documentElement.style.setProperty("--dockh", (dock?.offsetHeight || 0) + "px");
+  try { new ResizeObserver(setH).observe(dock); } catch {} setH();
+  document.querySelectorAll(".tooltabs .tab.tool").forEach(b => { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.textContent.trim()); b.title = b.textContent.trim(); });
+})();
 const clean = s => String(s ?? "").replace(/\s+/g, " ").trim();
 const keyOf = s => clean(s).toLowerCase();
 const num = s => { if (typeof s === "number") return s; const n = parseFloat(String(s ?? "").replace(/[^0-9.\-]/g, "")); return isFinite(n) ? n : null; };
@@ -1544,6 +1649,10 @@ function parseExp(v){
   if (m) return m[3] ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(+m[1], +m[2], 0);
   const d = new Date(v); return isNaN(d) ? null : d;
 }
+
+/* Expiration: type it (M/D/YYYY or M/YYYY) or pick it from the calendar button */
+document.addEventListener("click", e => { const l = e.target.closest?.(".exppick"); if (!l) return; const d = l.querySelector("input[type=date]"); const t = document.getElementById(d.dataset.exppick); const pd = parseExp(t?.value); if (pd) d.value = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, "0")}-${String(pd.getDate()).padStart(2, "0")}`; try { if (d.showPicker) { e.preventDefault(); d.showPicker(); } } catch {} });
+document.addEventListener("change", e => { const d = e.target.closest?.("input[data-exppick]"); if (!d) return; const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.value || ""); const t = document.getElementById(d.dataset.exppick); if (m && t) { t.value = `${+m[2]}/${+m[3]}/${m[1]}`; t.dispatchEvent(new Event("input", { bubbles: true })); } });
 function derive(it){
   const q = localQty.has(it.id) ? localQty.get(it.id) : num(it.qty);
   it.qty = q; it.desired = num(it.desired);
@@ -1631,12 +1740,12 @@ function catTree(){
     const sb = clean(i.sub); if (sb) { const sk = keyOf(sb); if (!t.subs.has(sk)) t.subs.set(sk, { name: sb, n: 0 }); t.subs.get(sk).n++; }
   });
   (catExtra || []).forEach(({ c, s: sb }) => { const k = keyOf(c); if (!m.has(k)) m.set(k, { name: c, n: 0, subs: new Map() }); const t = m.get(k); if (sb && !t.subs.has(keyOf(sb))) t.subs.set(keyOf(sb), { name: sb, n: 0 }); });
-  return [...m.values()].sort((a,b) => a.name.localeCompare(b.name)).map(t => ({ ...t, subs: [...t.subs.values()].sort((a,b) => a.name.localeCompare(b.name)) }));
+  return [...m.values()].sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(t => ({ ...t, subs: [...t.subs.values()].sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true })) }));
 }
 let catExtra = [];
 let locExtra = []; /* storage locations added in Setup that may have no items yet */
 let locOrder = []; /* keys in the order set by dragging; unlisted ones follow, busiest first */
-function orderedLocs(){ const rank = k => { const i = locOrder.indexOf(k); return i < 0 ? 1e6 : i; }; return groupsOf("loc").sort((a, b) => (rank(keyOf(a.name)) - rank(keyOf(b.name))) || (b.n - a.n) || a.name.localeCompare(b.name)); }
+function orderedLocs(){ const rank = k => { const i = locOrder.indexOf(k); return i < 0 ? 1e6 : i; }; return groupsOf("loc").sort((a, b) => (rank(keyOf(a.name)) - rank(keyOf(b.name))) || (b.n - a.n) || a.name.localeCompare(b.name, undefined, { numeric: true })); }
 function locNames(){ return orderedLocs().map(g => g.name); }
 function locNamesAZ(){ const m = new Map(); items.forEach(i => { const v = clean(i.loc); if (v && !m.has(keyOf(v))) m.set(keyOf(v), v); }); locExtra.forEach(v => { v = clean(v); if (v && !m.has(keyOf(v))) m.set(keyOf(v), v); }); return [...m.values()].sort((a, b) => a.localeCompare(b)); }
 async function saveLocs(){ await db.doc("settings/locs").set({ extra: locExtra, order: locOrder }); }
@@ -1648,9 +1757,9 @@ function filtered(){
 }
 function pills(i, noOrder, noExp){
   let h = "";
-  if (i.is911) h += `<span class="pill p-911">🚨 911</span>`;
+  if (i.is911) h += `<span class="pill p-911">${ic("urgent")}911</span>`;
   if (i.need && !noOrder) h += `<span class="pill p-need">Order ${fmtQ(i.orderQty)}</span>`;
-  if (i.need && i.manual) h += `<span class="pill p-man" title="Added to the order list by hand">✋ Added</span>`;
+  if (i.need && i.manual) h += `<span class="pill p-man" title="Added to the order list by hand">${ic("hand")}Added</span>`;
   if (i.onOrder) h += `<span class="pill p-ord">On order${i.ordered ? " · " + esc(i.ordered) : ""}</span>`;
   if (i.expiring && !noExp) h += `<span class="pill p-exp">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>`;
   return h;
@@ -1830,7 +1939,7 @@ const stockCls = i => i.is911 ? "st-911" : (i.qty != null && i.desired != null ?
    in it) is remembered, so a refresh from another device doesn't wipe it. */
 let expEdit = null; /* { id, draft } */
 function expEditor(i){
-  if (expEdit?.id !== i.id) return `<button type="button" class="btn sm" data-expreplace>↻ Replaced: enter new date</button>`;
+  if (expEdit?.id !== i.id) return `<button type="button" class="btn sm" data-expreplace>${ic("calcheck")}Replaced: enter new date</button>`;
   return `<label for="xd-${esc(i.id)}">New expiration date</label><input type="date" id="xd-${esc(i.id)}" value="${esc(expEdit.draft || "")}" data-expdraft><button type="button" class="btn sm pri" data-expsave>Save</button><button type="button" class="btn sm" data-expclear title="For items that don't expire, or you no longer keep">No date</button><button type="button" class="btn sm" data-expcancel>Cancel</button>`;
 }
 document.addEventListener("input", e => { if (e.target.matches?.("[data-expdraft]") && expEdit) expEdit.draft = e.target.value; });
@@ -1909,7 +2018,7 @@ function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
   const cnt = list.filter(i => i.countedAt).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
   const note = oldest ? `Counted ${shortDate(oldest)}` : cnt ? `${cnt} of ${list.length} counted` : "Not counted yet";
-  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? "☑ All selected" : "☐ Select all"}</button>`}</span>`;
+  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? ic("boxcheck") + "All selected" : ic("box") + "Select all"}</button>`}</span>`;
 }
 async function markCounted(list){
   if (!list.length || !needMe()) return;
@@ -1980,11 +2089,11 @@ function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
   /* Order list and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
   const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
-  if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`; $("#dockOrdClear").hidden = !selected.size; }
+  if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.innerHTML = ic(tab === "need" ? "send" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Tick items, then Mark ${verb}`); $("#dockOrdClear").hidden = !selected.size; }
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
-  if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").textContent = n ? `Add ${n} to order list` : "Tick items, then Add to order list"; $("#dockAllClear").hidden = !n; }
+  if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").innerHTML = ic("listplus") + (n ? `Add ${n} to order list` : "Tick items, then Add to order list"); $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
-  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.textContent = selected.size ? `Mark ${selected.size} counted` : "Tick items, then Mark counted"; $("#dockCntClear").hidden = !selected.size; }
+  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : "Tick items, then Mark counted"); $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
@@ -2043,7 +2152,7 @@ function renderInner(){
   if (document.activeElement?.closest?.(".row")) { /* keep focus stable during live updates */ }
   const all = filtered();
   $("#n-need").textContent = items.filter(i=>i.need).length;
-  { const u = items.filter(i => i.is911 && !i.onOrder).length; let b = $("#n-911"); if (!b) { b = document.createElement("span"); b.id = "n-911"; b.className = "b911"; $(".tab.t-need").append(b); } b.hidden = !u; b.textContent = "🚨 " + u; }
+  { const u = items.filter(i => i.is911 && !i.onOrder).length; let b = $("#n-911"); if (!b) { b = document.createElement("span"); b.id = "n-911"; b.className = "b911"; $(".tab.t-need").append(b); } b.hidden = !u; b.innerHTML = ic("urgent") + u; }
   $("#n-ordered").textContent = items.filter(i=>i.onOrder).length;
   $("#n-exp").textContent = items.filter(i=>i.expiring).length;
   $("#n-all").textContent = items.length;
@@ -2061,16 +2170,16 @@ function renderInner(){
   if (tab === "need") {
     const list = all.filter(i=>i.need).sort((a, b) => (b.is911 - a.is911));
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
-    if (!list.length) { const sl = $("#alertSlot"); if (sl) sl.innerHTML = ""; v.innerHTML = `<div class="ordbar"><p>Nothing is below its desired reserve.</p><div class="actions"><button class="btn" type="button" data-addorder>➕ Add an item to the order list</button></div></div><div class="list"><div class="empty">Everything is at or above its desired reserve.</div></div>`; return; }
+    if (!list.length) { const sl = $("#alertSlot"); if (sl) sl.innerHTML = ""; v.innerHTML = `<div class="ordbar"><p>Nothing is below its desired reserve.</p><div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add an item to the order list</button></div></div><div class="list"><div class="empty">Everything is at or above its desired reserve.</div></div>`; return; }
     const urg = list.filter(i => i.is911);
     const slot911 = $("#alertSlot");
     if (slot911) slot911.innerHTML = "";
     v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} to order, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
-      <div class="actions"><button class="btn" type="button" data-addorder>➕ Add to list</button><button class="btn" id="copyList" type="button">Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
+      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">🔗</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">🛒</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">📨</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp"><span class="grpname">${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
@@ -2079,7 +2188,7 @@ function renderInner(){
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
-    const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>📄 Receive from invoice</button>` : "";
+    const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>${ic("receipt")}Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
       <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
@@ -2099,10 +2208,10 @@ function renderInner(){
     list.forEach(i => { const l = clean(i[field]) || none, k = keyOf(l); if (!groups.has(k)) groups.set(k, { name: l, items: [] }); groups.get(k).items.push(i); });
     const ordered = [...groups.values()].filter(g => g.items.length).sort((a, b) => (a.name === none) - (b.name === none));
     const slug = n => tab + "-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
-    const head = g => { if (isLoc) return `📍 ${esc(g.name)}`; const r = repOf(g.name); return `${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
+    const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
     v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
       <p class="hint" style="margin:0 2px 8px">Change the order of these in Setup › ${isLoc ? "Storage locations" : "Suppliers"}.</p>
-      <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name)).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
+      <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "cats") {
@@ -2110,12 +2219,12 @@ function renderInner(){
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const groups = new Map();
     list.forEach(i => { const c = clean(i.cat) || "Uncategorized", k = keyOf(c); if (!groups.has(k)) groups.set(k, { name: c, subs: new Map(), n: 0 }); const g = groups.get(k); g.n++; const sb = clean(i.sub) || ""; const sk = keyOf(sb); if (!g.subs.has(sk)) g.subs.set(sk, { name: sb, items: [] }); g.subs.get(sk).items.push(i); });
-    const ordered = [...groups.values()].sort((a, b) => (a.name === "Uncategorized") - (b.name === "Uncategorized") || a.name.localeCompare(b.name));
+    const ordered = [...groups.values()].sort((a, b) => (a.name === "Uncategorized") - (b.name === "Uncategorized") || a.name.localeCompare(b.name, undefined, { numeric: true }));
     const slug = n => "cat-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
     v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel("category", ordered.map(g => [slug(g.name), g.name, g.n]))}
       <div class="list">${ordered.map(g => {
-        const subs = [...g.subs.values()].sort((a, b) => (a.name === "") - (b.name === "") || a.name.localeCompare(b.name));
-        return `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead"><span>↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name)).map(i => rowHtml(i, true)).join("")).join("");
+        const subs = [...g.subs.values()].sort((a, b) => (a.name === "") - (b.name === "") || a.name.localeCompare(b.name, undefined, { numeric: true }));
+        return `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead"><span>↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("");
       }).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
@@ -2123,7 +2232,7 @@ function renderInner(){
     const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
     v.innerHTML = banner + (list.length ? `<div class="list">${list.map(i=>rowHtml(i,false)).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${rules.expDays ?? 60} days.</div></div>`);
   } else {
-    const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name));
+    const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
     v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p class="intro">Tick items, then use the button at the bottom to add them to the order list.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
@@ -2170,10 +2279,19 @@ function productsHtml(all){
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
-    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n ? "" : "disabled"} title="${n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">✨ Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">🗑 Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
+    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
+}
+/* Merge safety: point out when the two products look different */
+function mergeWarnHtml(A, B){
+  if (!A || !B) return "";
+  const w = [], ns = v => String(v || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (ns(A.sku) && ns(B.sku) && ns(A.sku) !== ns(B.sku)) w.push(`different SKUs (${esc(A.sku)} / ${esc(B.sku)})`);
+  if (keyOf(A.supplier) && keyOf(B.supplier) && keyOf(A.supplier) !== keyOf(B.supplier)) w.push(`different suppliers (${esc(A.supplier)} / ${esc(B.supplier)})`);
+  if (keyOf(A.units) && keyOf(B.units) && keyOf(A.units) !== keyOf(B.units)) w.push(`different package sizes (${esc(A.units)} / ${esc(B.units)})`);
+  return w.length ? `<div class="notice mwarn"><span class="hint">${ic("alert")}<b>These may not be the same product:</b> ${w.join(", ")}. Check before merging.</span></div>` : "";
 }
 function mergeDialog(A, Bi){
   if (!needMe()) return;
@@ -2182,7 +2300,7 @@ function mergeDialog(A, Bi){
   openPanel(`<div class="ph"><div><h2>Merge 2 products</h2><div class="lastby">Pick the one to keep. Empty details on it are filled from the other, then the other is deleted.</div></div><button class="iconbtn" data-close type="button">Close</button></div>
     <div class="mcomp"><table><thead><tr><th></th><th><label><input type="radio" name="mkeep" value="a" checked> Keep this</label></th><th><label><input type="radio" name="mkeep" value="b"> Keep this</label></th></tr></thead>
     <tbody>${F.map(([k, l]) => `<tr><th>${l}</th><td>${cell(A, k)}</td><td>${cell(Bi, k)}</td></tr>`).join("")}<tr><th>Photo</th><td>${A.photo ? `<img src="blob.php?id=${esc(A.photo)}" alt="">` : "—"}</td><td>${Bi.photo ? `<img src="blob.php?id=${esc(Bi.photo)}" alt="">` : "—"}</td></tr></tbody></table></div>
-    <label class="madd"><input type="checkbox" id="mAdd" checked> Add the on-hand counts together (${fmtQ((num(A.qty) || 0) + (num(Bi.qty) || 0))})</label>
+    ${mergeWarnHtml(A, Bi)}<label class="madd"><input type="checkbox" id="mAdd"> Add the on-hand counts together (${fmtQ((num(A.qty) || 0) + (num(Bi.qty) || 0))})</label>
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" type="button" id="mGo">Merge</button></div>`);
   $("#mGo").onclick = async e => {
     const b = e.currentTarget;
@@ -2231,7 +2349,7 @@ function addOrderPicker(){
     <div class="list aolist" id="aoList"></div>`);
   const draw = () => {
     const q = keyOf($("#aoFind").value);
-    const hits = items.filter(i => !i.need && !i.onOrder && (!q || keyOf([i.name, i.sku, i.supplier, i.loc].join(" ")).includes(q))).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 40);
+    const hits = items.filter(i => !i.need && !i.onOrder && (!q || keyOf([i.name, i.sku, i.supplier, i.loc].join(" ")).includes(q))).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).slice(0, 40);
     $("#aoList").innerHTML = hits.map(i => `<button type="button" class="aorow" data-aopick="${esc(i.id)}"><b>${esc(i.name)}</b><span class="hint">${fmtQ(i.qty ?? 0)} on hand${i.supplier ? " · " + esc(i.supplier) : ""}${i.loc ? " · " + esc(i.loc) : ""}</span></button>`).join("") || `<div class="empty">${q ? "No matching items that aren't already on the list." : "Start typing to find an item."}</div>`;
     document.querySelectorAll("[data-aopick]").forEach(b => b.onclick = () => addOrderAsk(byId(b.dataset.aopick)));
   };
@@ -2271,7 +2389,7 @@ function deleteDialog(list){
     sync(ok === n ? "ok" : "err", ok === n ? "Saved" : "Not all deleted"); closePanel(); toast(`Deleted ${ok} product${ok === 1 ? "" : "s"}`); render();
   };
 }
-function syncBatchBtn(){ const ex_ = $("#exportGrid"); if (ex_) { const sh = document.querySelectorAll("#pgrid tr.row").length; ex_.textContent = "Export " + (selected.size ? selected.size + " ticked" : sh === items.length ? "all" : sh + " shown"); ex_.title = selected.size ? "Export the ticked products" : "Export the products shown"; } const mg_ = $("#mergeSel"); if (mg_) mg_.disabled = selected.size !== 2; const dl_ = $("#delSel"); if (dl_) { dl_.disabled = !selected.size || readOnly; dl_.textContent = "🗑 Delete" + (selected.size ? ` (${selected.size})` : ""); } const bu = $("#batchUpd"); if (!bu) return; const n = selected.size; bu.disabled = !n; bu.textContent = "✨ Batch Update" + (n ? ` (${n})` : ""); bu.title = n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"; }
+function syncBatchBtn(){ const ex_ = $("#exportGrid"); if (ex_) { const sh = document.querySelectorAll("#pgrid tr.row").length; ex_.innerHTML = ic("download") + "Export " + (selected.size ? selected.size + " ticked" : sh === items.length ? "all" : sh + " shown"); ex_.title = selected.size ? "Export the ticked products" : "Export the products shown"; } const mg_ = $("#mergeSel"); if (mg_) mg_.disabled = selected.size !== 2; const dl_ = $("#delSel"); if (dl_) { dl_.disabled = !selected.size || readOnly; dl_.innerHTML = ic("trash") + "Delete" + (selected.size ? ` (${selected.size})` : ""); } const bu = $("#batchUpd"); if (!bu) return; const n = selected.size; bu.disabled = !n || !sample; bu.innerHTML = ic("sparkle") + "Batch Update" + (n ? ` (${n})` : ""); bu.title = !sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"; }
 function wireProducts(all){
   const list = () => [...document.querySelectorAll("#pgrid tr.row")].map(r => byId(r.dataset.id)).filter(Boolean);
   $("#batchUpd").onclick = () => { const pick = list().filter(i => selected.has(i.id)); if (!pick.length) { toast("Tick the products you want to update first"); return; } startBatch(pick); };
@@ -2325,6 +2443,14 @@ function logRows(src){
   const q = keyOf($("#q").value);
   return (src || logs).filter(e => (!logType || e.action === logType) && (!logWho || (e.initials || "") === logWho) && (!q || keyOf([e.initials, e.action, e.name, e.detail].join(" ")).includes(q)));
 }
+let logLim = 400, logUnsub = null;
+function subLog(){
+  try { if (typeof logUnsub === "function") logUnsub(); } catch {}
+  logUnsub = db.collection("log").orderBy("at", "desc").limit(logLim).onSnapshot(snap => {
+    logs = snap.docs.map(d => d.data());
+    if (tab === "log") render();
+  }, () => {});
+}
 function logHtml(){
   const rows = logRows();
   const kinds = new Map(), who = new Map();
@@ -2332,17 +2458,18 @@ function logHtml(){
   const kOpts = [...kinds.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, n]) => `<option value="${esc(k)}" ${k === logType ? "selected" : ""}>${esc(k)} (${n})</option>`).join("");
   const wOpts = [...who.keys()].sort().map(k => `<option value="${esc(k)}" ${k === logWho ? "selected" : ""}>${esc(k)}</option>`).join("");
   const tool = `<div class="toolbar logtools"><p>Every count, order, receipt and edit, newest first. Pick a kind of activity or a person to narrow it down; the search box filters by item too.</p>
-    <div class="logfilt"><label>Activity <select id="logType"><option value="">All activity${logs.length >= 400 ? " (latest 400)" : ` (${logs.length})`}</option>${kOpts}</select></label><label>By <select id="logWho"><option value="">Everyone</option>${wOpts}</select></label>${logType || logWho ? `<button class="btn sm" id="logClear" type="button">Show all</button>` : ""}
-    ${downloads ? `<button class="btn" id="logExport" type="button">${logType || logWho ? "Export matching" : "Export all"} (.csv)</button>` : ""}</div></div>`;
+    <div class="logfilt"><label>Activity <select id="logType"><option value="">All activity${logs.length >= logLim ? ` (latest ${logLim})` : ` (${logs.length})`}</option>${kOpts}</select></label><label>By <select id="logWho"><option value="">Everyone</option>${wOpts}</select></label>${logType || logWho ? `<button class="btn sm" id="logClear" type="button">Show all</button>` : ""}
+    ${downloads ? `<button class="btn" id="logExport" type="button">${ic("download")}${logType || logWho ? "Export matching" : "Export all"} (.csv)</button>` : ""}</div></div>`;
   if (!rows.length) return tool + `<div class="list"><div class="empty">${logs.length ? "Nothing matches that search." : "No activity yet. Changes show up here with the date, time and initials."}</div></div>`;
   const days = new Map();
   rows.forEach(e => { const k = new Date(e.at).toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" }); if (!days.has(k)) days.set(k, []); days.get(k).push(e); });
-  return tool + [...days.entries()].map(([d, es]) => `<div class="daywrap"><h3>${esc(d)}</h3><div class="list">${es.map(e => `<div class="arow"><span class="init">${esc(e.initials || "–")}</span><div><div class="t">${esc(e.action)}${e.name ? " · " + esc(e.name) : ""}</div>${e.detail ? `<div class="d">${esc(e.detail)}</div>` : ""}</div><time>${esc(new Date(e.at).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }))}</time></div>`).join("")}</div></div>`).join("");
+  return tool + [...days.entries()].map(([d, es]) => `<div class="daywrap"><h3>${esc(d)}</h3><div class="list">${es.map(e => `<div class="arow"><span class="init">${esc(e.initials || "–")}</span><div><div class="t">${esc(e.action)}${e.name ? " · " + esc(e.name) : ""}</div>${e.detail ? `<div class="d">${esc(e.detail)}</div>` : ""}</div><time>${esc(new Date(e.at).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }))}</time></div>`).join("")}</div></div>`).join("") + (logs.length >= logLim ? `<div class="actions" style="justify-content:center;margin:14px 0"><button class="btn" id="logMore" type="button">${ic("history")}Show older activity</button></div>` : "");
 }
 function wireLog(){
   $("#logType") && ($("#logType").onchange = e => { logType = e.target.value; render(); });
   $("#logWho") && ($("#logWho").onchange = e => { logWho = e.target.value; render(); });
   $("#logClear") && ($("#logClear").onclick = () => { logType = ""; logWho = ""; render(); });
+  $("#logMore") && ($("#logMore").onclick = e => { e.currentTarget.disabled = true; e.currentTarget.textContent = "Loading…"; logLim += 400; subLog(); });
   const b = $("#logExport"); if (!b) return;
   b.onclick = async () => {
     b.disabled = true;
@@ -2406,9 +2533,9 @@ function sendToRep(sup, list){
     <textarea id="srTxt" rows="10" style="width:100%;border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:10px;font:inherit;font-size:14px;color:var(--fg)">${esc(txt)}</textarea>
     <p class="hint" style="margin:0">You can edit the message before sending. It opens in your own email or text app, so nothing is sent until you press send there.</p>
     <div class="actions sendrow">
-      ${mail ? `<a class="btn pri" id="srMail" href="${esc(mail)}" target="_blank" rel="noopener">✉ Email ${esc(r.email)}</a>` : r ? `<span class="hint">No email saved for ${esc(r.name)}.</span>` : ""}
-      ${sms ? `<a class="btn" id="srSms" href="${esc(sms)}" target="_blank" rel="noopener">💬 Text ${esc(ph)}</a>` : ""}
-      <button class="btn" type="button" id="srCopy">Copy message</button>
+      ${mail ? `<a class="btn pri" id="srMail" href="${esc(mail)}" target="_blank" rel="noopener">${ic("mail")}Email ${esc(r.email)}</a>` : r ? `<span class="hint">No email saved for ${esc(r.name)}.</span>` : ""}
+      ${sms ? `<a class="btn" id="srSms" href="${esc(sms)}" target="_blank" rel="noopener">${ic("msg")}Text ${esc(ph)}</a>` : ""}
+      <button class="btn" type="button" id="srCopy">${ic("copy")}Copy message</button>
     </div>
     <div class="actions savebar"><button class="btn" data-close type="button">Not now</button><button class="btn pri grow" type="button" id="srMark">I sent it — mark ${list.length} ordered</button></div>`);
   const refresh = () => { const t = $("#srTxt").value; if ($("#srMail")) $("#srMail").href = `mailto:${String(r.email).replace(/[^\w.+@-]/g, "")}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(t)}`; if ($("#srSms")) $("#srSms").href = `sms:${String(ph).replace(/[^0-9+]/g, "")}${/iPhone|iPad|Mac/i.test(navigator.userAgent) ? "&" : "?"}body=${encodeURIComponent(t)}`; };
@@ -2558,14 +2685,14 @@ function detFields(it){
     ${fwrap("", it.cat, `<label for="e-cat">Category</label><input id="e-cat" list="dl-cat" value="${esc(it.cat)}">`)}
     ${fwrap("", it.sub, `<label for="e-sub">Subcategory</label><input id="e-sub" list="dl-sub" value="${esc(it.sub)}" placeholder="Optional">`)}
     ${fwrap("", it.loc, `<label for="e-loc">Storage location</label><input id="e-loc" list="dl-loc" value="${esc(it.loc)}">`)}
-    ${fwrap("", it.exp, `<label for="e-exp">Expiration</label><input id="e-exp" value="${esc(it.exp)}" placeholder="M/D/YYYY">`)}
+    ${fwrap("", it.exp, `<label for="e-exp">Expiration</label><div class="expwrap"><input id="e-exp" value="${esc(it.exp)}" placeholder="M/D/YYYY or M/YYYY"><label class="exppick" title="Pick a date">${ic("cal")}<input type="date" tabindex="-1" aria-label="Pick the expiration date" data-exppick="e-exp"></label></div>`)}
     ${fwrap("full", it.desc, `<label for="e-desc">Description</label><textarea id="e-desc" rows="2" placeholder="What it is and what it's used for">${esc(it.desc)}</textarea>`)}
     ${fwrap("full", it.notes, `<label for="e-notes">Notes</label><input id="e-notes" value="${esc(it.notes)}">`)}
   </div>${dl("dl-cat", catTree().map(t => t.name))}${dl("dl-sub", [...new Set(catTree().flatMap(t => (keyOf(t.name) === keyOf(it.cat) || !it.cat ? t.subs : []).map(x => x.name)))])}${dl("dl-loc", locNames())}`;
 }
 function countBoxes(q, d, u){
   const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}</div>`;
-  return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "🚨 911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
+  return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
 }
 /* The Add page and the item window use the same field ids. Look inside the open window first so one never
    reads or writes the other's fields. */
@@ -3283,9 +3410,9 @@ async function batchStep(next){
   const warn = [clean(r.note), clean(r.photoNote), clean(r.paneTip)].filter(Boolean).join(" ");
   const ask = r.cand && r.same === false, purl0 = r.photo ? URL.createObjectURL(r.photo) : "";
   const match = r.cand ? `<div class="matchcard${ask ? " ask" : ""}">${purl0 ? `<img src="${purl0}" alt="">` : ""}<div class="mtxt"><span class="hint">${ask ? "Closest match found. Is this the same product?" : "Matched product"}${r.cand.n > 1 || r.cand.more ? ` · match ${r.cand.i + 1} of ${r.cand.n}` : ""}</span><b>${esc(clean(r.pageTitle) || "Product page")}</b>${[r.units, num(r.price) != null ? "$" + num(r.price).toFixed(2) : ""].map(clean).filter(Boolean).length ? `<span class="hint">${esc([clean(r.units), num(r.price) != null ? "$" + num(r.price).toFixed(2) : ""].filter(Boolean).join(" · "))}</span>` : ""}<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page ↗</a></div><div class="mbtns">${ask ? `<button class="btn pri" type="button" id="mYes">Yes, it's a match</button>` : ""}${r.cand.more ? `<button class="btn" type="button" id="mNext">${ask ? "No, try the next closest" : "Wrong product? Try the next match"}</button>` : (ask ? `<span class="hint">No other close matches found.</span>` : "")}</div></div>` : "";
-  const past = clean(r.pastOrder) ? `<div class="pastord">🧾 <b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "";
+  const past = clean(r.pastOrder) ? `<div class="pastord">${ic("receipt")}<b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "";
   const hn = r.histNote ? `<p class="hint">${esc(r.histNote)}</p>` : "";
-  openPanel(head + match + (warn ? `<div class="notice"><span class="hint">⚠ ${esc(warn)}</span></div>` : "") + (!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : "") + past + hn + `<div class="namepick big" id="bNames" ${ask ? "hidden" : ""}><span class="hint">Step 1 — pick the name to use</span>${opts.map(([v, l], k) => `<button type="button" class="btn" data-bn="${k}"><small>${esc(l)}</small>${esc(v)}</button>`).join("")}<div class="linkrow"><input id="bOwn" placeholder="Or type your own name"><button class="btn" type="button" id="bOwnGo">Use</button></div></div>
+  openPanel(head + match + (warn ? `<div class="notice"><span class="hint">${ic("alert")}${esc(warn)}</span></div>` : "") + (!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : "") + past + hn + `<div class="namepick big" id="bNames" ${ask ? "hidden" : ""}><span class="hint">Step 1 — pick the name to use</span>${opts.map(([v, l], k) => `<button type="button" class="btn" data-bn="${k}"><small>${esc(l)}</small>${esc(v)}</button>`).join("")}<div class="linkrow"><input id="bOwn" placeholder="Or type your own name"><button class="btn" type="button" id="bOwnGo">Use</button></div></div>
     <div class="actions"><button class="btn" type="button" id="bSkip">Skip this item</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
   $("#bSkip").onclick = () => { B.skipped++; B.i++; batchStep(); };
@@ -3329,7 +3456,7 @@ function batchReview(it, r, name, head){
   if (photoOnly && !usePhoto) { B.skipped++; B.i++; toast(`No photo found for ${it.name}. Skipped.`); batchStep(); return; }
   const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
   const purl = usePhoto ? URL.createObjectURL(r.photo) : "";
-  openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">🧾 <b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
+  openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">${ic("receipt")}<b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
     ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div></div>` : ""}
     <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
@@ -3654,15 +3781,15 @@ function photoBlock(src, canEditPhoto, skuSrc){
   const sku = skuSrc ? `<span class="skupic"><img src="${esc(skuSrc)}" alt="SKU photo" onerror="this.parentNode.remove()"><small>SKU</small></span>` : "";
   const can = assets && canEditPhoto;
   const menu = can ? `<div class="pmenu" id="pMenu" hidden>
-      <label class="pmi filebtn">📷 Take a photo<input type="file" id="pCam" accept="image/*" capture="environment"></label>
-      <label class="pmi filebtn">🖼 Choose from photos<input type="file" id="pLib" accept="image/*"></label>
-      <button type="button" class="pmi" data-pullphoto>🖥 Pull from reorder link</button>
-      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">🔎 Find photo online ↗</a>
-      <label class="pmi filebtn">🏷 ${skuSrc ? "Retake" : "Add"} SKU / label photo<input type="file" id="pSku" accept="image/*" capture="environment"></label>
-      ${src ? `<button type="button" class="pmi danger" id="pDel">🗑 Remove photo</button>` : ""}
+      <label class="pmi filebtn">${ic("camera")}Take a photo<input type="file" id="pCam" accept="image/*" capture="environment"></label>
+      <label class="pmi filebtn">${ic("image")}Choose from photos<input type="file" id="pLib" accept="image/*"></label>
+      <button type="button" class="pmi" data-pullphoto>${ic("globe")}Pull from reorder link</button>
+      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">${ic("search")}Find photo online ↗</a>
+      <label class="pmi filebtn">${ic("tag")}${skuSrc ? "Retake" : "Add"} SKU / label photo<input type="file" id="pSku" accept="image/*" capture="environment"></label>
+      ${src ? `<button type="button" class="pmi danger" id="pDel">${ic("trash")}Remove photo</button>` : ""}
       <p class="hint">Tip: copy a picture from any website and press Ctrl/⌘+V here.</p>
     </div>` : "";
-  return `<div class="photo pnew"><div class="pics">${pic}${sku}</div><div class="pside">${can ? `<button type="button" class="btn" id="pMenuBtn" aria-expanded="false" aria-controls="pMenu">📷 ${src ? "Change photo" : "Add photo"} ▾</button>` : `<p class="hint">${src ? "" : "Only people who can edit this page can add photos."}</p>`}${src || skuSrc ? `<p class="hint">Tap a picture to enlarge.</p>` : ""}</div>${menu}</div>`;
+  return `<div class="photo pnew"><div class="pics">${pic}${sku}</div><div class="pside">${can ? `<button type="button" class="btn" id="pMenuBtn" aria-expanded="false" aria-controls="pMenu">${ic("camera")}${src ? "Change photo" : "Add photo"} ▾</button>` : `<p class="hint">${src ? "" : "Only people who can edit this page can add photos."}</p>`}${src || skuSrc ? `<p class="hint">Tap a picture to enlarge.</p>` : ""}</div>${menu}</div>`;
 }
 function wirePhoto(onPick, onRemove){
   const mb = $("#pMenuBtn"); if (mb) mb.onclick = () => { const m = $("#pMenu"); m.hidden = !m.hidden; mb.setAttribute("aria-expanded", String(!m.hidden)); };
@@ -3736,9 +3863,9 @@ function unlockItem(){
 }
 function itemStatus(it){
   const u = it.units ? " × " + esc(it.units) : "", from = it.supplier ? " from " + esc(it.supplier) : "";
-  if (it.onOrder) return { cls: "s-ord", html: `📦 On order since ${esc(it.ordered)} · expecting ${fmtQ(it.orderedQty || it.orderQty)}${u}` };
-  if (it.is911) return { cls: "s-911", html: `🚨 911: only ${fmtQ(it.qty)} left. Order ${fmtQ(it.orderQty)}${u}${from} now` };
-  if (it.need && it.manual && !(it.qty != null && it.desired != null && it.qty < it.desired)) return { cls: "s-low", html: `✋ On the order list · order ${fmtQ(it.orderQty)}${u}${from}` };
+  if (it.onOrder) return { cls: "s-ord", html: `${ic("truck")}On order since ${esc(it.ordered)} · expecting ${fmtQ(it.orderedQty || it.orderQty)}${u}` };
+  if (it.is911) return { cls: "s-911", html: `${ic("urgent")}911: only ${fmtQ(it.qty)} left. Order ${fmtQ(it.orderQty)}${u}${from} now` };
+  if (it.need && it.manual && !(it.qty != null && it.desired != null && it.qty < it.desired)) return { cls: "s-low", html: `${ic("hand")}On the order list · order ${fmtQ(it.orderQty)}${u}${from}` };
   if (it.need) return { cls: "s-low", html: `Below reserve · order ${fmtQ(it.orderQty)}${u}${from}` };
   if (it.qty == null) return { cls: "", html: "No count yet" };
   return { cls: "s-ok", html: `✓ Stocked · ${fmtQ(it.qty)} on hand` };
@@ -3763,7 +3890,7 @@ async function openItem(it, prefill){
      Expiring → Replaced, anywhere else → Save count). Save count is always there, in the same spot. */
   const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">Mark received</button>`;
   const ordBtn = big => `<button class="btn${big ? " pri big" : ""}${it.is911 && big ? " urgent" : ""}" id="ordBtn" type="button">Mark ordered (${fmtQ(it.orderQty)})</button>`;
-  const expBtn = `<button class="btn pri big" id="expBtn" type="button">↻ Replaced: new date</button>`;
+  const expBtn = `<button class="btn pri big" id="expBtn" type="button">${ic("calcheck")}Replaced: new date</button>`;
   let main = "", side = "";
   if (tab === "ordered" && it.onOrder) main = rcvBtn(true);
   else if (tab === "need" && it.need) main = ordBtn(true);
@@ -3776,23 +3903,23 @@ async function openItem(it, prefill){
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
   openPanel(`<div class="ph ihead">
       <button type="button" class="ithumb" id="thumbBtn" aria-label="${it.photo ? "Product photo" : "Add a photo"}">${photoSrc ? `<img src="${esc(photoSrc)}" alt="" onerror="this.replaceWith('📷')">` : "📷"}</button>
-      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc ? `<div class="iloc">📍 ${esc(it.loc)}</div>` : ""}</div>
+      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc ? `<div class="iloc">${ic("pin")}${esc(it.loc)}</div>` : ""}</div>
       <span class="phbtns"><button class="iconbtn" type="button" id="moreBtn" aria-label="More actions" aria-expanded="false" aria-controls="moreMenu">⋯</button><button class="iconbtn" data-close type="button">Close</button></span>
     </div>
-    <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">🗑 Delete this item</button></div>
+    <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">${ic("trash")}Delete this item</button></div>
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
     <div class="istatus ${st.cls}">${st.html}</div>
     ${primary}
     ${countBoxes(f.qty, f.desired, f.urgent)}
-    ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">➖ Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">➕ Add to order list</button></div>` : ""}
+    ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button></div>` : ""}
     <div class="isecs">
-      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">🔎 Look up ▾</button><button class="btn sm" type="button" id="editBtn">✏️ Edit info</button></span></div>
+      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     <div class="pmenu imenu" id="toolsMenu" hidden>
-      <button type="button" class="pmi" data-autoscrape>🔄 Update from supplier page <span class="aitag">✨ Claude</span></button>
-      <button type="button" class="pmi" data-pfill id="pfillHidden">📋 Paste page text (your prices) <span class="aitag">✨ Claude</span></button>
-      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">🔎 Search supplier ↗</a>
-      <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">💲 Compare prices ↗</a>
-      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">🖼 Find photo online ↗</a>
+      <button type="button" class="pmi" data-autoscrape>${ic("refresh")}Update from supplier page <span class="aitag">${ic("sparkle")}Claude</span></button>
+      <button type="button" class="pmi" data-pfill id="pfillHidden">${ic("clipboard")}Paste page text (your prices) <span class="aitag">${ic("sparkle")}Claude</span></button>
+      <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
+      <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      <a class="pmi" data-imgfind href="#" target="_blank" rel="noopener">${ic("image")}Find photo online ↗</a>
     </div>
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
@@ -3900,7 +4027,7 @@ function openNew(prefill){
 function photoTile(k, title, sub, file){
   return `<div class="ptile"><div class="ptitle">${title}</div><div class="hint">${sub}</div>
     ${file ? `<img class="pic" id="pic-${k}" src="${URL.createObjectURL(file)}" alt="${title}">` : `<div class="pic" id="pic-${k}">No photo yet</div>`}
-    <div class="pbtns"><label class="btn pri filebtn">📷 Take<input type="file" id="cam-${k}" accept="image/*" capture="environment"></label><label class="btn filebtn">Choose<input type="file" id="lib-${k}" accept="image/*"></label></div>
+    <div class="pbtns"><label class="btn pri filebtn">${ic("camera")}Take<input type="file" id="cam-${k}" accept="image/*" capture="environment"></label><label class="btn filebtn">Choose<input type="file" id="lib-${k}" accept="image/*"></label></div>
     <button class="btn danger" type="button" id="rm-${k}" ${file ? "" : "hidden"}>Remove</button></div>`;
 }
 let addNoRead = false;
@@ -3971,7 +4098,7 @@ Reply with only one JSON object: {"category": "exact name from the list, or empt
     const warn = [r.same === false && it.name ? "This page may be a different product than you expected." : "", clean(r.note)].filter(Boolean).join(" ");
     const noPhoto = !r.photo ? (r.photoNote ? ` ${esc(r.photoNote)}` : ` No photo found on the page; use <b>Pull from link</b> under Photos to try again, or paste a picture.`) : (r.photoNote ? ` ${esc(r.photoNote)}` : "");
     const why = (r.paneTip ? `<br>${esc(r.paneTip)}` : "") + (!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : "");
-    qaStat(`✓ Filled in ${done.join(", ") || "what it could find"}.${noPhoto}${addAltPhotos ? ` <button class="btn sm" type="button" data-altphoto>Wrong photo? Show another</button>` : ""} Pick the name, set the counts and storage location, then press <b>Save item</b>.${warn ? `<br>⚠ ${esc(warn)}` : ""}${why}`, "ok");
+    qaStat(`✓ Filled in ${done.join(", ") || "what it could find"}.${noPhoto}${addAltPhotos ? ` <button class="btn sm" type="button" data-altphoto>Wrong photo? Show another</button>` : ""} Pick the name, set the counts and storage location, then press <b>Save item</b>.${warn ? `<br>${ic("alert")}${esc(warn)}` : ""}${why}`, "ok");
     showAddMatch(g("e-sku"));
     ($("#qaSup") || $("#e-name")?.closest(".addcard"))?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch(e) {
@@ -4037,7 +4164,7 @@ function buildAddPage(){
   const prev = pendingPhoto ? URL.createObjectURL(pendingPhoto) : "";
   const inp = (id, label, val, extra = "", full = false) => `<div class="f${full ? " full" : ""}"><label for="${id}">${label}</label><input id="${id}" value="${esc(val)}" ${extra}></div>`;
   const mode = addMode, quick = mode === "link" || mode === "sku";
-  const title = { link: "🔗 Add using a product link", sku: "📷 Add using a SKU photo", manual: "✍️ Add manually" }[mode];
+  const title = { link: ic("link") + "Add using a product link", sku: ic("camera") + "Add using a SKU photo", manual: ic("pencil") + "Add manually" }[mode];
   $("#view").innerHTML = `<div class="addpage mode-${mode}">
     <div class="addhead"><button class="iconbtn" type="button" id="addBack">← Back</button><h2>${title}</h2><button type="button" class="qlink" id="addSwitch">Change method</button></div>
     ${addPrefill?.note ? `<div class="notice"><span class="hint">${esc(addPrefill.note)}</span></div>` : ""}
@@ -4049,7 +4176,7 @@ function buildAddPage(){
     </section>` : ""}
     ${mode === "sku" ? `<section class="addcard quickadd"><h3>Step 1 — photograph the SKU</h3>
       <p class="hint" style="margin:0">Take a clear, close photo of the SKU, catalog # / REF or barcode on the box. Claude reads it, finds the product online and fills in the details and photo.</p>
-      <div class="qa-opt"><div class="pbtns"><label class="btn pri filebtn">📷 Take photo<input type="file" id="qaCam" accept="image/*" capture="environment"></label><label class="btn filebtn">Choose photo<input type="file" id="qaLib" accept="image/*"></label></div></div>
+      <div class="qa-opt"><div class="pbtns"><label class="btn pri filebtn">${ic("camera")}Take photo<input type="file" id="qaCam" accept="image/*" capture="environment"></label><label class="btn filebtn">Choose photo<input type="file" id="qaLib" accept="image/*"></label></div></div>
       <div class="qa-stat" id="qaStat" hidden></div>
       <button type="button" class="qlink" id="qaHand">Skip, I'll fill it in myself</button>
     </section>` : ""}
@@ -4068,7 +4195,7 @@ function buildAddPage(){
     </div></section>
     <section class="addcard" id="addPhotos"><h3>Photos</h3>
       <div class="phototiles">${photoTile("prod", "Product label", "Fills in name, units, category, expiry", pendingPhoto)}${photoTile("sku", "SKU / catalog #", "Fills in the SKU from the number or barcode", pendingSkuPhoto)}</div>
-      <div class="actions"><button type="button" class="btn" data-pullphoto>🖥 Pull from link</button><a class="btn" data-imgfind href="#" target="_blank" rel="noopener">Find photo online ↗</a></div><span class="hint">To use a picture from a website: copy the image and press Ctrl/⌘+V on this page (it becomes the product photo), or save it to your phone and tap Choose.</span>
+      <div class="actions"><button type="button" class="btn" data-pullphoto>${ic("globe")}Pull from link</button><a class="btn" data-imgfind href="#" target="_blank" rel="noopener">Find photo online ↗</a></div><span class="hint">To use a picture from a website: copy the image and press Ctrl/⌘+V on this page (it becomes the product photo), or save it to your phone and tap Choose.</span>
       ${assets ? "" : `<span class="hint">Photos can be used to read the label, but only people who can edit this page can save them.</span>`}
       <div class="hint" id="readStatus" hidden></div>
       <button class="btn" type="button" id="addScan">Read photos again</button>
@@ -4080,7 +4207,7 @@ function buildAddPage(){
       <div class="f full pfind"><span class="hint">Look up price and link:</span><a class="btn" data-pfind="sup" href="#" target="_blank" rel="noopener">Search supplier ↗</a><a class="btn" data-pfind="shop" href="#" target="_blank" rel="noopener">Compare prices ↗</a><button type="button" class="btn" data-pfill>Manual scrape from reorder link…</button></div><div class="f full pastebox" hidden><label>Open the reorder link, select all the text on that page (Ctrl/⌘+A, or long-press → Select all), copy it, and paste it here:</label><textarea rows="4" data-pastetxt placeholder="Paste the product page text"></textarea><div class="pbtns2"><button type="button" class="btn pri" data-pastego>Fill in SKU, price and details</button><button type="button" class="btn" data-pfill>Cancel</button></div><span class="hint" data-pastestat></span></div>
     </div></section>
     <section class="addcard"><h3>Other</h3><div class="fields">
-      ${inp("e-exp", "Expiration", f.exp, 'placeholder="M/D/YYYY"')}
+      <div class="f"><label for="e-exp">Expiration</label><div class="expwrap"><input id="e-exp" value="${esc(f.exp)}" placeholder="M/D/YYYY or M/YYYY"><label class="exppick" title="Pick a date">${ic("cal")}<input type="date" tabindex="-1" aria-label="Pick the expiration date" data-exppick="e-exp"></label></div></div>
       ${inp("e-notes", "Notes", f.notes)}
       <div class="f full"><label for="e-desc">Description</label><textarea id="e-desc" rows="2" placeholder="What it is and what it's used for">${esc(f.desc || "")}</textarea></div>
     </div></section>
@@ -4209,7 +4336,7 @@ $("#exportBtn").onclick = async () => {
   const cols = [["Item Name","name"],["SKU","sku"],["Category","cat"],["Subcategory","sub"],["Expiration Date","exp"],["Location","loc"],["Notes","notes"],["Unit / Package Size","units"],["Quantity on Hand","qty"],["Desired Quantity","desired"],["911 Level","urgent"],["Order Quantity","orderQty"],["Ordered","ordered"],["Price","unitCost"],["Supplier","supplier"],["Description","desc"],["Rep","repName"],["Rep phone","repPhone"],["Rep email","repEmail"],["Link","link"]];
   /* from the Editor: the ticked products, or if none are ticked, what the filters show */
   const src = tab === "products" ? (selected.size ? items.filter(i => selected.has(i.id)) : items.filter(pMatch)) : items;
-  const rows = src.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(i => { const r = repOf(i.supplier) || {}; const x = { ...i, repName: r.name || "", repPhone: r.phone || "", repEmail: r.email || "" }; return cols.map(([,k]) => csvCell(x[k])).join(","); });
+  const rows = src.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => { const r = repOf(i.supplier) || {}; const x = { ...i, repName: r.name || "", repPhone: r.phone || "", repEmail: r.email || "" }; return cols.map(([,k]) => csvCell(x[k])).join(","); });
   const csv = cols.map(c=>c[0]).join(",") + "\n" + rows.join("\n");
   const d = new Date(), stamp = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
   try { await downloads.save({ filename: `TDC supply inventory${src.length < items.length ? (tab === "products" && selected.size ? " (selected)" : " (filtered)") : ""} ${stamp}.csv`, data: csv }); toast("Exported"); }
@@ -4332,7 +4459,7 @@ function openDocImport(){
   if (!sample || !(window.HOSTED ? window.TDC?.readDoc : canImages)) { toast(window.HOSTED ? "Reading documents needs Claude, which isn't set up on this server" : "Reading documents needs Claude, which isn't available here"); return; }
   docFiles = [];
   openPanel(`<div class="ph"><div><h2>Import invoice or screenshot</h2><div class="lastby">Invoices, packing slips, order confirmations, quotes or screenshots of a supplier page</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
-    <label class="docdrop" id="docDrop"><input type="file" id="docIn" accept="${window.HOSTED ? "image/*,application/pdf,.pdf" : "image/*"}" multiple hidden><span class="pk-ic">📄</span><span><b>Choose photos, screenshots or PDFs</b><small>Or drag them here, or paste a screenshot (Ctrl/⌘+V). Up to ${docMax()} files; several pages of one invoice are fine.${window.HOSTED ? "" : " PDFs only work on the Hostinger Supply Room."}</small></span></label>
+    <label class="docdrop" id="docDrop"><input type="file" id="docIn" accept="${window.HOSTED ? "image/*,application/pdf,.pdf" : "image/*"}" multiple hidden><span class="pk-ic">${ic("file")}</span><span><b>Choose photos, screenshots or PDFs</b><small>Or drag them here, or paste a screenshot (Ctrl/⌘+V). Up to ${docMax()} files; several pages of one invoice are fine.${window.HOSTED ? "" : " PDFs only work on the Hostinger Supply Room."}</small></span></label>
     <div class="docfiles" id="docList"></div>
     <p class="hint" id="docStat" role="status"></p>
     <div class="actions"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="docGo" type="button" disabled>Read with Claude</button></div>`);
@@ -4375,14 +4502,14 @@ function docReview(r){
   const mode0 = ["invoice", "packing_slip"].includes(r.kind) ? "receive" : r.kind === "order_confirmation" ? "ordered" : "prices";
   const kindName = { invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
   const sup = clean(r.supplier), supK = keyOf(sup);
-  const byName = (a, b) => a.name.localeCompare(b.name);
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true });
   const mine = items.filter(i => i.name && supK && keyOf(i.supplier) === supK).sort(byName), rest = items.filter(i => i.name && !(supK && keyOf(i.supplier) === supK)).sort(byName);
   const opt = i => `<option value="${esc(i.id)}">${esc(i.name)}${i.units ? " · " + esc(i.units) : ""}</option>`;
   const itemOpts = (mine.length ? `<optgroup label="${esc(sup)}">${mine.map(opt).join("")}</optgroup><optgroup label="Other items">` : "<optgroup label=\"Your items\">") + rest.map(opt).join("") + "</optgroup>";
   const D = r.lines.map(l => ({ ...l }));
   const head = [kindName, sup, r.number ? "#" + r.number : "", r.date ? new Date(r.date + "T12:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : ""].filter(Boolean).join(" · ");
   openPanel(`<div class="ph"><div><h2>Check what Claude found</h2><div class="lastby">${esc(head)}</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
-    ${r.notes ? `<div class="notice"><span class="hint">⚠ ${esc(r.notes)}</span></div>` : ""}
+    ${r.notes ? `<div class="notice"><span class="hint">${ic("alert")}${esc(r.notes)}</span></div>` : ""}
     <div class="f full"><label for="docMode">What should this do?</label><select id="docMode">${Object.entries(DOC_MODES).map(([k, v]) => `<option value="${k}" ${k === mode0 ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
     <p class="hint">Ticked lines are applied. Change the item if Claude matched the wrong one.</p>
     <div class="docall"><label><input type="checkbox" id="docAll"> <b>Select all</b></label><span class="hint" id="docCount"></span></div>
@@ -4429,7 +4556,7 @@ function docChg(row, l, sup){
   }
   if (l.backordered && mode !== "prices") warn.push("Backordered, so it hasn't arrived");
   row.classList.toggle("off", !on);
-  row.querySelector("[data-chg]").innerHTML = (bits.length ? bits.join(" · ") : "Nothing to change") + (warn.length ? `<br><span class="dwarn">⚠ ${warn.join(". ")}.</span>` : "");
+  row.querySelector("[data-chg]").innerHTML = (bits.length ? bits.join(" · ") : "Nothing to change") + (warn.length ? `<br><span class="dwarn">${ic("alert")}${warn.join(". ")}.</span>` : "");
 }
 async function docApply(rows, D, r, sup){
   if (!needMe()) return;
@@ -4482,10 +4609,10 @@ document.addEventListener("click", e => { if (e.target.closest?.("[data-docimp]"
 function addChooser(){
   openPanel(`<div class="ph"><div><h2>Add an item</h2><div class="lastby">How do you want to add it?</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
     <div class="addpick">
-      <button type="button" class="pickcard" data-addmode="link"><span class="pk-ic">🔗</span><span><b>Add using a product link</b><small>Paste the product page link. Claude fills in the name, SKU, price, size, description and photo.</small></span></button>
-      <button type="button" class="pickcard" data-docimp hidden><span class="pk-ic">📄</span><span><b>Add from an invoice or screenshot</b><small>Photos, screenshots or PDFs of an invoice, order or supplier page. Claude adds new products and updates the ones you have.</small></span></button>
-      <button type="button" class="pickcard" data-addmode="sku"><span class="pk-ic">📷</span><span><b>Add using a SKU photo</b><small>Snap the SKU, catalog # or barcode on the box. Claude finds the product online and fills it in.</small></span></button>
-      <button type="button" class="pickcard" data-addmode="manual"><span class="pk-ic">✍️</span><span><b>Add manually</b><small>Type in the details yourself, with optional photos.</small></span></button>
+      <button type="button" class="pickcard" data-addmode="link"><span class="pk-ic">${ic("link")}</span><span><b>Add using a product link</b><small>Paste the product page link. Claude fills in the name, SKU, price, size, description and photo.</small></span></button>
+      <button type="button" class="pickcard" data-docimp hidden><span class="pk-ic">${ic("file")}</span><span><b>Add from an invoice or screenshot</b><small>Photos, screenshots or PDFs of an invoice, order or supplier page. Claude adds new products and updates the ones you have.</small></span></button>
+      <button type="button" class="pickcard" data-addmode="sku"><span class="pk-ic">${ic("barcode")}</span><span><b>Add using a SKU photo</b><small>Snap the SKU, catalog # or barcode on the box. Claude finds the product online and fills it in.</small></span></button>
+      <button type="button" class="pickcard" data-addmode="manual"><span class="pk-ic">${ic("pencil")}</span><span><b>Add manually</b><small>Type in the details yourself, with optional photos.</small></span></button>
     </div>`);
   document.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => openNew({ mode: b.dataset.addmode }));
   const di = $("#overlay [data-docimp]"); if (di) di.hidden = !(sample && (window.HOSTED || canImages));
@@ -4563,13 +4690,13 @@ function groupsOf(field){
   const m = new Map();
   items.forEach(i => { const v = clean(i[field]); if (!v) return; const k = keyOf(v); if (!m.has(k)) m.set(k, { name: v, n: 0, reps: new Map() }); const g = m.get(k); g.n++; if (i.rep) g.reps.set(i.rep, (g.reps.get(i.rep) || 0) + 1); });
   if (field === "loc") locExtra.forEach(v => { v = clean(v); if (v && !m.has(keyOf(v))) m.set(keyOf(v), { name: v, n: 0, reps: new Map() }); });
-  return [...m.values()].sort((a,b) => a.name.localeCompare(b.name));
+  return [...m.values()].sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 function orderedSuppliers(){
   const n = new Map(items.map(i => [keyOf(i.supplier), 0])); items.forEach(i => n.set(keyOf(i.supplier), n.get(keyOf(i.supplier)) + 1));
   const gs = groupsOf("supplier");
   supExtra.forEach(nm => { if (!gs.some(g => keyOf(g.name) === keyOf(nm))) gs.push({ name: nm, n: 0, reps: new Map() }); });
-  return gs.sort((a,b) => (supRank(a.name) - supRank(b.name)) || (b.n - a.n) || a.name.localeCompare(b.name));
+  return gs.sort((a,b) => (supRank(a.name) - supRank(b.name)) || (b.n - a.n) || a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 let dragging = false;
 async function commitOrder(keys){
@@ -4652,7 +4779,7 @@ function setupHtml(){
   const C = stockColors();
   const thm = getThemePref();
   const themeSec = `<div class="sechead" id="sec-appearance"><h2>Appearance</h2></div><p class="secnote">Light, dark, or a fun theme, for this device only. Each computer and phone remembers its own choice. The 80s and 90s themes come with their own music: press ♫ at the bottom left to play or stop it.</p>
-    <div class="list"><div class="setrow"><div class="themeseg" role="radiogroup" aria-label="Appearance">${[["auto", "Match device"], ["light", "☀️ Light"], ["dark", "🌙 Dark"], ["retro80", "🕹️ 80s Retro"], ["club90", "💿 90s Club"]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${thm === v}" data-themeset="${v}">${l}</button>`).join("")}</div></div></div>`;
+    <div class="list"><div class="setrow"><div class="themeseg" role="radiogroup" aria-label="Appearance">${[["auto", "Match device"], ["light", ic("sun") + "Light"], ["dark", ic("moon") + "Dark"], ["retro80", ic("gamepad") + "80s Retro"], ["club90", ic("disc") + "90s Club"]].map(([v, l]) => `<button type="button" role="radio" aria-checked="${thm === v}" data-themeset="${v}">${l}</button>`).join("")}</div></div></div>`;
   const colorSec = `<div class="sechead" id="sec-colors"><h2>Stock colors</h2></div><p class="secnote">The background colors item rows get based on their count. Changes apply for everyone using the supply list.</p>
     <div class="list">${[["ok","Above desired reserve"],["low","At or below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
@@ -4662,25 +4789,25 @@ function setupHtml(){
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
     <div class="list" id="locList">${gs.map((g, ix) => `<div class="setrow locrow" data-loc="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix + 1}</span><button type="button" class="grip" data-lgrip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="${field}" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="${title} name"><span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="${field}" data-v="${esc(keyOf(g.name))}" title="Show these items">${g.n} item${g.n>1?"s":""} ›</button>` : "0 items"}</span><button type="button" class="rmbtn" data-rmloc="${esc(g.name)}" data-n="${g.n}" aria-label="Remove location ${esc(g.name)}">Remove</button></div>`).join("")}</div><form class="addrow" id="locAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newLoc" placeholder="New location name" autocomplete="off" aria-label="New storage location name"><button class="btn pri" type="submit">Add location</button></form>`; };
-  const backup = `<div class="sechead" id="sec-backup"><h2>Backup &amp; import</h2></div><div class="list">${downloads ? `<div class="setrow two"><span>Download the whole supply list as a spreadsheet file</span><button class="btn" id="setupExport" type="button">Export CSV</button></div>` : ""}
-    <div class="setrow two"><span>Import a spreadsheet (CSV) to add new items or update existing ones. Use the same columns as Export. You'll see what will change before anything is saved.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>Import CSV<input type="file" id="importCsv" accept=".csv,text/csv"></label></div>
-    ${downloads ? `<div class="setrow two"><span>Full backup: every item, supplier, rep, setting, the activity log and all photos, in one file. Keep it somewhere safe; it includes supplier logins.</span><button class="btn" id="fullBackup" type="button">Full backup (.json)</button></div>
-    <div class="setrow two"><span>Order history: every order with its date, supplier, items, quantities and who marked it ordered.</span><button class="btn" id="expOrders" type="button">Export orders (CSV)</button></div>
-    <div class="setrow two"><span>All product photos in one .zip file, named after each product.</span><button class="btn" id="zipPhotos" type="button">Download photos (.zip)</button></div>` : ""}
-    ${readOnly ? "" : `<div class="setrow two"><span>Start a new count cycle: every item goes back to "not counted yet" so the Inventory counter shows what's left to count. Quantities don't change.</span><button class="btn" id="newCycle" type="button">New count cycle…</button></div>
-    <div class="setrow two"><span>Clear old activity: delete Activity log entries older than <select id="oldAge"><option value="182">6 months</option><option value="365" selected>1 year</option><option value="730">2 years</option></select>.</span><button class="btn" id="clearOld" type="button">Clear old activity…</button></div>
-    <div class="setrow two dangerrow"><span><b>Delete all products.</b> Removes every item from the supply list (suppliers, reps, settings and the activity log stay). You'll download a full backup first, which Restore can bring back.</span><button class="btn danger" id="delAll" type="button">Delete all products…</button></div>`}${window.HOSTED ? `
-    <div class="setrow two"><span>Restore from a full backup file. Items and settings in the file replace the ones with the same id here; nothing else is deleted.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>Restore…<input type="file" id="restoreFile" accept=".json,application/json"></label></div>
+  const backup = `<div class="sechead" id="sec-backup"><h2>Backup &amp; import</h2></div><div class="list">${downloads ? `<div class="setrow two"><span>Download the whole supply list as a spreadsheet file</span><button class="btn" id="setupExport" type="button">${ic("download")}Export CSV</button></div>` : ""}
+    <div class="setrow two"><span>Import a spreadsheet (CSV) to add new items or update existing ones. Use the same columns as Export. You'll see what will change before anything is saved.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>${ic("upload")}Import CSV<input type="file" id="importCsv" accept=".csv,text/csv"></label></div>
+    ${downloads ? `<div class="setrow two"><span>Full backup: every item, supplier, rep, setting, the activity log and all photos, in one file. Keep it somewhere safe; it includes supplier logins.</span><button class="btn" id="fullBackup" type="button">${ic("download")}Full backup (.json)</button></div>
+    <div class="setrow two"><span>Order history: every order with its date, supplier, items, quantities and who marked it ordered.</span><button class="btn" id="expOrders" type="button">${ic("download")}Export orders (CSV)</button></div>
+    <div class="setrow two"><span>All product photos in one .zip file, named after each product.</span><button class="btn" id="zipPhotos" type="button">${ic("download")}Download photos (.zip)</button></div>` : ""}
+    ${readOnly ? "" : `<div class="setrow two"><span>Start a new count cycle: every item goes back to "not counted yet" so the Inventory counter shows what's left to count. Quantities don't change.</span><button class="btn" id="newCycle" type="button">${ic("refresh")}New count cycle…</button></div>
+    <div class="setrow two"><span>Clear old activity: delete Activity log entries older than <select id="oldAge" aria-label="Older than"><option value="182">6 months</option><option value="365" selected>1 year</option><option value="730">2 years</option></select>.</span><button class="btn" id="clearOld" type="button">${ic("history")}Clear old activity…</button></div>
+    <div class="setrow two dangerrow"><span><b>Delete all products.</b> Removes every item from the supply list (suppliers, reps, settings and the activity log stay). You'll download a full backup first, which Restore can bring back.</span><button class="btn danger" id="delAll" type="button">${ic("trash")}Delete all products…</button></div>`}${window.HOSTED ? `
+    <div class="setrow two"><span>Restore from a full backup file. Items and settings in the file replace the ones with the same id here; nothing else is deleted.</span><label class="btn filebtn" ${readOnly ? "hidden" : ""}>${ic("upload")}Restore…<input type="file" id="restoreFile" accept=".json,application/json"></label></div>
     <div class="setrow two"><span>Sign this device out of the Supply Room.</span><button class="btn" id="signOut" type="button">Sign out</button></div>` : ""}</div>`;
   const allSups = orderedSuppliers();
   const repVolume = id => allSups.filter(g => supReps[keyOf(g.name)] === id).reduce((n, g) => n + g.n, 0);
-  const repsByVolume = () => reps.slice().sort((a, b) => (repVolume(b.id) - repVolume(a.id)) || a.name.localeCompare(b.name));
+  const repsByVolume = () => reps.slice().sort((a, b) => (repVolume(b.id) - repVolume(a.id)) || a.name.localeCompare(b.name, undefined, { numeric: true }));
   const repSec = `<div class="sechead" id="sec-reps"><h2>Reps</h2><span class="hint">${reps.length}</span></div><p class="secnote">Your sales reps, busiest first by how many of our items they supply. Tap Edit to change a rep or assign suppliers; they show on the Order list, the item panel and copied order lists.</p>
     <div class="replist">${repsByVolume().map(r => { const ed = editReps.has(r.id), sups = Object.entries(supReps).filter(([,v]) => v === r.id).map(([k]) => [k, allSups.find(g => keyOf(g.name) === k)?.name || k]);
       if (!ed) return `<div class="repcard static" data-rid="${esc(r.id)}"><div class="rephead"><div><b>${esc(r.name)}</b>${r.company ? ` <span class="repco">${esc(r.company)}</span>` : ""}</div><span class="vol">${repVolume(r.id)} item${repVolume(r.id) === 1 ? "" : "s"}</span></div>
-        <div class="repinfo">${r.cell ? `<a href="${esc(telHref(r.cell))}">📱 ${esc(r.cell)}</a>` : ""}${r.phone ? `<a href="${esc(telHref(r.phone))}">☎ ${esc(r.phone)}</a>` : ""}${r.email ? `<a href="mailto:${esc(r.email)}">✉ ${esc(r.email)}</a>` : ""}${!r.cell && !r.phone && !r.email ? `<span class="hint">No contact info yet</span>` : ""}</div>
+        <div class="repinfo">${r.cell ? `<a href="${esc(telHref(r.cell))}">${ic("mobile")}${esc(r.cell)}</a>` : ""}${r.phone ? `<a href="${esc(telHref(r.phone))}">${ic("phone")}${esc(r.phone)}</a>` : ""}${r.email ? `<a href="mailto:${esc(r.email)}">${ic("mail")}${esc(r.email)}</a>` : ""}${!r.cell && !r.phone && !r.email ? `<span class="hint">No contact info yet</span>` : ""}</div>
         ${r.notes ? `<div class="repnote">${esc(r.notes)}</div>` : ""}
-        <div class="repfoot"><span class="hint">${sups.length ? (sups.length === 1 ? "Supplier: " : "Suppliers: ") + esc(sups.map(x => x[1]).join(", ")) : "No suppliers assigned"}</span><button class="btn sm" type="button" data-redit="${esc(r.id)}">✏️ Edit</button></div></div>`;
+        <div class="repfoot"><span class="hint">${sups.length ? (sups.length === 1 ? "Supplier: " : "Suppliers: ") + esc(sups.map(x => x[1]).join(", ")) : "No suppliers assigned"}</span><button class="btn sm" type="button" data-redit="${esc(r.id)}">${ic("pencil")}Edit</button></div></div>`;
       return `<div class="repcard editing" data-rid="${esc(r.id)}"><div class="rephead"><b>${esc(r.name)}</b><button class="btn sm pri" type="button" data-redit="${esc(r.id)}">Done</button></div><div class="fields">
       <div class="f"><label for="rn-${esc(r.id)}">Name</label><input id="rn-${esc(r.id)}" data-rf="name" value="${esc(r.name)}"></div>
       <div class="f"><label for="rc-${esc(r.id)}">Company</label><input id="rc-${esc(r.id)}" data-rf="company" value="${esc(r.company)}"></div>
@@ -4713,11 +4840,11 @@ function mergeBox(n, fromLabel, toLabel){
 }
 const pmIs = (cat, sub) => pendingMerge && keyOf(pendingMerge.from[0]) === keyOf(cat) && (sub == null ? pendingMerge.from[1] == null : keyOf(pendingMerge.from[1] || "") === keyOf(sub) && pendingMerge.from[1] != null);
 const mLabel = ([c, sb]) => sb ? `${c} › ${sb}` : c;
-let mg = { type: "item", a: "", b: "", keep: "a", add: true };
+let mg = { type: "item", a: "", b: "", keep: "a", add: false };
 const MG_TYPES = [["item","Supplies (items)"],["supplier","Suppliers"],["loc","Locations"],["cat","Categories"],["sub","Subcategories"]];
 function mgOptions(type){
-  if (type === "item") return items.slice().sort((a,b) => a.name.localeCompare(b.name)).map(i => [i.id, `${i.name}${i.loc ? " · " + i.loc : ""} (${fmtQ(i.qty)} on hand)`]);
-  if (type === "supplier") return orderedSuppliers().slice().sort((a,b) => a.name.localeCompare(b.name)).map(g => [g.name, `${g.name} (${g.n} item${g.n === 1 ? "" : "s"})`]);
+  if (type === "item") return items.slice().sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => [i.id, `${i.name}${i.loc ? " · " + i.loc : ""} (${fmtQ(i.qty)} on hand)`]);
+  if (type === "supplier") return orderedSuppliers().slice().sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(g => [g.name, `${g.name} (${g.n} item${g.n === 1 ? "" : "s"})`]);
   if (type === "cat") return catTree().map(t => [t.name, `${t.name} (${t.n} item${t.n === 1 ? "" : "s"})`]);
   if (type === "sub") return catTree().flatMap(t => t.subs.map(x => [JSON.stringify([t.name, x.name]), `${t.name} › ${x.name} (${x.n} item${x.n === 1 ? "" : "s"})`]));
   return groupsOf("loc").map(g => [g.name, `${g.name} (${g.n} item${g.n === 1 ? "" : "s"})`]);
@@ -4746,7 +4873,7 @@ function mergeSec(){
     <div class="mrow"><div class="f"><label for="mgType">What to merge</label><select id="mgType">${MG_TYPES.map(([v, l]) => `<option value="${v}" ${v === mg.type ? "selected" : ""}>${l}</option>`).join("")}</select></div><div></div></div>
     <div class="mrow">${sel("mgA", mg.a, mg.b, "Item 1")}${sel("mgB", mg.b, mg.a, "Item 2")}</div>
     ${ready ? `<div class="f"><label>Which one to keep</label><div class="keep"><label><input type="radio" name="mgKeep" value="a" ${mg.keep === "a" ? "checked" : ""}><span><small>Keep Item 1</small><b>${esc(an)}</b></span></label><label><input type="radio" name="mgKeep" value="b" ${mg.keep === "b" ? "checked" : ""}><span><small>Keep Item 2</small><b>${esc(bn)}</b></span></label></div></div>
-    ${mg.type === "item" ? `<label class="showpw"><input type="checkbox" id="mgAdd" ${mg.add ? "checked" : ""}> Add the two on-hand counts together</label>` : ""}
+    ${mg.type === "item" && mg.a && mg.b ? mergeWarnHtml(items.find(x => x.id === mg.a), items.find(x => x.id === mg.b)) : ""}${mg.type === "item" ? `<label class="showpw"><input type="checkbox" id="mgAdd" ${mg.add ? "checked" : ""}> Add the two on-hand counts together</label>` : ""}
     <div class="preview">${preview}</div>` : `<div class="preview">Pick two ${esc(typeName)} to see what will happen.</div>`}
     <button type="button" class="btn pri go" id="mgGo" ${ready && !readOnly ? "" : "disabled"}>Merge</button>
   </div>`;
@@ -4776,13 +4903,13 @@ async function runMerge(){
       if (t === "supplier") supExtra = supExtra.filter(x => keyOf(x) !== keyOf(dropV));
       await renameAll(t, dropV, keepV, { supplier:"Supplier", cat:"Category", loc:"Location" }[t]);
     }
-    mg = { type: t, a: "", b: "", keep: "a", add: true };
+    mg = { type: t, a: "", b: "", keep: "a", add: false };
     render();
   } catch(e) { sync("err", "Not saved"); toast(dbErr(e)); }
 }
 function wireMerge(){
   const ty = $("#mgType"); if (!ty) return;
-  ty.onchange = () => { mg = { type: ty.value, a: "", b: "", keep: "a", add: true }; ty.blur(); render(); };
+  ty.onchange = () => { mg = { type: ty.value, a: "", b: "", keep: "a", add: false }; ty.blur(); render(); };
   $("#mgA").onchange = e => { mg.a = e.target.value; e.target.blur(); render(); };
   $("#mgB").onchange = e => { mg.b = e.target.value; e.target.blur(); render(); };
   document.querySelectorAll('input[name="mgKeep"]').forEach(r => r.onchange = () => { mg.keep = r.value; r.blur(); render(); });
@@ -4897,7 +5024,7 @@ async function doMerge(){
 function armed(b, n){
   if (b.classList.contains("armed")) return true;
   document.querySelectorAll(".rmbtn.armed").forEach(x => { x.classList.remove("armed"); x.textContent = "Remove"; });
-  b.classList.add("armed"); b.textContent = n > 0 ? `Tap again · clears ${n} item${n === 1 ? "" : "s"}` : "Tap again to remove";
+  b.classList.add("armed"); b.textContent = "Confirm"; toast(n > 0 ? `Tap Confirm to remove it. ${n} item${n === 1 ? "" : "s"} will be left blank here.` : "Tap Confirm to remove it");
   return false;
 }
 async function clearField(match, patch){
@@ -4948,7 +5075,7 @@ function supDetail(name){
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
-  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show 🛒 Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  </div>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){
@@ -5213,7 +5340,9 @@ const FKEYS = ["#q","#fLoc","#fSup","#fCat"], tabFilters = {};
 const readF = () => Object.fromEntries(FKEYS.map(k => [k, $(k).value]));
 const writeF = f => FKEYS.forEach(k => { const el = $(k); el.value = (f && f[k]) || ""; if (el.tagName === "SELECT" && el.value !== ((f && f[k]) || "")) el.value = ""; });
 function setTab(t){ if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
-$("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); });
+$("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; tabClick(b); });
+$("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
+function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
 function cntMode(){ try { const v = localStorage.getItem("tdc-cntmode"); if (CNT_MODES.includes(v)) return v; } catch {} return "sups"; }
@@ -5431,7 +5560,7 @@ async function boot(){
     render();
   }, () => {});
   db.collection("reps").onSnapshot(snap => {
-    reps = snap.docs.map(d => ({ id: d.id, name: "", company: "", cell: "", phone: "", email: "", account: "", website: "", notes: "", ...d.data() })).sort((a,b) => a.name.localeCompare(b.name));
+    reps = snap.docs.map(d => ({ id: d.id, name: "", company: "", cell: "", phone: "", email: "", account: "", website: "", notes: "", ...d.data() })).sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     render();
   }, () => {});
   db.doc("settings/colors").onSnapshot(snap => {
@@ -5445,10 +5574,7 @@ async function boot(){
     { const d = num(rules.expDays); rules.expDays = d == null ? 60 : Math.max(0, Math.min(365, Math.round(d))); }
     items.forEach(derive); render();
   }, () => {});
-  db.collection("log").orderBy("at", "desc").limit(400).onSnapshot(snap => {
-    logs = snap.docs.map(d => d.data());
-    if (tab === "log") render();
-  }, () => {});
+  subLog();
   downloads = await claude.use("downloads"); $("#exportBtn").hidden = true; /* export lives in Setup › Backup (and the Editor); this hidden button just runs it */
   assets = await claude.use("assets");
   sample = await claude.use("sample");
