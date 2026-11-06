@@ -1963,9 +1963,21 @@ function canonSup(v){
   const best = [...n.entries()].sort((a, b) => (/[A-Z]/.test(b[0]) - /[A-Z]/.test(a[0])) || (b[1] - a[1]))[0]?.[0] || v;
   return /[A-Z]/.test(best) ? best : best.replace(/(^|[\s\-\/&(])([a-z])/g, (m, p, c) => p + c.toUpperCase());
 }
-const addItemDoc = doc => db.collection("items").add({ ...doc, supplier: canonSup(doc.supplier) });
+/* categories, subcategories and locations: reuse the existing spelling whatever case is typed;
+   a brand-new one gets "First letter capital, rest lowercase" (mixed case like "CEREC lab" is kept as typed, first letter capitalised) */
+function sentenceCase(v){ v = clean(v); if (!v) return v; const allSame = v === v.toLowerCase() || v === v.toUpperCase(); const s = allSame ? v.toLowerCase() : v; return s.charAt(0).toUpperCase() + s.slice(1); }
+function canonName(field, v){
+  v = clean(v); if (!v) return v;
+  const k = keyOf(v), n = new Map();
+  items.forEach(i => { const s = clean(i[field]); if (s && keyOf(s) === k) n.set(s, (n.get(s) || 0) + 1); });
+  if (field === "loc") { try { orderedLocs().forEach(g => { const s = clean(g.name); if (s && keyOf(s) === k) n.set(s, (n.get(s) || 0) + 1); }); } catch {} }
+  const good = [...n.entries()].filter(([s]) => /[A-Z]/.test(s)).sort((a, b) => b[1] - a[1]);
+  return good.length ? good[0][0] : sentenceCase(v);
+}
+const addItemDoc = doc => db.collection("items").add({ ...doc, supplier: canonSup(doc.supplier), ...["cat", "sub", "loc"].reduce((o, f) => (f in doc ? { ...o, [f]: canonName(f, doc[f]) } : o), {}) });
 async function write(id, patch){
   if ("supplier" in patch && !write.raw) patch = { ...patch, supplier: canonSup(patch.supplier) };
+  if (!write.raw) ["cat", "sub", "loc"].forEach(f => { if (f in patch && patch[f]) patch = { ...patch, [f]: canonName(f, patch[f]) }; });
   /* price history: every price change is kept on the item (last 24), for the trend in the item window */
   if ("unitCost" in patch) { const old = byId(id), a = num(old?.unitCost), b = num(patch.unitCost);
     if (b != null && b > 0 && a !== b) { let h = Array.isArray(old?.priceHist) ? old.priceHist.slice() : []; if (!h.length && a != null && a > 0) h.push({ at: old.updatedAt || old.createdAt || Date.now() - 1, p: a }); h.push({ at: Date.now(), p: b, by: me() }); patch = { ...patch, priceHist: h.slice(-24) }; } }
@@ -2893,7 +2905,8 @@ $("#view").addEventListener("change", async e => {
   const inp = e.target.closest?.("#pgrid input[data-f]"); if (!inp) return;
   const it = byId(inp.closest("tr").dataset.id); if (!it) return;
   const f = inp.dataset.f, num_ = f === "qty" || f === "desired" || f === "urgent";
-  const v = num_ ? (num(inp.value) ?? 0) : clean(inp.value);
+  let v = num_ ? (num(inp.value) ?? 0) : clean(inp.value);
+  if (v && (f === "cat" || f === "sub" || f === "loc")) { v = canonName(f, v); inp.value = v; }
   const old = num_ ? num(it[f]) : clean(it[f]);
   if (v === old) return;
   if (f === "name" && !v) { inp.value = it.name; toast("An item needs a name"); return; }

@@ -181,6 +181,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
         case 'add_item': {
             $p = clean_fields($a);
             if (isset($p['supplier'])) $p['supplier'] = canon_supplier($pdo, (string)$p['supplier']);
+            foreach (['cat', 'sub', 'loc'] as $cf) if (isset($p[$cf]) && $p[$cf] !== '') $p[$cf] = canon_name($pdo, $cf, (string)$p[$cf]);
             if (($p['name'] ?? '') === '') throw new RuntimeException('name is required.');
             $w = who($a);
             $doc = array_merge(['name' => '', 'sku' => '', 'supplier' => '', 'link' => '', 'unitCost' => '', 'units' => '', 'desc' => '', 'cat' => '', 'sub' => '', 'loc' => '', 'qty' => 0, 'desired' => null, 'urgent' => null, 'notes' => '', 'exp' => '', 'ordered' => '', 'orderedQty' => 0], $p);
@@ -195,6 +196,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $id = (string)($a['id'] ?? ''); $it = item_or_fail($pdo, $id); $w = who($a);
             $p = clean_fields($a);
             if (isset($p['supplier'])) $p['supplier'] = canon_supplier($pdo, (string)$p['supplier']);
+            foreach (['cat', 'sub', 'loc'] as $cf) if (isset($p[$cf]) && $p[$cf] !== '') $p[$cf] = canon_name($pdo, $cf, (string)$p[$cf]);
             if (!empty($a['photo_url'])) { $old = $it['photo'] ?? ''; $p['photo'] = save_photo($pdo, (string)$a['photo_url']); if ($old) $pdo->prepare('DELETE FROM sr_blobs WHERE id = ?')->execute([$old]); }
             if (!$p) throw new RuntimeException('Nothing to change.');
             $changed = array_keys($p);
@@ -288,6 +290,15 @@ switch ($m) {
 }
 
 // One spelling per supplier: "henry schein", "HENRY SCHEIN" and "Henry-Schein" all become the name already in use.
+/* category / subcategory / location: reuse the existing spelling in any case; new ones get a capital first letter, rest lowercase */
+function canon_name(PDO $pdo, string $field, string $v): string {
+    $v = trim(preg_replace('/\s+/', ' ', $v)); if ($v === '') return '';
+    $k = mb_strtolower($v); $seen = [];
+    foreach (all_docs($pdo, 'items') as $it) { $n = trim((string)($it[$field] ?? '')); if ($n !== '' && mb_strtolower($n) === $k && preg_match('/[A-Z]/', $n)) $seen[$n] = ($seen[$n] ?? 0) + 1; }
+    if ($seen) { arsort($seen); return (string)array_key_first($seen); }
+    $s = ($v === mb_strtolower($v) || $v === mb_strtoupper($v)) ? mb_strtolower($v) : $v;
+    return mb_strtoupper(mb_substr($s, 0, 1)) . mb_substr($s, 1);
+}
 function canon_supplier(PDO $pdo, string $v): string {
     $v = trim(preg_replace('/\s+/', ' ', $v)); if ($v === '') return '';
     $key = fn($x) => preg_replace('/[^a-z0-9]+/', '', mb_strtolower($x));
