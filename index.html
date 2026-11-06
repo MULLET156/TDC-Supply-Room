@@ -1275,6 +1275,50 @@ body[data-view="sups"] #fSup, body[data-view="cats"] #fCat, body[data-view="locs
 .panel.item .savebar.dirty #saveBtn{box-shadow:0 0 0 3px var(--accent-soft)}
 .panel.item .savebar .dirtynote{align-self:center;font-size:13px;font-weight:700;color:var(--accent);flex-basis:100%;margin-bottom:-2px}
 .panel.item .savebar:not(.dirty) #saveBtn{opacity:.7}
+/* ---- extra row facts ---- */
+.row .rside .xc{font-family:var(--f-mono);font-size:13.5px;font-weight:700;color:var(--fg);white-space:nowrap}
+.row .rside .xc.xwait{font-family:inherit;font-weight:600;color:var(--muted);font-size:13px}
+.row .rside .xc.xwait.late{color:var(--warn,#b45309)}
+.row .rside .xprice, .row .rside .xrec{display:none}
+.selbar .xhead{display:none}
+body[data-view="all"] .row .rside .xc{order:5}
+body[data-view="all"] .row .rside .step{order:6}
+.grp .gtot{font-family:var(--f-mono);font-weight:800;color:var(--fg)}
+@media (min-width:1100px){
+  .wrap{max-width:1140px}
+  body[data-view="all"] .row .rside .xprice{display:inline-block;width:92px;text-align:right}
+  body[data-view="all"] .selbar.slim{display:flex;align-items:center}
+  body[data-view="all"] .row .rside .step{min-width:58px;justify-content:flex-end}
+  body[data-view="all"] .selbar .xhead{display:flex;margin-left:auto;gap:8px;padding-right:0;margin-right:-4px;white-space:nowrap;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  body[data-view="all"] .selbar .xhead span:nth-child(1){width:92px;text-align:right}
+  body[data-view="all"] .selbar .xhead span:nth-child(2){width:88px;text-align:right}
+  body[data-view="all"] .selbar .xhead span:nth-child(3){width:58px;text-align:right}
+  body[data-view="all"] .row .rside .xrec{display:inline-block;width:88px;text-align:right;font-family:inherit;font-weight:500;color:var(--muted);font-size:13px}
+}
+/* what each page shows on its rows */
+body[data-view="all"] .row .meta .catpath{display:none}
+body[data-view="need"] .row .meta .m-loc{display:none}
+body[data-view="sups"] .row .meta .m-sup, body[data-view="cats"] .row .meta .m-sup, body[data-view="locs"] .row .meta .m-sup{display:none}
+body[data-view="locs"] .row .meta .m-loc{display:none}
+#scanHd{display:none}
+.tabs-main .cntbtn .sh{display:none}
+@media (max-width:640px){
+  .tabs-main .cntbtn .lg{display:none}
+  .tabs-main .cntbtn .sh{display:inline}
+  #scanHd:not([hidden]){display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:10px;flex:none}
+  .cmrow:has(#scanHd:not([hidden])) #jumpSlot{flex:1 1 0!important;min-width:0}
+  .cmrow > #countModes{flex-basis:100%}
+  .dock .wrap > #scanBtn{display:none!important}
+  .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]){display:none!important}
+  html body .dock .navslot .tabs-main > .tab.t-exp{display:none!important}
+  html body.on-products #bulkBar{display:none!important}
+}
+/* the Save bar only shows once something has changed (Close at the top closes the window) */
+.panel.item .savebar:not(.dirty){display:none!important}
+@media (max-width:640px){
+  .panel.item .ititle h2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+  .panel.item .ititle h2.full{display:block;-webkit-line-clamp:unset}
+}
 .leavebox{border:2px solid var(--accent);display:grid;gap:6px}
 .leavebox .actions{display:flex;gap:8px;flex-wrap:wrap}
 
@@ -1665,7 +1709,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
   .dock .wrap:has(#dockCntClear:not([hidden])) > #scanBtn{display:none!important}
   .dock .wrap{padding-top:6px!important;padding-bottom:6px!important}
   .dock .btn{min-height:44px!important;font-size:15px!important}
-  .dock .tabs-main{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .dock .tabs-main{grid-template-columns:repeat(5,minmax(0,1fr))!important}
   .dock .tabs-main .morebtn{display:flex!important}
   .dock .tabs-main > .tab, .dock .tabs-main > .tab.big{min-height:50px!important}
   .dock .tabs-main .tl{font-size:11px!important}
@@ -1683,7 +1727,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
           <div class="whoami" id="whoBox"><label for="who">Logging as</label><select id="who"><option value="">Pick…</option></select></div>
         </div>
         <div class="toolrow2">
-          <button class="btn pri addhdr" id="addBtn" type="button"><i data-ic="plus"></i>Add item</button>
+          <button class="btn pri addhdr" id="addBtn" type="button" title="Add item (shortcut: N)"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
           <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
@@ -1694,7 +1738,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
       <button class="tab big t-need" role="tab" data-t="need" aria-selected="true"><span class="tl"><i data-ic="cart"></i>Order list</span> <span class="n" id="n-need">–</span></button>
       <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false"><span class="tl"><i data-ic="truck"></i>On the way</span> <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false"><span class="tl"><i data-ic="hourglass"></i>Expiring</span> <span class="n" id="n-exp">–</span></button>
-      <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl">Inventory counter</span></button>
+      <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl"><span class="lg">Inventory counter</span><span class="sh">Count</span></span></button>
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
@@ -1702,10 +1746,10 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
       <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
       <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
-    </div><div id="jumpSlot"></div></div>
+    </div><div id="jumpSlot"></div><button class="btn sm" id="scanHd" type="button" hidden><i data-ic="barcode"></i>Scan</button></div>
     <div id="alertSlot"></div>
     <div class="filters">
-      <input id="q" type="search" placeholder="Search items, SKU, supplier…" autocomplete="off">
+      <input id="q" type="search" placeholder="Search items, SKU, supplier…" title="Search (shortcut: /)" autocomplete="off">
       <select id="fSup" aria-label="Supplier"><option value="">All suppliers</option></select>
       <select id="fCat" aria-label="Category"><option value="">All categories</option></select>
       <select id="fLoc" aria-label="Location"><option value="">All storage locations</option></select>
@@ -1914,6 +1958,7 @@ hydrateIcons();
   document.querySelectorAll(".tooltabs .tab.tool").forEach(b => { if (!b.getAttribute("aria-label")) b.setAttribute("aria-label", b.textContent.trim()); b.title = b.textContent.trim(); });
 })();
 const clean = s => String(s ?? "").replace(/\s+/g, " ").trim();
+const isPhone = () => matchMedia("(max-width:640px)").matches;
 const keyOf = s => clean(s).toLowerCase();
 const num = s => { if (typeof s === "number") return s; const n = parseFloat(String(s ?? "").replace(/[^0-9.\-]/g, "")); return isFinite(n) ? n : null; };
 const fmtQ = n => n == null ? "–" : (Math.round(n * 100) / 100).toString();
@@ -2341,15 +2386,33 @@ async function countOne(it, btn){
   catch(e) { toast(dbErr(e)); }
   finally { btn.disabled = false; }
 }
+/* price as a number ("$12.50", "12.5" -> 12.5); null when it isn't a plain price */
+function priceNum(v){ v = clean(v); if (!/^\$?\s*[\d,]*\.?\d+$/.test(v)) return null; const n = Number(v.replace(/[$,\s]/g, "")); return isFinite(n) && n > 0 ? n : null; }
+const money = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const lineTotal = i => { const p = priceNum(i.unitCost), q = Number(i.orderQty) || 0; return p != null && q > 0 ? p * q : null; };
+const daysSince = s => { const t = Date.parse(s); return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : null; };
+/* extra facts on the right of a row, depending on the page */
+function grpTotal(rows, intro){
+  const ts = rows.map(lineTotal), known = ts.filter(t => t != null), sum = known.reduce((a, b) => a + b, 0);
+  if (!known.length) return "";
+  const miss = rows.length - known.length, tip = miss ? `${miss} item${miss > 1 ? "s have" : " has"} no price, so ${miss > 1 ? "they aren't" : "it isn't"} counted` : "From each item's saved price";
+  return intro ? ` (about <b>${money(sum)}</b>${miss ? `, ${miss} without a price` : ""})` : ` · <span class="gtot" title="${tip}">${miss ? "≈ " : ""}${money(sum)}</span>`;
+}
+function xcols(i){
+  if (tab === "need") { const t = lineTotal(i); return t != null ? `<span class="xc xtot" title="${esc(priceTxt(i.unitCost))} × ${fmtQ(i.orderQty)}">${money(t)}</span>` : ""; }
+  if (tab === "ordered" && i.onOrder) { const d = daysSince(i.ordered); return d != null ? `<span class="xc xwait${d >= 10 ? " late" : ""}" title="Ordered ${esc(i.ordered)}">${d === 0 ? "Today" : d === 1 ? "1 day" : d + " days"}</span>` : ""; }
+  if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
+  return "";
+}
 function rowHtml(i, withChk){
   const openNow = typeof curItem !== "undefined" && curItem?.id === i.id && document.querySelector("#overlay .panel.item") ? " open-now" : "";
   return `<div class="row ${stockCls(i)}${openNow}" data-id="${esc(i.id)}">
     <input type="checkbox" class="chk" ${withChk ? "" : "hidden"} ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}">
     <div class="info" tabindex="0" role="button">${i.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(i.photo)}" onerror="this.remove()">` : ""}<div class="txt">
       <div class="nm">${pills(i, true, true)}${esc(i.name)}${i.expiring ? ` <span class="pill p-exp p-after">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>` : ""}</div>
-      <div class="meta">${countedToday(i) ? `<span class="cntd" title="Counted ${esc(when(i.countedAt))}${i.countedBy ? " by " + esc(i.countedBy) : ""}${nextDue(i) ? " · next due " + esc(shortDate(+nextDue(i))) : ""}">✓ Counted</span>` : ""}${i.cat ? `<span class="catpath">${esc(i.cat)}${i.sub ? " › " + esc(i.sub) : ""}</span>` : ""}${i.loc ? `<span>${esc(i.loc)}</span>` : ""}${i.supplier ? `<span>${esc(i.supplier)}</span>` : ""}${i.units ? `<span>${esc(i.units)}</span>` : ""}${i.sku ? `<span class="pill p-sku">${esc(i.sku)}</span>` : ""}</div>
+      <div class="meta">${countedToday(i) ? `<span class="cntd" title="Counted ${esc(when(i.countedAt))}${i.countedBy ? " by " + esc(i.countedBy) : ""}${nextDue(i) ? " · next due " + esc(shortDate(+nextDue(i))) : ""}">✓ Counted</span>` : ""}${i.cat ? `<span class="catpath">${esc(i.cat)}${i.sub ? " › " + esc(i.sub) : ""}</span>` : ""}${i.loc ? `<span class="m-loc">${esc(i.loc)}</span>` : ""}${i.supplier ? `<span class="m-sup">${esc(i.supplier)}</span>` : ""}${i.units ? `<span class="m-units">${esc(i.units)}</span>` : ""}${i.sku ? `<span class="pill p-sku">${esc(i.sku)}</span>` : ""}</div>
     </div></div>
-    <div class="rside">${i.need && tab !== "need" ? `<span class="pill p-need ordamt" title="How many to order">Order ${fmtQ(i.orderQty)}</span>` : ""}${i.link ? `<a class="golink" href="${esc(webHref(i.link))}" target="_blank" rel="noopener" title="Open the product page${i.supplier ? " on " + esc(i.supplier) : ""}" aria-label="Open the product page for ${esc(i.name)}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.5" fill="currentColor"/><circle cx="17" cy="19.5" r="1.5" fill="currentColor"/></svg><span class="gotxt">Shop</span></a>` : ""}${tab === "need" && i.need ? ordStep(i) : tab === "exp" && i.expiring && !readOnly ? `<div class="exprep inrow" data-expid="${esc(i.id)}">${expEditor(i)}</div>` : `<div class="step" id="st-${esc(i.id)}"><button type="button" data-d="-1" aria-label="One less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.qty)}<small>/${fmtQ(i.desired)}</small></span><button type="button" data-d="1" aria-label="One more" ${readOnly ? "disabled" : ""}>+</button></div>${readOnly ? "" : cntBtn(i)}`}</div>
+    <div class="rside">${xcols(i)}${i.need && tab !== "need" ? `<span class="pill p-need ordamt" title="How many to order">Order ${fmtQ(i.orderQty)}</span>` : ""}${i.link ? `<a class="golink" href="${esc(webHref(i.link))}" target="_blank" rel="noopener" title="Open the product page${i.supplier ? " on " + esc(i.supplier) : ""}" aria-label="Open the product page for ${esc(i.name)}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.5" fill="currentColor"/><circle cx="17" cy="19.5" r="1.5" fill="currentColor"/></svg><span class="gotxt">Shop</span></a>` : ""}${tab === "need" && i.need ? ordStep(i) : tab === "exp" && i.expiring && !readOnly ? `<div class="exprep inrow" data-expid="${esc(i.id)}">${expEditor(i)}</div>` : `<div class="step" id="st-${esc(i.id)}"><button type="button" data-d="-1" aria-label="One less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.qty)}<small>/${fmtQ(i.desired)}</small></span><button type="button" data-d="1" aria-label="One more" ${readOnly ? "disabled" : ""}>+</button></div>${readOnly ? "" : cntBtn(i)}`}</div>
   </div>`;
 }
 /* ---- inventory counts: select a whole location / category / supplier, mark it counted, and it's logged with the date ---- */
@@ -2595,7 +2658,7 @@ function pageHead(){
     ordered: ["On the way", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
-    count: ["Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that item's schedule (Setup › Alerts, or per item). Tick what you've counted, then Mark counted."]
+    count: [isPhone() ? "Count" : "Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that item's schedule (Setup › Alerts, or per item). Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
   h.hidden = !P; if (!P) return;
@@ -2610,7 +2673,7 @@ function updateOrdFloat(){
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
   if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").innerHTML = ic("listplus") + (n ? `Add ${n} to order list` : "Tick items, then Add to order list"); $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
-  if (dc) { dc.hidden = !cn; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick items, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
+  if (dc) { dc.hidden = !cn || (isPhone() && !selected.size); const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick items, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
@@ -2700,6 +2763,7 @@ function renderInner(){
   if (tab === "add") { if (!addBuilt) buildAddPage(); return; }
   const banner = (!me() || !team.includes(me())) && !readOnly ? `<div class="notice"><b>Who's logging?</b><span class="hint">Pick your initials next to "Logging as" at the top. This device remembers them, and every count, order and change is stamped with them.</span></div>` : "";
   if (tab === "log") { v.innerHTML = banner + logHtml(); wireLog(); return; }
+  if (tab === "products" && isPhone()) { v.innerHTML = `<div class="list"><div class="empty"><b>The Editor needs a bigger screen.</b><br>Open it on a computer or tablet. On a phone, tick items on All items to add them to the order list or print labels, or open an item to change it.</div></div>`; return; }
   if (tab === "products") { const ae = document.activeElement; if (ae?.closest?.("#pgrid") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + productsHtml(items); wireProducts(all); return; }
   if (tab === "setup") { if (dragging) return; const ae = document.activeElement; if (ae?.closest?.("#view") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + setupHtml(); wireSetup(); return; }
   if (!items.length) {
@@ -2713,12 +2777,13 @@ function renderInner(){
     const urg = list.filter(i => i.is911);
     const slot911 = $("#alertSlot");
     if (slot911) slot911.innerHTML = "";
-    v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} to order, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
+    const allT = grpTotal(list, true);
+    v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} to order${allT}, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
       <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${web ? `<a class="grpweb" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open the ${esc(s)} webstore">${real ? supLogo(s) : ""}${esc(s)}<span class="gwext">${ic("ext")}</span></a>` : `${real ? supLogo(s) : ""}${esc(s)}`}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} items in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp"><span class="grpname">${web ? `<a class="grpweb" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open the ${esc(s)} webstore">${real ? supLogo(s) : ""}${esc(s)}<span class="gwext">${ic("ext")}</span></a>` : `${real ? supLogo(s) : ""}${esc(s)}`}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} items in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}${grpTotal(rows)}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
@@ -2773,7 +2838,7 @@ function renderInner(){
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
+    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
     { const s = $("#selShown"); if (s && !allSel && selected.size) s.indeterminate = true; }
 
@@ -3204,6 +3269,10 @@ function syncDirty(){
   else if (!d && note) note.remove();
 }
 document.addEventListener("input", e => { if (e.target.closest?.("#overlay .panel.item")) syncDirty(); });
+document.addEventListener("change", e => { if (e.target.closest?.("#overlay .panel.item")) syncDirty(); });
+/* fields filled in by Look up / photo tools don't fire input events: keep the Save bar in step */
+setInterval(() => { if ($("#overlay .panel.item")) syncDirty(); }, 700);
+document.addEventListener("click", e => { const t = e.target.closest?.("#overlay .panel.item .ititle h2"); if (t) t.classList.toggle("full"); });
 document.addEventListener("click", e => { if (e.target.closest?.("#overlay .panel.item .cbox button")) setTimeout(syncDirty, 0); });
 /* ask before leaving a card with unsaved changes: Save / Discard / Keep editing */
 function leavePrompt(go){
@@ -5041,6 +5110,15 @@ async function decodeBarcode(img){
   return "";
 }
 function startScan(){ $("#scanBtn").click(); }
+$("#scanHd").onclick = () => startScan();
+/* keyboard: "/" jumps to search, "n" adds a new item (not while typing or with a window open) */
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+  const t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+  if (typing || $("#overlay .panel")) return;
+  if (e.key === "/") { const q = $("#q"); if (q && q.offsetParent) { e.preventDefault(); q.focus(); q.select(); } }
+  else if ((e.key === "n" || e.key === "N") && !readOnly) { e.preventDefault(); $("#addBtn")?.click(); }
+});
 $("#scanBtn").onclick = () => {
   openPanel(`<div class="ph"><h2>Scan to count</h2><button class="iconbtn" data-close type="button">Close</button></div>
   <div class="drop"><span class="big">Take a photo of the box or label</span><span class="hint">Get the product name and any barcode or catalog number in frame. Claude finds it on your list and opens it so you can update the count. To add a product you don't have yet, use <b>Add item</b> instead.</span><label class="btn pri filebtn">Open camera<input type="file" id="takeIn" accept="image/*" capture="environment"></label></div>`);
@@ -6092,24 +6170,25 @@ $("#moreBtn")?.addEventListener("click", e => {
   openPanel(`<div class="ph"><h2>More</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <div class="mmenu">
       <button class="mi pri" type="button" data-m="add">${ic("plus")}Add item</button>
-      <button class="mi" type="button" data-m="products">${ic("table")}Editor<small>edit many items at once</small></button>
+      <button class="mi" type="button" data-m="exp">${ic("hourglass")}Expiring<small id="mExpN"></small></button>
       <button class="mi" type="button" data-m="log">${ic("history")}Log</button>
       <button class="mi" type="button" data-m="setup">${ic("gear")}Setup</button>
       <label class="mi">${ic("pencil")}Logging as<select id="mWho">${who ? who.innerHTML : ""}</select></label>
       <div class="mrow"><button class="mi" type="button" data-m="snd">${ic("music")}<span id="mSnd">${lab($("#sndBtn"))}</span></button><button class="mi" type="button" data-m="theme">${ic(document.documentElement.dataset.theme === "dark" ? "sun" : "moon")}Theme</button></div>
     </div>`);
+  { const n = $("#n-exp")?.textContent?.trim(); if ($("#mExpN") && n && n !== "–" && n !== "0") $("#mExpN").textContent = n + " soon"; }
   const s = $("#mWho"); if (s && who) { s.value = who.value; s.onchange = () => { who.value = s.value; who.dispatchEvent(new Event("change", { bubbles: true })); }; }
   $("#overlay .mmenu").addEventListener("click", ev => {
     const b = ev.target.closest("[data-m]"); if (!b) return; const m = b.dataset.m;
     if (m === "snd") { $("#sndBtn")?.click(); $("#mSnd").textContent = lab($("#sndBtn")); return; }
     if (m === "theme") { $("#themeBtn")?.click(); return; }
     closePanel();
-    if (m === "add") $("#addBtn")?.click(); else { tool(m)?.click(); window.scrollTo(0, 0); }
+    if (m === "add") $("#addBtn")?.click(); else if (m === "exp") { tabClick($(".tab.t-exp")); window.scrollTo(0, 0); } else { tool(m)?.click(); window.scrollTo(0, 0); }
   });
 });
 $("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
 /* reopen on the last page used on this device */
-try { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "log", "setup"].includes(v)) setTab(v); } catch {}
+try { if (isPhone()) { const cb = $(".tab.cntbtn"); if (cb) tabClick(cb); } else { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "log", "setup"].includes(v)) setTab(v); } } catch {}
 function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
@@ -6121,6 +6200,7 @@ function syncCounter(t){
   const box = $("#countModes"); if (box) box.hidden = !on;
   if (on) { document.querySelectorAll('#countModes input[name="cmode"]').forEach(r => { r.checked = r.value === t; }); try { localStorage.setItem("tdc-cntmode", t); } catch {} }
   const sb = $("#scanBtn"); if (sb) sb.hidden = !on;   /* Scan to count only while counting */
+  const sh = $("#scanHd"); if (sh) sh.hidden = !on;
 }
 try { syncCounter(tab); } catch { const sb = $("#scanBtn"); if (sb) sb.hidden = true; }
 /* phone: Editor / Activity log / Setup sit behind a ☰ menu */
