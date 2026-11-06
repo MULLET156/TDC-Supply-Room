@@ -1112,6 +1112,14 @@ h2 .beta{vertical-align:4px;font-size:10.5px}
 
 .bigpicview{position:fixed;inset:0;z-index:60;background:var(--surface);display:grid;grid-template-rows:auto 1fr;gap:10px;padding:16px max(16px,env(safe-area-inset-left,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
 .bigpicview .bigpic{max-width:100%;max-height:100%;object-fit:contain;margin:auto}
+/* photo pop-out: a medium card over a dimmed page, not full screen */
+.bigpicview{background:rgba(15,20,18,.55)!important;display:flex!important;align-items:center;justify-content:center;padding:16px!important}
+.bigpicview > *{display:none}
+.bigpicview .bpcard{display:flex;flex-direction:column;gap:8px;width:min(440px,92vw);max-height:min(560px,86vh);background:var(--surface);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.35);padding:12px}
+.bigpicview .bpcard .ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0}
+.bigpicview .bpcard .ph .iconbtn{flex:none;width:auto!important;padding:0 12px!important;min-height:36px}
+.bigpicview .bpcard .ph h2{font-size:15px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bigpicview .bpcard .bigpic{display:block;width:100%;height:auto;max-height:min(460px,70vh);object-fit:contain;margin:0;border-radius:10px;background:#fff}
 
 /* ---- compact phone header: tools behind ☰, slim counters ---- */
 .menubtn{display:none;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:999px;min-height:40px;padding:0 12px;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
@@ -3050,7 +3058,7 @@ function openPanel(html){
 function showBigPic(src, title){
   $("#bigPicView")?.remove();
   const v = document.createElement("div"); v.id = "bigPicView"; v.className = "bigpicview"; v.setAttribute("role", "dialog"); v.setAttribute("aria-label", title);
-  v.innerHTML = `<div class="ph"><h2>${esc(title)}</h2><button class="iconbtn" type="button" id="picBack">Back</button></div><img class="bigpic" src="${esc(src)}" alt="${esc(title)}">`;
+  v.innerHTML = `<div class="bpcard"><div class="ph"><h2>${esc(title)}</h2><button class="iconbtn" type="button" id="picBack">Close</button></div><img class="bigpic" src="${esc(src)}" alt="${esc(title)}"></div>`;
   document.body.appendChild(v);
   const close = () => { v.remove(); document.removeEventListener("keydown", esc2, true); };
   const esc2 = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
@@ -4266,7 +4274,7 @@ function wirePhoto(onPick, onRemove){
   const mb = $("#pMenuBtn"); if (mb) mb.onclick = () => { const m = $("#pMenu"); m.hidden = !m.hidden; mb.setAttribute("aria-expanded", String(!m.hidden)); };
   ["#pCam", "#pLib"].forEach(sel => { const el = $(sel); if (!el) return; el.onclick = e => { e.stopPropagation(); if (!needMe()) e.preventDefault(); }; el.onchange = () => { const f = el.files?.[0]; el.value = ""; if (f) onPick(f); }; });
   $("#pDel") && ($("#pDel").onclick = e => { const b = e.currentTarget; if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Tap again"; return; } onRemove(); });
-  $("#pPic") && ($("#pPic").onclick = () => showBigPic($("#pPic").src, "Photo"));
+  $("#pPic") && ($("#pPic").onclick = () => showBigPic($("#pPic").src, $("#overlay .ititle h2")?.textContent || "Photo"));
 }
 let reopen = null;
 $("#photoIn").addEventListener("change", e => { const f = e.target.files?.[0]; if (f && photoTarget) photoTarget(f); });
