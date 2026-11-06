@@ -1233,7 +1233,9 @@ body[data-view="sups"] #fSup, body[data-view="cats"] #fCat, body[data-view="locs
 .exprow label{font-size:13px;font-weight:700;color:var(--muted)}
 .exprow input{min-height:38px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--surface);color:var(--fg);font:inherit}
 .ihbtns{display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0}
-.ihbtns #toolsBtn{font-size:13px;padding:6px 10px;min-height:34px}
+.ihbtns #toolsBtn,.ihbtns #ptoolsBtn{font-size:13px;padding:6px 10px;min-height:34px}
+.ihbtns .btn{white-space:nowrap}
+@media (max-width:640px){.isechead > span:first-child{display:none}.isechead{justify-content:flex-end}.ihbtns{display:flex;gap:6px;flex-wrap:nowrap}.ihbtns .btn{padding:0 10px!important;font-size:14px!important;min-height:40px}.manrow .cs-s{display:none}}
 
 /* ================= fun themes ================= */
 .musicbtn{flex:0 0 auto;font-weight:800;font-size:16px;line-height:1}
@@ -3138,7 +3140,7 @@ function countBoxes(q, d, u, cnt, inBox = true){
   return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
 }
 /* the count schedule dropdown on its own (item window: on the line with Add to order list) */
-function cntSelRow(cnt){ const m = countBoxes(0, 0, 0, cnt).match(/<span class="chint cntlab">[\s\S]*?<\/select>/); return m ? `<label class="cntrow">${m[0].replace('<span class="chint cntlab">Count schedule</span>', '<span>Count schedule</span>')}</label>` : ""; }
+function cntSelRow(cnt){ const m = countBoxes(0, 0, 0, cnt).match(/<span class="chint cntlab">[\s\S]*?<\/select>/); return m ? `<label class="cntrow">${m[0].replace('<span class="chint cntlab">Count schedule</span>', '<span>Count<span class="cs-s"> schedule</span></span>')}</label>` : ""; }
 /* The Add page and the item window use the same field ids. Look inside the open window first so one never
    reads or writes the other's fields. */
 function fld(id){ const p = $("#overlay .panel"); return (p && p.querySelector("#" + CSS.escape(id))) || document.getElementById(id); }
@@ -4377,14 +4379,16 @@ async function openItem(it, prefill){
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
     <div class="manrow">${cntSelRow(f.countEvery)}${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button>` : ""}</div>
     <div class="isecs">
-      <div class="isechead"><span>Item info</span><span class="ihbtns"><button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("sparkle")}Tools ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
+      <div class="isechead"><span>Item info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
+    ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
+      <button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>
+      <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
+    </div>`}
     <div class="pmenu imenu" id="toolsMenu" hidden>
-      ${readOnly ? "" : `<button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>`}
       <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
       <a class="pmi" data-pfind="sup" href="#" target="_blank" rel="noopener">${ic("search")}Search supplier ↗</a>
       <button type="button" class="pmi" data-autoscrape>${ic("refresh")}Update from supplier page <span class="aitag">${ic("sparkle")}Claude</span></button>
       <button type="button" class="pmi" data-pfill id="pfillHidden">${ic("clipboard")}Paste page text <span class="aitag">${ic("sparkle")}Claude</span></button>
-      ${readOnly ? "" : `<button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>`}
     </div>
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
@@ -4408,7 +4412,8 @@ async function openItem(it, prefill){
   wireCounts();
   if (readOnly) document.querySelectorAll(".panel button:not([data-close]), .panel input").forEach(x => x.disabled = true);
   const menu = (btnSel, menuSel) => { const b = $(btnSel), m = $(menuSel); if (!b || !m) return; b.onclick = () => { m.hidden = !m.hidden; b.setAttribute("aria-expanded", String(!m.hidden)); }; m.addEventListener("click", e => { if (e.target.closest(".pmi") && !e.target.closest("#delBtn")) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); };
-  menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu");
+  menu("#moreBtn", "#moreMenu"); menu("#toolsBtn", "#toolsMenu"); menu("#ptoolsBtn", "#ptoolsMenu");
+  { const a = $("#ptoolsBtn"), b = $("#toolsBtn"); a?.addEventListener("click", () => { const m = $("#toolsMenu"); if (m && !m.hidden) { m.hidden = true; b.setAttribute("aria-expanded", "false"); } }); b?.addEventListener("click", () => { const m = $("#ptoolsMenu"); if (m && !m.hidden) { m.hidden = true; a?.setAttribute("aria-expanded", "false"); } }); }
   $("#editBtn").onclick = () => { unlockItem(); openSec("ord"); openSec("det"); $("#e-sup")?.focus(); };
   $("#tChgPhoto") && ($("#tChgPhoto").onclick = () => { openSec("ph"); $("#sec-ph")?.scrollIntoView({ block: "center", behavior: "smooth" }); const m = $("#pMenu"); if (m && m.hidden) $("#pMenuBtn")?.click(); });
   $("#tDup") && ($("#tDup").onclick = () => { const go = () => openNew({ name: it.name, sku: "", units: it.units || "", cat: it.cat || "", sub: it.sub || "", loc: it.loc || "", supplier: it.supplier || "", link: "", exp: "", unitCost: "", notes: "", desc: it.desc || "", qty: 0, desired: num(it.desired) ?? 1, urgent: num(it.urgent) ?? 0, countEvery: it.countEvery ?? "", note: `Copied from "${it.name}". Change the name, SKU, reorder link and price for the new one, then save.` }); if (cardDirty()) leavePrompt(go); else go(); });
