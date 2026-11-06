@@ -1325,6 +1325,19 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 .logopick button.lp:hover{border-color:var(--accent)}
 .logopick button.lp img{max-height:48px;max-width:140px;object-fit:contain}
 .flabel{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.notice.dupwarn{border-color:var(--bad);background:var(--bad-soft)}.notice.dupwarn .hint{color:var(--bad)}
+.bsum{max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:8px}
+.bsum table{width:100%;border-collapse:collapse;font-size:13.5px}
+.bsum th,.bsum td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+.bsum th{position:sticky;top:0;background:var(--sunk);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.bsum tr.flag td{background:var(--warn-soft)}
+.bsum b.up{color:var(--bad)}.bsum b.down{color:var(--ok)}
+.linkbtn{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--fg);text-decoration:underline;cursor:pointer;text-align:left}
+.chg.big{background:var(--bad-soft);color:var(--bad)}
+.pstrip{display:flex;gap:6px;overflow-x:auto;padding:6px 0 2px;grid-column:1/-1;width:100%}
+.pstrip button{flex:none;width:64px;height:64px;border:2px solid var(--line);border-radius:9px;background:#fff;padding:3px;cursor:pointer;display:grid;place-items:center}
+.pstrip button.on{border-color:var(--accent)}.pstrip button.busy{opacity:.5}
+.pstrip img{max-width:100%;max-height:100%;object-fit:contain}
 #markOrd,#markRcv{display:none!important}
 .expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
 .exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
@@ -2294,7 +2307,7 @@ function productsHtml(all){
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
-    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
+    <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="findPhotos" ${sample && items.some(i => !i.photo) ? "" : "disabled"} title="${sample ? "Look up a photo for every product that has none, one at a time" : "Needs Claude"}">${ic("images")}Find missing photos (${items.filter(i => !i.photo).length})</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
@@ -2408,6 +2421,7 @@ function syncBatchBtn(){ const ex_ = $("#exportGrid"); if (ex_) { const sh = doc
 function wireProducts(all){
   const list = () => [...document.querySelectorAll("#pgrid tr.row")].map(r => byId(r.dataset.id)).filter(Boolean);
   $("#batchUpd").onclick = () => { const pick = list().filter(i => selected.has(i.id)); if (!pick.length) { toast("Tick the products you want to update first"); return; } startBatch(pick); };
+  $("#findPhotos") && ($("#findPhotos").onclick = () => { const l = items.filter(i => !i.photo).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })); if (startBatch(l, { photoOnly: true })) toast(`${l.length} products without a photo`); });
   $("#gSelAll").onchange = e => { if (e.target.checked) list().forEach(i => selected.add(i.id)); else selected.clear(); document.querySelectorAll("#pgrid .chk").forEach(c => c.checked = e.target.checked); updateBulk(); syncBatchBtn(); };
   document.querySelectorAll("[data-psort]").forEach(b => b.onclick = () => { const k = b.dataset.psort; pSort = { k, dir: pSort.k === k ? -pSort.dir : 1 }; render(); });
   $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
@@ -3363,7 +3377,7 @@ function batchErr(e){
   }[c];
   return (m || browserErr(e, "read the supplier's page") || "Couldn't read the page this time. Try again.") + (c ? ` (code: ${c})` : "");
 }
-function startBatch(list){
+function startBatch(list, preset = {}){
   if (!list.length) return false;
   if (B) { toast(B.quick ? "Claude is still filling in a new item. Wait for it to finish first." : "A batch update is already running."); return false; }
   if (!needMe()) return false;
@@ -3371,12 +3385,13 @@ function startBatch(list){
   const full = !!mcp || !!window.HOSTED;
   /* the two speed-up toggles are remembered on this device */
   let auto = {}; try { auto = JSON.parse(localStorage.getItem("tdc.batchAuto") || "{}") || {}; } catch {}
-  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, name: true, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
+  const po = !preset.photoOnly;
+  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, name: po, price: po, units: po, sku: po, supplier: po, desc: po, link: po, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
   openPanel(`<div class="ph"><div><h2>Update ${list.length} item${list.length === 1 ? "" : "s"} from supplier pages</h2><div class="lastby">One at a time — you approve each</div></div><button class="iconbtn" data-close type="button">Close</button></div>
     ${full ? `<p class="hint">${window.HOSTED ? "For each item, the server opens its reorder link (or searches the web for it by SKU and name when there's no link) and Claude reads the page and suggests a proper name." : "For each item, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name."} Pick the name, check the filled-in details, then save and move to the next one.${window.HOSTED ? " Prices that only show when signed in to a supplier account won't come through." : " The app may ask you to allow each supplier's website the first time."}</p>`
       : `<div class="notice"><b>Names only in this browser</b><span class="hint">Reading supplier pages (price, package size, photo, description, SKU) only works when this page is open in the Claude desktop app. Here, Claude can still suggest a proper name for each item.</span></div>`}
     ${full ? `<div class="bopts"><b>Fill in</b>
-      ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" checked> ${l}</label>`).join("")}
+      ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" ${po ? "checked" : ""}> ${l}</label>`).join("")}
       <div class="bphotoopt"><label><input type="checkbox" id="bPhotoOn" checked> Photo</label>
         <div class="bpchoice" id="bPhotoMode" role="radiogroup" aria-label="Which photos"><label><input type="radio" name="bpm" value="missing" checked> Only items missing a photo</label><label><input type="radio" name="bpm" value="always"> Replace existing photos</label></div></div>
       <p class="hint">Untick everything except Photo to update photos only.</p></div>` : ""}
@@ -3395,7 +3410,7 @@ function startBatch(list){
 }
 async function batchStep(next){
   if (!B) return;
-  if (B.i >= B.list.length) { const d = B.done, sk = B.skipped; B = null; openPanel(`<div class="ph"><h2>All done</h2><button class="iconbtn" data-close type="button">Close</button></div><p>${d} item${d === 1 ? "" : "s"} updated${sk ? `, ${sk} skipped` : ""}.</p>`); render(); return; }
+  if (B.i >= B.list.length) { const d = B.done, sk = B.skipped, ch = B.changes || []; B = null; openPanel(`<div class="ph"><h2>All done</h2><button class="iconbtn" data-close type="button">Close</button></div><p>${d} item${d === 1 ? "" : "s"} updated${sk ? `, ${sk} skipped` : ""}.</p>${batchSummary(ch)}`); render(); return; }
   const it = byId(B.list[B.i].id) || B.list[B.i], n = B.i + 1, tot = B.list.length;
   const head = `<div class="ph"><div><div class="lastby">${n} of ${tot}</div><h2>${esc(it.name)}</h2><div class="lastby">${esc([it.supplier, it.sku, it.units].filter(Boolean).join(" · "))}</div></div><button class="iconbtn" type="button" id="bStop">Stop</button></div><div class="bprog"><span style="width:${Math.round((B.i / tot) * 100)}%"></span></div>`;
   const run = B.run = (B.run || 0) + 1;
@@ -3457,6 +3472,17 @@ function autoCountdown(btn, label, what){
   const cancel = e => { if (e?.target?.closest?.("small.cd") || e?.target === btn) return; clearInterval(t); btn.querySelector("small.cd")?.remove(); hint.textContent = "Auto-accept paused for this item."; panel.removeEventListener("pointerdown", cancel); panel.removeEventListener("keydown", cancel); };
   panel.addEventListener("pointerdown", cancel); panel.addEventListener("keydown", cancel);
 }
+/* Batch Update: what changed, before → after, with big price moves flagged */
+function priceMove(a, b){ const x = num(a), y = num(b); if (x == null || y == null || !x) return null; return (y - x) / x * 100; }
+function batchSummary(ch){
+  if (!ch.length) return "";
+  const lab = { unitCost: "Price", units: "Package size", sku: "SKU", supplier: "Supplier", desc: "Description", link: "Reorder link", name: "Name" };
+  const big = ch.filter(c => c.ch.some(([k, a, b]) => k === "unitCost" && Math.abs(priceMove(a, b) ?? 0) >= 20)).length;
+  return `${big ? `<div class="notice dupwarn"><span class="hint">${ic("alert")}<b>${big} price${big === 1 ? "" : "s"} moved 20% or more.</b> They're marked below; open the item to check or undo.</span></div>` : ""}
+  <div class="bsum"><table><thead><tr><th>Item</th><th>Change</th><th>Before</th><th>After</th></tr></thead><tbody>${ch.map(c => (c.ch.length ? c.ch : [["photo", "", ""]]).map(([k, a, b], j) => { const mv = k === "unitCost" ? priceMove(a, b) : null; const flag = mv != null && Math.abs(mv) >= 20;
+    return `<tr class="${flag ? "flag" : ""}">${j ? "<td></td>" : `<td><button type="button" class="linkbtn" data-openitem="${esc(c.id)}">${esc(c.name)}</button>${c.photo ? ` <span class="pill p-sku">${ic("image")}photo</span>` : ""}</td>`}<td>${k === "photo" ? "Photo" : esc(lab[k] || k)}${mv != null ? ` <b class="${mv > 0 ? "up" : "down"}">${mv > 0 ? "+" : ""}${Math.round(mv)}%</b>` : ""}</td><td>${k === "desc" || k === "link" ? "" : esc(String(a).slice(0, 60))}</td><td>${k === "desc" ? "updated" : k === "link" ? "updated" : esc(String(b).slice(0, 60))}</td></tr>`; }).join("")).join("")}</tbody></table></div>`;
+}
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-openitem]"); if (!b) return; const it = byId(b.dataset.openitem); if (it) { closePanel(); openItem(it); } });
 function batchReview(it, r, name, head){
   const o = B.opts, pr = num(r.price), f = {
     name, unitCost: o.price && pr != null ? "$" + pr.toFixed(2) : it.unitCost || "",
@@ -3469,17 +3495,23 @@ function batchReview(it, r, name, head){
   const photoOnly = !o.name && !["price", "units", "sku", "supplier", "desc", "link"].some(k => o[k]);
   if (photoOnly) { ["unitCost", "units", "sku", "supplier", "desc", "link"].forEach(k => { f[k] = it[k] || ""; }); }
   if (photoOnly && !usePhoto) { B.skipped++; B.i++; toast(`No photo found for ${it.name}. Skipped.`); batchStep(); return; }
-  const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
+  const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}${k === "unitCost" && Math.abs(priceMove(cur, f[k]) ?? 0) >= 20 ? ` <span class="chg big">${priceMove(cur, f[k]) > 0 ? "+" : ""}${Math.round(priceMove(cur, f[k]))}% — check</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
   const purl = usePhoto ? URL.createObjectURL(r.photo) : "";
   openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">${ic("receipt")}<b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
-    ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div></div>` : ""}
+    ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div>${hasMorePhotos(r) ? `<div class="pstrip" aria-label="Other photos on the page">${r.morePhotos.slice(0, 8).map(u => `<button type="button" data-pstrip="${esc(u)}" title="Use this photo"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></button>`).join("")}</div>` : ""}</div>` : ""}
     <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
     ${r.url ? `<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page Claude read ↗</a>` : ""}
     <div class="actions savebar"><button class="btn" type="button" id="bBack"${o.name ? "" : " hidden"}>← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">${photoOnly ? "Save photo &amp; next" : "Save &amp; next"}</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
   $("#bSkip").onclick = () => { B.skipped++; B.i++; batchStep(); };
   $("#bBack").onclick = () => { batchStepFromResult(it, r, head); };
+  document.querySelectorAll("#overlay [data-pstrip]").forEach(pb => pb.onclick = async () => {
+    if (pb.classList.contains("busy")) return; pb.classList.add("busy");
+    try { const b = await TDC.fetchPhoto(pb.dataset.pstrip, r.pageUrl || r.url || ""); r.photo = new File([b], "product." + ((b.type || "").split("/")[1] || "jpg"), { type: b.type || "image/jpeg" }); $("#overlay .bphoto img").src = URL.createObjectURL(r.photo); $("#bf-photo").checked = true; document.querySelectorAll("#overlay [data-pstrip]").forEach(x => x.classList.toggle("on", x === pb)); }
+    catch { toast("That picture couldn't be downloaded"); pb.remove(); }
+    pb.classList.remove("busy");
+  });
   $("#bNextPhoto") && ($("#bNextPhoto").onclick = async e => { const b = e.currentTarget; b.disabled = true; b.textContent = "Getting another…"; const f = await nextPhoto(r);
     if (f) { r.photo = f; $("#overlay .bphoto img").src = URL.createObjectURL(f); $("#bf-photo").checked = true; } else toast("No other photos on that page");
     b.disabled = false; b.textContent = "Show another photo"; b.hidden = !hasMorePhotos(r); });
@@ -3489,7 +3521,7 @@ function batchReview(it, r, name, head){
     if (!patch.name) delete patch.name;
     try {
       if (usePhoto && $("#bf-photo")?.checked && assets) { const up = await uploadPhoto(r.photo); const old = it.photo; patch.photo = up.id; if (old) assets.delete(old).catch(() => {}); }
-      if (Object.keys(patch).length) { await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU" })[k] || k).join(", ")); B.done++; }
+      if (Object.keys(patch).length) { (B.changes = B.changes || []).push({ id: it.id, name: patch.name || it.name, ch: Object.keys(patch).filter(k => k !== "photo").map(k => [k, it[k] || "", patch[k]]), photo: !!patch.photo }); await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU" })[k] || k).join(", ")); B.done++; }
       B.i++; batchStep();
     } catch(err) { btn.disabled = false; btn.textContent = "Save & next"; toast(err?.code ? dbErr(err) : photoErr(err)); }
   };
@@ -4513,6 +4545,11 @@ async function runDocRead(){
     go.disabled = false; go.textContent = "Read with Claude";
   }
 }
+/* Invoice duplicate check: remember every invoice/order number applied */
+let docsSeen = [];
+const docNo = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
+function docSeenBefore(r){ const n = docNo(r.number); if (!n) return null; return docsSeen.find(d => d.n === n && (!d.sup || !r.supplier || keyOf(d.sup) === keyOf(r.supplier))) || null; }
+async function docRemember(r, mode, count){ const n = docNo(r.number); if (!n) return; const list = [{ n, num: r.number, sup: clean(r.supplier), kind: r.kind, mode, count, at: Date.now(), by: me() }, ...docsSeen.filter(d => !(d.n === n && keyOf(d.sup) === keyOf(r.supplier)))].slice(0, 500); try { await db.doc("settings/docsSeen").set({ list }); docsSeen = list; } catch {} }
 function docReview(r){
   const mode0 = ["invoice", "packing_slip"].includes(r.kind) ? "receive" : r.kind === "order_confirmation" ? "ordered" : "prices";
   const kindName = { invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
@@ -4524,6 +4561,7 @@ function docReview(r){
   const D = r.lines.map(l => ({ ...l }));
   const head = [kindName, sup, r.number ? "#" + r.number : "", r.date ? new Date(r.date + "T12:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : ""].filter(Boolean).join(" · ");
   openPanel(`<div class="ph"><div><h2>Check what Claude found</h2><div class="lastby">${esc(head)}</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
+    ${(() => { const d = docSeenBefore(r); return d ? `<div class="notice dupwarn"><span class="hint">${ic("alert")}<b>Already applied:</b> ${esc(d.num || r.number)} was applied on ${esc(new Date(d.at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }))}${d.by ? " by " + esc(d.by) : ""} (${esc(DOC_MODES[d.mode] || d.mode)}). Applying it again would count it twice, so the lines start unticked.</span></div>` : ""; })()}
     ${r.notes ? `<div class="notice"><span class="hint">${ic("alert")}${esc(r.notes)}</span></div>` : ""}
     <div class="f full"><label for="docMode">What should this do?</label><select id="docMode">${Object.entries(DOC_MODES).map(([k, v]) => `<option value="${k}" ${k === mode0 ? "selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
     <p class="hint">Ticked lines are applied. Change the item if Claude matched the wrong one.</p>
@@ -4532,7 +4570,7 @@ function docReview(r){
       <input type="checkbox" class="dchk" data-on aria-label="Apply this line">
       <div class="dmain">
         <div class="ddesc">${esc(l.desc || l.name || "Line " + (k + 1))}<span class="hint">${[l.sku ? "SKU " + esc(l.sku) : "", l.pack ? esc(l.pack) : "", l.backordered ? "<b>backordered</b>" : ""].filter(Boolean).join(" · ")}</span></div>
-        <select data-pick aria-label="Inventory item for this line"><option value="__new">➕ Add as a new item${l.name || l.desc ? ": " + esc(l.name || l.desc) : ""}</option>${itemOpts}</select>
+        <select data-pick aria-label="Inventory item for this line"><option value="__new">+ Add as a new item${l.name || l.desc ? ": " + esc(l.name || l.desc) : ""}</option>${itemOpts}</select>
         <div class="dnums"><label>Qty <input data-qty inputmode="decimal" value="${l.qty ? fmtQ(l.qty) : ""}"></label><label>Price <input data-price inputmode="decimal" value="${l.price != null ? "$" + l.price.toFixed(2) : ""}" placeholder="$0.00"></label></div>
         <div class="dchg hint" data-chg></div>
       </div></div>`).join("")}</div>
@@ -4541,7 +4579,7 @@ function docReview(r){
   rows.forEach((row, k) => {
     const l = D[k], pick = row.querySelector("[data-pick]");
     pick.value = l.match && byId(l.match) ? l.match : "__new";
-    row.querySelector("[data-on]").checked = l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind);
+    row.querySelector("[data-on]").checked = docSeenBefore(r) ? false : l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind);
     row.addEventListener("input", () => docChg(row, l, sup));
     row.addEventListener("change", () => docChg(row, l, sup));
   });
@@ -4611,6 +4649,7 @@ async function docApply(rows, D, r, sup){
         ok++; added++;
       }
     }
+    if (ok) await docRemember(r, mode, ok);
     if (orderLines.length) { try { await db.collection("orders").add({ at: Date.now(), initials: me(), lines: orderLines }); } catch {} }
     sync("ok", "Saved");
     if (recv) Sfx.play("receive"); else if (ordd) Sfx.play("order");
@@ -4642,7 +4681,7 @@ async function scanFile(file){
   const status = t => { const s = $("#scanStatus"); if (s) s.textContent = t; };
   const code = await decodeBarcode(img);
   if (code) {
-    const hit = items.find(i => i.sku && normSku(i.sku) === normSku(code));
+    const hit = items.find(i => (i.sku && normSku(i.sku) === normSku(code)) || (i.barcode && String(i.barcode) === String(code)));
     if (hit) { if (!$("#scanOut")) return; openItem(hit, { note: `Barcode ${code} matched this item. Update the count and save.` }); return; }
   }
   if (!sample || !canImages) {
@@ -4673,6 +4712,7 @@ ${catalog}`;
         <div class="actions"><button class="btn pri grow" id="useHit" type="button">Update this item</button><button class="btn" id="notHit" type="button">Different product</button></div></div>`;
       if (assets && !hit.photo) $("#useHit").insertAdjacentHTML("beforebegin", `<label class="hint" style="display:flex;gap:6px;align-items:center;flex-basis:100%"><input type="checkbox" id="keepPic" checked> Save this photo as the product photo</label>`);
       $("#useHit").onclick = () => {
+        const bc = code || clean(r.barcode); if (bc && hit.barcode !== bc && !(hit.sku && normSku(hit.sku) === normSku(bc))) write(hit.id, { barcode: bc }).catch(() => {});   /* remember the barcode so the next scan is instant and free */
         const pre = {
         sku: hit.sku || sku, exp: clean(r.expiration) || hit.exp,
         note: (!hit.sku && sku ? `SKU ${sku} from the label is filled in, so next time a scan finds it instantly. ` : "") + (r.expiration ? `Label expiry ${r.expiration} filled in. ` : "") + "Update the count, then save."
@@ -5593,6 +5633,7 @@ async function boot(){
     orders = snap.docs.map(d => d.data());
     if (tab === "ordered") render();
   }, () => {});
+  db.doc("settings/docsSeen").onSnapshot(snap => { docsSeen = (snap.exists && snap.data().list) || []; }, () => {});
   db.doc("settings/team").onSnapshot(snap => {
     team = (snap.exists && snap.data().initials) || [];
     renderWho(); render();

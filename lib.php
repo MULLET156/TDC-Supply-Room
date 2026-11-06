@@ -323,6 +323,8 @@ function ai_json(string $prompt, array $images = [], string $tier = '', array $o
         elseif (in_array($mime, IMG_TYPES, true)) $content[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
     }
     $content[] = ['type' => 'text', 'text' => $prompt . "\n\nReply with only the JSON, no other text."];
+    // A long fixed part (instructions + our inventory) goes first and is cached, so a run of invoices only pays for it once.
+    if (is_string($opt['cache'] ?? null) && $opt['cache'] !== '') array_unshift($content, ['type' => 'text', 'text' => $opt['cache'], 'cache_control' => ['type' => 'ephemeral']]);
     $body = json_encode([
         'model' => $model, 'max_tokens' => (int)($opt['maxTokens'] ?? 4096),
         'messages' => [['role' => 'user', 'content' => $content]],
@@ -484,7 +486,17 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
  * Reads a supplier's product page and returns what the Add item page fills in:
  * names[], sku, mfrNumber, price, units, description, supplier, url, photo (type + base64), note.
  */
+// Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
+    $dir = sys_get_temp_dir() . '/tdc-pages';
+    $key = $dir . '/' . hash('sha256', $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
+    $r = read_product_link_live($url, $ctx, $quick);
+    if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
+    if (mt_rand(1, 50) === 1) foreach ((array)@glob($dir . '/*.json') as $f) if (@filemtime($f) < time() - 86400) @unlink($f);
+    return $r;
+}
+function read_product_link_live(string $url, array $ctx = [], bool $quick = false): array {
     $am = amazon_url($url);
     if ($am !== null && apify_ready()) {
         // Amazon blocks servers from reading its pages, so Amazon links go through Apify's Amazon scraper.
@@ -746,6 +758,16 @@ function find_product_page(array $q, array $ctx = []): array {
             return $direct;
         }
     }
+    // Benco: the page address is the item number too (3855778 or 3855-778 -> /Product/3855-778).
+    $bnNum = preg_replace('/\D+/', '', $sku);
+    if (preg_match('/^\d{6,8}$/', $bnNum) && (stripos($sup, 'benco') !== false || str_contains($site, 'benco'))) {
+        $bn = substr($bnNum, 0, -3) . '-' . substr($bnNum, -3);
+        $direct = read_product_link('https://shop.benco.com/Product/' . $bn, $ctx);
+        if ($direct['ok'] && (preg_replace('/\D/', '', (string)($direct['sku'] ?? '')) === $bnNum || str_contains((string)($direct['url'] ?? ''), '/Product/' . $bn))) {
+            $direct['note'] = trim('Opened Benco\'s page for item ' . $sku . '. ' . ($direct['note'] ?? ''));
+            return $direct;
+        }
+    }
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.
@@ -862,7 +884,7 @@ $nameRule
 OUR INVENTORY (id | name | SKU | supplier | units):
 P;
     $prompt .= "\n" . implode("\n", $cat);
-    $r = ai_json($prompt, $files, '', ['maxFiles' => 8, 'maxTokens' => 16000, 'timeout' => 200]);
+    $r = ai_json('Read the attached documents now and reply with the JSON described above.', $files, '', ['maxFiles' => 8, 'maxTokens' => 16000, 'timeout' => 200, 'cache' => $prompt]);
     if (!$r['ok']) return $r;
     $v = is_array($r['value']) ? $r['value'] : [];
     $lines = [];
