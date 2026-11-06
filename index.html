@@ -725,6 +725,8 @@ body.on-products .filters{display:none!important}
 .iprice{font-family:var(--f-mono);font-size:16px;font-weight:800;color:var(--fg);white-space:nowrap}
 .iprice small{font-family:var(--f-ui,system-ui);font-size:12px;font-weight:600;color:var(--muted)}
 .sumprice{color:var(--fg);font-weight:800}
+.sumsup{display:inline-flex;align-items:center;vertical-align:middle}
+.sumsup .suplogo{height:20px;max-width:60px;padding:1px 3px;margin-right:6px;border-radius:4px}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
 .manrow{flex-wrap:nowrap!important;gap:8px!important}
 .istatus:has(> .btn){display:flex;align-items:center;gap:8px;padding-top:6px;padding-bottom:6px}
@@ -4442,7 +4444,7 @@ async function openItem(it, prefill){
   const by = isInit(it.updatedBy) ? it.updatedBy : "";
   const st = itemStatus(it);
   const photoSrc = it.photo ? "blob.php?id=" + it.photo : "";
-  const ordSum = [esc(clean(it.supplier)), clean(it.unitCost) ? `<b class="sumprice">${esc(priceTxt(it.unitCost))}</b>` : "", esc(clean(it.units))].filter(Boolean).join(" · ") || "No supplier yet";
+  const ordSum = [clean(it.supplier) ? `<span class="sumsup">${supLogo(it.supplier)}${esc(clean(it.supplier))}</span>` : "", clean(it.unitCost) ? `<b class="sumprice">${esc(priceTxt(it.unitCost))}</b>` : "", esc(clean(it.units))].filter(Boolean).join(" · ") || "No supplier yet";
   const detSum = [it.cat ? it.cat + (it.sub ? " › " + it.sub : "") : "", it.exp ? "Exp " + it.exp : "", it.countEvery == null || it.countEvery === "" ? "" : String(it.countEvery) === "0" ? "Not counted" : "Count " + cntName(it.countEvery).toLowerCase()].map(clean).filter(Boolean).map(esc).join(" · ") || "Category, location, notes";
   const phSum = it.photo ? "Product photo" + (it.skuPhoto ? " · SKU photo" : "") : (it.skuPhoto ? "SKU photo only" : "No photo yet. Tap to add one");
   /* Ordering starts closed; it stays open only if you had it open (e.g. after a save) */
