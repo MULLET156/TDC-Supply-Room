@@ -1235,8 +1235,13 @@ async function pageFunction(context) {
           if (!cands.length) { out.results.push({ q: job.q, error: 'not found by search' }); continue; }
           url = cands[0].url;
         }
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await sleep(6000);
-        out.results.push({ url, q: job.q || '', cands, text: scrub((await page.innerText('body')).slice(0, 7000)) });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        /* Henry Schein shows $0.00 first and fills in the account price a few seconds later: wait for a real price */
+        let body = '';
+        for (let i = 0; i < 12; i++) { await sleep(2500); body = await page.innerText('body').catch(() => ''); if (/\$\s*(?!0\.00)\d[\d,]*\.\d\d/.test(body)) break; }
+        const prices = (body.match(/\$\s*\d[\d,]*\.\d\d/g) || []).slice(0, 8);
+        const signedIn = !/\bSign In\b/.test(body.slice(0, 3000)) || /sign out|log out|my account/i.test(body);
+        out.results.push({ url, q: job.q || '', cands, prices, signedIn, text: scrub(body.slice(0, 9000)) });
       } catch (e) { out.results.push({ url: job.url || '', q: job.q || '', error: String(e).slice(0, 200) }); }
     }
   } catch (e) { out.error = String(e).slice(0, 300); out.url = page.url(); }
@@ -1299,7 +1304,9 @@ function signed_in_read(array $o, array $pages): array {
             . ($found ? "This page was found by searching Henry Schein for \"{$pg['q']}\", so it may be a different product: say whether it is the same product (same brand, product, size/shade; pack may differ).\n" : '')
             . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), what one unit is, and Henry Schein's item number.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"sku\": \"item #\", \"same\": true/false, \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
         $v = $a['ok'] ? (array)$a['value'] : [];
-        $out[] = ['id' => $pg['id'], 'url' => $url, 'found' => $found, 'same' => $found ? !empty($v['same']) : true, 'sku' => (string)($v['sku'] ?? ''), 'price' => is_numeric($v['price'] ?? null) ? (float)$v['price'] : null, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? '')];
+        $pr = is_numeric($v['price'] ?? null) && (float)$v['price'] > 0 ? (float)$v['price'] : null;
+        $out[] = ['id' => $pg['id'], 'url' => $url, 'found' => $found, 'same' => $found ? !empty($v['same']) : true, 'sku' => (string)($v['sku'] ?? ''), 'price' => $pr, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? ''),
+                  'debug' => ['pagePrices' => $r['prices'] ?? [], 'pageSignedIn' => $r['signedIn'] ?? null, 'start' => mb_substr(preg_replace('/\s+/', ' ', (string)$r['text']), 0, 500)]];
     }
     return ['ok' => true, 'results' => $out];
 }

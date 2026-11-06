@@ -3361,7 +3361,8 @@ async function hsSignedIn(list){
   }
   if (saved) logIt("Price checked", null, `Henry Schein signed-in prices for ${saved} item${saved > 1 ? "s" : ""} (test)`);
   openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p><b>It worked${saved ? `: ${saved} price${saved > 1 ? "s" : ""} saved` : ", but no prices were found on the pages"}.</b> They show as "Signed in" in the comparison.</p><ul class="hint">${rows.join("")}</ul>
+    <p><b>${saved ? `It worked: ${saved} price${saved > 1 ? "s" : ""} saved.</b> They show as "Signed in" in the comparison.` : `It logged in, but no prices were found on the pages.</b>`}</p><ul class="hint">${rows.join("")}</ul>
+    <details><summary class="hint">Details for Claude</summary><pre class="hint" style="white-space:pre-wrap;max-height:260px;overflow:auto">${esc(JSON.stringify((r.results || []).map(x => ({ url: x.url, price: x.price, note: x.note, ...(x.debug || {}) })), null, 1))}</pre></details>
     <div class="actions savebar"><button class="btn pri grow" data-close type="button">Show the comparison</button></div>`);
   render();
 }
