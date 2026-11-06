@@ -1494,6 +1494,8 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   header .pagehead{padding-top:6px!important;padding-bottom:6px!important}
   header .pagehead p{display:none!important}
 }
+/* Order list: no SKU on the rows (it is in the Order online list, the item window and the rep email) */
+body[data-view="need"] .list .row .info .meta > .p-sku{display:none!important}
 /* All items is for browsing: on hand shows read-only; counting happens on the Count page */
 body[data-view="all"] .list .row .rside .cntok{display:none!important}
 body[data-view="all"] .list .row .rside .step{border:0!important;background:none!important;box-shadow:none!important;min-height:0!important}
