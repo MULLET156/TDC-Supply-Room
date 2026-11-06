@@ -1358,6 +1358,7 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+.spest{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}.spcard small + small{display:block;margin-top:2px}
 header #addBtn{display:none!important}
 .newprodrow{display:flex;justify-content:flex-end;margin-bottom:-4px}
 .newprodrow .btn{min-height:42px}
@@ -2586,7 +2587,7 @@ async function setOrderLinePrice(it, price){
   if (oid) { try { const s = await db.doc("orders/" + oid).get(); if (s?.exists) o = { id: oid, ...s.data() }; } catch {} }
   if (!o) { const snap = await db.collection("orders").orderBy("at", "desc").limit(60).get(); const d = snap.docs.find(x => (x.data().lines || []).some(l => l.id === it.id)); if (d) o = { id: d.id, ...d.data() }; }
   if (!o) return;
-  const lines = (o.lines || []).map(l => l.id === it.id ? { ...l, price, invoiced: true } : l);
+  const lines = (o.lines || []).map(l => l.id === it.id ? { ...l, price, invoiced: true, est: false } : l);
   await db.doc("orders/" + o.id).update({ lines });
 }
 function grpTotal(rows, intro){
@@ -3291,12 +3292,51 @@ function histHtml(){
     const sups = [...new Set((o.lines||[]).map(l=>l.supplier).filter(Boolean))];
     const by = o.initials || "";
     const L = o.lines || [];
-    const tot = L.reduce((a, l) => a + (Number(l.price) > 0 ? Number(l.price) * (Number(l.qty) || 0) : 0), 0), miss = L.some(l => !(Number(l.price) > 0));
+    const tot = L.reduce((a, l) => a + (Number(l.price) > 0 ? Number(l.price) * (Number(l.qty) || 0) : 0), 0), miss = L.some(l => !(Number(l.price) > 0) || l.est);
     return `<details class="hord"><summary><span class="hwhen">${esc(when(o.at))}</span><span class="hsup">${esc(sups.join(", ") || "Order")}</span><span class="hcnt">${tot ? `<b class="htot">${miss ? "≈ " : ""}${money(tot)}</b> · ` : ""}${L.length} product${L.length === 1 ? "" : "s"}${by ? ` · <span class="init">${esc(by)}</span>` : ""}</span></summary>
-      <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}<span class="hp">${Number(l.price) > 0 ? `${money(Number(l.price) * (Number(l.qty) || 0))}${l.invoiced ? ` <small title="Price from the invoice">inv.</small>` : ""}` : ""}</span></li>`).join("")}</ul></details>`;
+      <ul class="hlines">${L.map(l => `<li><span class="hq">${fmtQ(l.qty)}</span><span class="hn">${esc(l.name)}${l.units ? `<small>${esc(l.units)}</small>` : ""}</span>${sups.length > 1 && l.supplier ? `<span class="hs">${esc(l.supplier)}</span>` : ""}<span class="hp">${Number(l.price) > 0 ? `${money(Number(l.price) * (Number(l.qty) || 0))}${l.invoiced ? ` <small title="Price from the invoice">inv.</small>` : l.est ? ` <small title="Estimated from the product's saved price">est.</small>` : ""}` : ""}</span></li>`).join("")}</ul></details>`;
   }).join("")}</div>`;
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
+/* Backfill: order lines saved before prices were tracked get the product's price now, marked as an estimate (est).
+   An invoice price for the line later replaces it. Only the same pack size counts. */
+function estPriceFor(l){
+  const it = byId(l.id) || archived.find(a => a.id === l.id); if (!it) return null;
+  const sup = l.supplier || it.supplier || "";
+  const o = sup ? offerAt(it, sup) : null;
+  const same = pack => !l.units || !pack || keyOf(pack) === keyOf(l.units) || (unitCount(pack) != null && unitCount(pack) === unitCount(l.units));
+  if (o && Number(o.price) > 0 && same(o.pack)) return Math.round(Number(o.price) * 100) / 100;
+  const p = priceNum(it.unitCost);
+  if (p && same(it.units) && (!sup || keyOf(sup) === keyOf(it.supplier))) return p;
+  return null;
+}
+function estimatable(){
+  const out = [];
+  (spendOrders || []).forEach(o => (o.lines || []).forEach((l, k) => { if (!(Number(l.price) > 0)) { const p = estPriceFor(l); if (p) out.push({ o, k, l, p }); } }));
+  return out;
+}
+async function fillEstimates(){
+  const L = estimatable(); if (!L.length) { toast("Nothing to fill in"); return; }
+  const noP = (spendOrders || []).reduce((a, o) => a + (o.lines || []).filter(l => !(Number(l.price) > 0)).length, 0) - L.length;
+  const total = L.reduce((a, x) => a + x.p * (Number(x.l.qty) || 0), 0);
+  openPanel(`<div class="ph"><h2>Fill in estimated prices</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>${L.length} order line${L.length > 1 ? "s" : ""} from before prices were saved will get the product's current saved price, about <b>${money(total)}</b> in all. They're marked <b>est.</b> in the order history, Spending shows totals that include them with ≈, and an invoice price for a line replaces its estimate.</p>
+    ${noP > 0 ? `<p class="hint">${noP} other line${noP > 1 ? "s" : ""} stay${noP > 1 ? "" : "s"} blank: the product has no saved price, was deleted, or is now bought in a different pack size or from a different supplier.</p>` : ""}
+    <div class="rslist">${L.slice(0, 40).map(x => `<div class="rsrow" style="grid-template-columns:minmax(0,1fr) auto auto;cursor:default"><span><b>${esc(x.l.name || "Product")}</b><small>${esc(new Date(x.o.at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }))}${x.l.supplier ? " · " + esc(x.l.supplier) : ""}</small></span><span class="rsn">${fmtQ(x.l.qty)} × ${esc(money(x.p))}</span><span class="rsn"><b>${esc(money(x.p * (Number(x.l.qty) || 0)))}</b></span></div>`).join("")}${L.length > 40 ? `<div class="rsrow" style="grid-template-columns:1fr"><span class="hint">…and ${L.length - 40} more</span></div>` : ""}</div>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="estGo" type="button">Fill in ${L.length} estimate${L.length > 1 ? "s" : ""}</button></div>`);
+  $("#estGo").onclick = async () => {
+    if (!needMe()) return;
+    $("#estGo").disabled = true;
+    const byOrder = new Map(); L.forEach(x => { if (!byOrder.has(x.o.id)) byOrder.set(x.o.id, { o: x.o, set: new Map() }); byOrder.get(x.o.id).set.set(x.k, x.p); });
+    let ok = 0, n = 0;
+    for (const { o, set } of byOrder.values()) {
+      const lines = (o.lines || []).map((l, k) => set.has(k) && !(Number(l.price) > 0) ? { ...l, price: set.get(k), est: true } : l);
+      try { await db.doc("orders/" + o.id).update({ lines }); o.lines = lines; ok++; n += set.size; } catch {}
+    }
+    logIt("Setup", null, `Filled in estimated prices on ${n} past order line${n === 1 ? "" : "s"} (${ok} order${ok === 1 ? "" : "s"})`);
+    closePanel(); toast(`Filled in ${n} estimate${n === 1 ? "" : "s"}`); spendOrders = null; render();
+  };
+}
 const cmpSel = new Set();
 let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = (() => { try { return localStorage.getItem("tdc.spmode") === "compare" ? "compare" : "spend"; } catch { return "spend"; } })(), cmpShow = "need";
 const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
@@ -3322,6 +3362,7 @@ function spendInner(){
   spendOrders.forEach(o => { if (o.at < +from) return; (o.lines || []).forEach(l => { if (spendCat && catOf(l) !== spendCat) return; if (spendSup && supOf(l) !== spendSup) return; lines.push({ ...l, at: o.at, oid: o.id }); }); });
   const priced = lines.filter(l => Number(l.price) > 0), amt = l => Number(l.price) * (Number(l.qty) || 0);
   const total = priced.reduce((a, l) => a + amt(l), 0), nOrd = new Set(priced.map(l => l.oid)).size, missing = lines.length - priced.length;
+  const estAmt = priced.filter(l => l.est).reduce((a, l) => a + amt(l), 0), canEst = estimatable().length;
   const group = key => { const m = new Map(); priced.forEach(l => { const k = key(l); m.set(k, (m.get(k) || 0) + amt(l)); }); return m; };
   const bars = (m, sortByKey) => { const rows = [...m.entries()].sort(sortByKey ? (a, b) => b[0].localeCompare(a[0]) : (a, b) => b[1] - a[1]); const max = Math.max(1, ...rows.map(r => r[1]));
     return rows.length ? rows.map(([k, v]) => `<div class="sbar"><span class="sk">${esc(sortByKey ? new Date(k + "-01T12:00").toLocaleDateString([], { month: "short", year: "numeric" }) : k)}</span><span class="st"><i style="width:${Math.max(2, v / max * 100).toFixed(1)}%"></i></span><b class="sv">${money(v)}</b></div>`).join("") : `<p class="hint">Nothing yet.</p>`; };
@@ -3335,8 +3376,9 @@ function spendInner(){
     <div class="logfilt"><label>Period <select id="spPer">${[["12m", "Last 12 months"], ["month", "This month"], ["quarter", "This quarter"], ["year", "This year"], ["all", "All time"]].map(([v, l]) => opt(v, spendPer, l)).join("")}</select></label>
     <label>Category <select id="spCat"><option value="">All categories</option>${cats.map(c => opt(c, spendCat)).join("")}</select></label>
     <label>Supplier <select id="spSup"><option value="">All suppliers</option>${sups.map(c => opt(c, spendSup)).join("")}</select></label></div></div>
-    <div class="spcards"><div class="spcard"><small>Spent ${esc(label)}</small><b>${money(total)}</b></div><div class="spcard"><small>Orders</small><b>${nOrd}</b></div><div class="spcard"><small>Per month (avg)</small><b>${money(total / months)}</b></div></div>
+    <div class="spcards"><div class="spcard"><small>Spent ${esc(label)}</small><b>${estAmt ? "≈ " : ""}${money(total)}</b>${estAmt ? `<small>incl. ${money(estAmt)} estimated</small>` : ""}</div><div class="spcard"><small>Orders</small><b>${nOrd}</b></div><div class="spcard"><small>Per month (avg)</small><b>${money(total / months)}</b></div></div>
     ${missing ? `<p class="hint">${missing} order line${missing > 1 ? "s" : ""} in this period ${missing > 1 ? "have" : "has"} no saved price and ${missing > 1 ? "aren't" : "isn't"} counted (orders placed before prices were saved, or products without a price).</p>` : ""}
+    ${canEst && !readOnly ? `<div class="notice spest"><span>${canEst} past order line${canEst > 1 ? "s have" : " has"} no price, but the product has one saved now.</span><button type="button" class="btn" id="spEst">${ic("dollar")}Fill in estimates</button></div>` : ""}
     <div class="spgrid"><section class="spsec"><h3 class="sec">By month</h3>${bars(group(ym), true)}</section>
     <section class="spsec"><h3 class="sec">By supplier</h3>${bars(group(supOf))}</section>
     ${spendCat ? "" : `<section class="spsec"><h3 class="sec">By category</h3>${bars(group(l => catOf(l) || "No category"))}</section>`}
@@ -3443,6 +3485,7 @@ function compareColumns(){
     try { await db.doc("settings/rules").set({ ...rules, compareSups: v }); rules.compareSups = v; closePanel(); render(); } catch(e) { toast(dbErr(e)); } };
 }
 function wireSpend(){
+  $("#spEst") && ($("#spEst").onclick = fillEstimates);
   document.querySelectorAll("[data-spmode]").forEach(b => b.onclick = () => { spendMode = b.dataset.spmode; try { localStorage.setItem("tdc.spmode", spendMode); } catch {} render(); });
   if (spendMode === "compare") { wireCompare(); return; }
   $("#spPer") && ($("#spPer").onchange = e => { spendPer = e.target.value; render(); });
