@@ -200,6 +200,13 @@ try {
             out(200, $r);
         }
 
+        case 'signedinprices': {
+            $pages = is_array($req['pages'] ?? null) ? $req['pages'] : [];
+            $r = signed_in_prices($pdo, (string)($req['supplier'] ?? ''), $pages);
+            if (!$r['ok']) out(200, ['ok' => true, 'failed' => true] + $r);   // a failed login is an answer for the page, not an error
+            out(200, $r);
+        }
+
         case 'fetchphoto': {
             $r = fetch_photo(trim((string)($req['url'] ?? '')), trim((string)($req['page'] ?? '')));
             if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);

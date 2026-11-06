@@ -1174,6 +1174,87 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     return ['ok' => true, 'candidates' => array_map(fn($c) => ['url' => $c['url'], 'title' => $c['title'], 'supplier' => $c['supplier'] ?: $c['host'], 'mine' => $c['supplier'] !== '', 'sure' => $c['sure']], $keep)];
 }
 
+/* ---------- signed-in prices through Apify (test: Henry Schein) ----------
+   Logs in with the supplier login saved in Setup › Suppliers (read here on the server, never sent to the page),
+   opens each product page in a real browser and has Claude read the account price. */
+function supplier_login(PDO $pdo, string $sup): ?array {
+    $slug = 's-' . substr(preg_replace('/[^a-z0-9_\-.~]/', '-', mb_strtolower(trim(preg_replace('/\s+/', ' ', $sup)))), 0, 150);
+    $d = load($pdo, 'supinfo', $slug);
+    if (!$d) foreach (all_docs($pdo, 'supinfo') as $x) if (mb_strtolower(trim((string)($x['key'] ?? ''))) === mb_strtolower(trim($sup))) { $d = $x; break; }
+    $u = trim((string)($d['username'] ?? '')); $p = (string)($d['password'] ?? '');
+    return $u !== '' && $p !== '' ? ['u' => $u, 'p' => $p] : null;
+}
+function signed_in_prices(PDO $pdo, string $sup, array $pages): array {
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_apify', 'message' => 'This needs APIFY_TOKEN in config.php.'];
+    if (stripos($sup, 'schein') === false) return ['ok' => false, 'error' => 'unsupported', 'message' => 'Signed-in price checks are being tested with Henry Schein only.'];
+    $login = supplier_login($pdo, $sup);
+    if (!$login) return ['ok' => false, 'error' => 'no_login', 'message' => "Save the $sup login username and password in Setup › Suppliers first."];
+    $pages = array_values(array_filter(array_slice($pages, 0, 10), fn($p) => is_array($p) && preg_match('#^https://(www\.)?henryschein\.com/#i', (string)($p['url'] ?? ''))));
+    if (!$pages) return ['ok' => false, 'error' => 'no_pages', 'message' => 'None of these items has a Henry Schein product link yet.'];
+    @set_time_limit(330);
+    $fn = <<<'JS'
+async function pageFunction(context) {
+  const { page, customData } = context;
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const out = { stage: 'start', results: [] };
+  const scrub = s => String(s || '').split(customData.u).join('[user]');
+  try {
+    await sleep(3000);
+    const signIn = page.locator('a:has-text("Sign In"), button:has-text("Sign In")').first();
+    if (await signIn.count()) { await signIn.click().catch(() => {}); await sleep(6000); }
+    out.loginUrl = page.url();
+    const userSel = 'input[type=email], input[name*=user i], input[id*=user i], input[name*=email i], input[id*=email i], input[name=identifier], input[autocomplete=username]';
+    const passSel = 'input[type=password]';
+    await page.waitForSelector(userSel + ', ' + passSel, { timeout: 25000 });
+    const u = page.locator(userSel).first();
+    if (await u.count() && await u.isVisible().catch(() => false)) await u.fill(customData.u);
+    let p = page.locator(passSel).first();
+    if (!(await p.isVisible().catch(() => false))) { await page.keyboard.press('Enter'); await sleep(5000); p = page.locator(passSel).first(); await p.waitFor({ state: 'visible', timeout: 25000 }); }
+    await p.fill(customData.p);
+    await page.keyboard.press('Enter');
+    await sleep(10000);
+    out.afterUrl = page.url();
+    const t = (await page.innerText('body').catch(() => '')).slice(0, 1500);
+    out.afterText = scrub(t);
+    if (/verification code|one[- ]time (code|pass)|captcha|verify (it'?s|that it'?s) you|security code|enter the code/i.test(t)) { out.stage = 'challenge'; return out; }
+    if (/(incorrect|invalid|wrong).{0,40}(user|password|credentials)|(user|password).{0,40}(incorrect|invalid)/i.test(t)) { out.stage = 'bad_login'; return out; }
+    out.stage = 'logged_in';
+    for (const url of customData.urls) {
+      try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await sleep(6000);
+        out.results.push({ url, text: scrub((await page.innerText('body')).slice(0, 7000)) }); }
+      catch (e) { out.results.push({ url, error: String(e).slice(0, 200) }); }
+    }
+  } catch (e) { out.error = String(e).slice(0, 300); out.url = page.url(); }
+  return out;
+}
+JS;
+    $input = ['startUrls' => [['url' => 'https://www.henryschein.com/en-us/login']], 'pageFunction' => $fn, 'customData' => ['u' => $login['u'], 'p' => $login['p'], 'urls' => array_column($pages, 'url')],
+              'proxyConfiguration' => ['useApifyProxy' => true, 'apifyProxyGroups' => ['RESIDENTIAL'], 'apifyProxyCountry' => 'US'],
+              'launcher' => 'chromium', 'headless' => true, 'maxRequestRetries' => 0, 'maxConcurrency' => 1, 'pageLoadTimeoutSecs' => 60, 'pageFunctionTimeoutSecs' => 280, 'ignoreSslErrors' => false, 'downloadMedia' => true, 'downloadCss' => true];
+    $actor = (string)cfg('APIFY_LOGIN_ACTOR', 'apify~playwright-scraper');
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=300&format=json&clean=true');
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 320, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES), CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')]]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+    if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code < 200 || $code >= 300 || !is_array($j)) { $m = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return ['ok' => false, 'error' => 'apify', 'message' => 'Apify refused the run (' . $code . ($m ? ': ' . $m : '') . ').']; }
+    $o = array_is_list($j) ? ($j[0] ?? []) : $j;
+    $stage = (string)($o['stage'] ?? 'start');
+    $why = ['challenge' => 'Henry Schein asked for a verification code or a robot check, which an automated login can\'t answer.', 'bad_login' => 'Henry Schein didn\'t accept the saved username or password.', 'start' => 'The login page didn\'t look as expected' . (!empty($o['error']) ? ': ' . $o['error'] : '.')][$stage] ?? '';
+    if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 600)]];
+    $out = [];
+    foreach ((array)($o['results'] ?? []) as $k => $r) {
+        $pg = $pages[$k] ?? ['url' => $r['url'] ?? '', 'name' => ''];
+        if (empty($r['text'])) { $out[] = ['url' => $pg['url'], 'price' => null, 'note' => $r['error'] ?? 'Page didn\'t load']; continue; }
+        $a = ai_json("This is the text of a Henry Schein product page seen while signed in to the office's account. The office calls the product: \"" . ($pg['name'] ?? '') . "\".\n"
+            . "Find the office's price for one unit as sold (the account / your price, not a crossed-out list price), and what one unit is.\nReply with JSON: {\"price\": number or null, \"units\": \"e.g. Box of 200\", \"signedIn\": true if the page shows the visitor is signed in, \"note\": \"anything odd, or empty\"}\n\nPAGE TEXT:\n" . mb_substr($r['text'], 0, 7000), [], 'quick');
+        $v = $a['ok'] ? (array)$a['value'] : [];
+        $out[] = ['url' => $pg['url'], 'id' => $pg['id'] ?? '', 'price' => is_numeric($v['price'] ?? null) ? (float)$v['price'] : null, 'units' => (string)($v['units'] ?? ''), 'signedIn' => !empty($v['signedIn']), 'note' => (string)($v['note'] ?? '')];
+    }
+    return ['ok' => true, 'results' => $out];
+}
+
 /* ---------- reading invoices, packing slips, order confirmations and screenshots ---------- */
 // $files: list of ['type' => mime, 'data' => base64] (pictures or PDFs). Matches each product line to the inventory.
 function read_document(PDO $pdo, array $files, array $ctx = []): array {
