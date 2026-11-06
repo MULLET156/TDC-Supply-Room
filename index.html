@@ -5119,7 +5119,16 @@ const KIND_LBL = { invoice: "Invoice", list: "Price list", live: "Signed in", pu
 function offersFor(it){
   let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
-  if (cur != null && it.supplier && !L.some(o => keyOf(o.src) === keyOf(it.supplier) && Number(o.price) > 0 && o.sure !== false)) L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: it.updatedAt || 0, sure: true, mine: true, url: it.link || "" });
+  if (cur != null && it.supplier) {
+    /* the price saved on the product (typed in Ordering, or set by Use this) is the current price at its supplier:
+       when it was set after that supplier's other prices, it replaces them here (invoices still show under What you've paid) */
+    const k = keyOf(it.supplier), mineK = L.filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false);
+    const setAt = Array.isArray(it.priceHist) && it.priceHist.length ? +it.priceHist[it.priceHist.length - 1].at || 0 : 0;
+    if (!mineK.some(o => Math.abs(Number(o.price) - cur) < .005)) {
+      const newest = Math.max(0, ...mineK.map(o => +o.at || 0));
+      if (!mineK.length || setAt > newest) { L = L.filter(o => !(keyOf(o.src) === k && o.sure !== false && (+o.at || 0) < setAt)); L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: setAt || it.updatedAt || 0, sure: true, mine: true, url: it.link || "" }); }
+    }
+  }
   return L;
 }
 function bestOffer(it, mineOnly = true){
