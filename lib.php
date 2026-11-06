@@ -1209,24 +1209,44 @@ async function pageFunction(context) {
     await sleep(4000);
     const vis = async l => await l.isVisible().catch(() => false);
     const formInfo = async () => page.$$eval('input,button', els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).slice(0, 40).map(e => [e.tagName, e.type || '', e.name || '', e.id || '', (e.placeholder || e.innerText || e.value || '').trim().slice(0, 30)].join('|')));
-    /* open the sign-in panel: the header link, or the Sign In button on /login */
-    let pw = page.locator('input[type=password]');
-    if (!(await vis(pw.first()))) {
-      for (const sel of ['button:has-text("Sign In")', 'a:has-text("Sign In")', 'text=/^\\s*Sign In\\s*$/']) {
+    /* the sign-in form may open in this page, in an embedded frame, or in a pop-up window: look in all of them */
+    let pw;
+    const popups = [];
+    page.context().on('page', p => popups.push(p));
+    const allFrames = () => [page, ...popups].filter(p => !p.isClosed()).flatMap(p => p.frames());
+    const findIn = async sel => { for (const f of allFrames()) { const l = f.locator(sel); const n = await l.count().catch(() => 0); for (let i = 0; i < n; i++) if (await vis(l.nth(i))) return { f, l: l.nth(i) }; } return null; };
+    const PW = 'input[type=password]';
+    const USER = 'input[type=email], input[name*=user i], input[id*=user i], input[name*=login i], input[id*=login i], input[name=identifier], input[name=email], input[autocomplete=username]';
+    const waitFor = async (sel, ms) => { const t = Date.now(); while (Date.now() - t < ms) { const r = await findIn(sel); if (r) return r; await sleep(1000); } return null; };
+    /* the cookie banner sits over the page and swallows clicks: take it off (no consent given) */
+    const unbanner = async () => { for (const p of [page, ...popups]) await p.evaluate(() => document.querySelectorAll('#onetrust-consent-sdk, .onetrust-pc-dark-filter, #onetrust-banner-sdk').forEach(e => e.remove())).catch(() => {}); };
+    await unbanner();
+    if (!(await findIn(PW)) && !(await findIn(USER))) {
+      const tries = ['#sign-in', 'button:has-text("Sign In")', 'a:has-text("Sign In")'];
+      for (const sel of tries) {
         const b = page.locator(sel); const n = await b.count();
-        for (let i = 0; i < n && !(await vis(pw.first())); i++) { if (await vis(b.nth(i))) { await b.nth(i).click().catch(() => {}); await sleep(3500); } }
-        if (await vis(pw.first())) break;
+        for (let i = 0; i < n; i++) {
+          if (!(await vis(b.nth(i)))) continue;
+          await b.nth(i).click({ timeout: 5000 }).catch(async () => { await b.nth(i).evaluate(el => el.click()).catch(() => {}); });
+          if (await waitFor(PW + ', ' + USER, 12000)) break;
+          await unbanner();
+        }
+        if (await findIn(PW + ', ' + USER)) break;
       }
     }
     out.loginUrl = page.url();
+    out.popups = popups.map(p => p.isClosed() ? 'closed' : p.url());
+    out.frames = allFrames().map(f => f.url()).filter(u => u && u !== 'about:blank').slice(0, 8);
     out.form = await formInfo();
+    for (const pp of popups) if (!pp.isClosed()) out.form = out.form.concat(await pp.$$eval('input,button', els => els.filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).slice(0, 20).map(e => ['popup', e.tagName, e.type || '', e.name || '', e.id || '', (e.placeholder || e.innerText || e.value || '').trim().slice(0, 30)].join('|'))).catch(() => []));
     /* a username-first page (identity provider) shows only the name box: fill it and continue */
-    if (!(await vis(pw.first()))) {
-      const u1 = page.locator('input[type=email]:visible, input[name*=user i]:visible, input[id*=user i]:visible, input[name=identifier]:visible, input[autocomplete=username]:visible').first();
-      if (await u1.count()) { await u1.fill(customData.u); await page.keyboard.press('Enter'); await sleep(5000); }
+    if (!(await findIn(PW))) {
+      const u1 = await findIn(USER);
+      if (u1) { await u1.l.fill(customData.u); await u1.l.press('Enter'); out.userFirst = true; }
     }
-    pw = page.locator('input[type=password]:visible').first();
-    await pw.waitFor({ state: 'visible', timeout: 20000 });
+    const found = await waitFor(PW, 20000);
+    if (!found) throw new Error('no password box appeared after pressing Sign In');
+    pw = found.l;
     /* the username box is the visible text/email field in the same form as the password, just before it */
     const filled = await pw.evaluate((p, user) => {
       const scope = p.form || p.closest('div[class*=login i], div[class*=signin i], div[class*=modal i], section, body') || document.body;
@@ -1252,7 +1272,10 @@ async function pageFunction(context) {
     if (!clicked) await pw.press('Enter');
     await sleep(12000);
     out.afterUrl = page.url();
-    const t = (await page.innerText('body').catch(() => '')).slice(0, 2500);
+    const fpage = found.f.page();
+    let t = (await page.innerText('body').catch(() => '')).slice(0, 2500);
+    if (fpage !== page && !fpage.isClosed()) { out.afterUrl += ' | popup: ' + fpage.url(); t = (await fpage.innerText('body').catch(() => '')).slice(0, 2500) + '\n' + t; }
+    else if (found.f !== page.mainFrame()) { t = (await found.f.innerText('body').catch(() => '')).slice(0, 1500) + '\n' + t; }
     out.afterText = scrub(t.slice(0, 1500));
     if (/verification code|one[- ]time (code|pass)|captcha|verify (it'?s|that it'?s) you|security code|enter the code/i.test(t)) { out.stage = 'challenge'; return out; }
     if (/(incorrect|invalid|wrong).{0,40}(user|password|credentials)|(user|password).{0,40}(incorrect|invalid)/i.test(t)) { out.stage = 'bad_login'; return out; }
@@ -1329,7 +1352,7 @@ function signed_in_poll(string $run): array {
 function signed_in_read(array $o, array $pages): array {
     $stage = (string)($o['stage'] ?? 'start');
     $why = ['challenge' => 'Henry Schein asked for a verification code or a robot check, which an automated login can\'t answer.', 'bad_login' => 'Henry Schein didn\'t accept the saved username or password.', 'not_signed_in' => 'The login didn\'t stick: after signing in, Henry Schein still showed the signed-out page.', 'start' => 'The login page didn\'t look as expected' . (!empty($o['error']) ? ': ' . $o['error'] : '.')][$stage] ?? '';
-    if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'form' => $o['form'] ?? [], 'userField' => $o['userField'] ?? '', 'clicked' => $o['clicked'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 700), 'home' => $o['homeHead'] ?? '', 'form2' => $o['form2'] ?? [], 'error' => $o['error'] ?? '']];
+    if ($stage !== 'logged_in') return ['ok' => false, 'error' => $stage, 'message' => $why, 'debug' => ['loginUrl' => $o['loginUrl'] ?? '', 'popups' => $o['popups'] ?? [], 'frames' => $o['frames'] ?? [], 'userFirst' => !empty($o['userFirst']), 'form' => $o['form'] ?? [], 'userField' => $o['userField'] ?? '', 'clicked' => $o['clicked'] ?? '', 'afterUrl' => $o['afterUrl'] ?? '', 'after' => mb_substr((string)($o['afterText'] ?? ''), 0, 700), 'home' => $o['homeHead'] ?? '', 'form2' => $o['form2'] ?? [], 'error' => $o['error'] ?? '']];
     $out = [];
     foreach ((array)($o['results'] ?? []) as $k => $r) {
         $pg = $pages[$k] ?? ['url' => '', 'name' => '', 'id' => '', 'q' => ''];
