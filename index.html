@@ -726,6 +726,9 @@ body.on-products .filters{display:none!important}
 .istatus:has(.icnt){display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;padding-bottom:6px}
 .istatus .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
 .istatus .cntok.icnt .ic{width:20px;height:20px;margin:0}
+.istatus .cntok.icnt{height:auto!important;min-height:44px!important;padding-top:4px!important;padding-bottom:4px!important}
+.istatus .icnt .icl{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+.istatus .icnt .icw{font-size:11.5px;font-weight:600;opacity:.85}
 .cbox .cntlab{display:block;margin-top:6px}
 .manrow .cntrow{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;font-weight:700;margin-right:auto}
 @media (max-width:640px){.manrow{gap:8px!important}.manrow .cntrow{flex:1 1 auto;min-width:0;gap:6px}.manrow .cntrow > span{white-space:nowrap}.manrow .cntrow .cntsel{min-width:0!important;flex:1 1 auto;width:100%}.manrow .btn{white-space:nowrap;flex:none;padding:0 10px!important}}
@@ -4358,7 +4361,7 @@ async function openItem(it, prefill){
   else if (it.onOrder) side = rcvBtn(false);
   else if (it.need) side = ordBtn(false);
   /* counting: a green check in the status bar (filled = counted within its schedule); a changed count also saves with Save changes */
-  const countB = `<button type="button" class="cntok icnt${countedToday(it) ? " on" : ""}" id="countBtn" title="${countedToday(it) ? "Counted. Tap to count again with the number below" : "Mark counted with the number below"}" aria-label="Mark ${esc(it.name)} counted">${ic("check")}<span>${countedToday(it) ? "Counted" : "Mark counted"}</span></button>`;
+  const countB = `<button type="button" class="cntok icnt${countedToday(it) ? " on" : ""}" id="countBtn" title="${countedToday(it) ? "Counted. Tap to count again with the number below" : "Mark counted with the number below"}" aria-label="Mark ${esc(it.name)} counted">${ic("check")}<span class="icl"><span>${countedToday(it) ? "Counted" : "Mark counted"}</span><small class="icw">${it.countedAt ? `${countedToday(it) ? "" : "Last "}${esc(shortDate(it.countedAt))}${it.countedBy ? " · " + esc(it.countedBy) : ""}` : "Never counted"}</small></span></button>`;
   const primary = main || side ? `<div class="iact main">${main || side}</div>` : "";
   const primaryTail = `
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
@@ -4430,7 +4433,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       const v = cs.value, was = openVals ? openVals.countEvery : undefined; if (openVals) openVals.countEvery = v; try { syncDirty(); } catch {}
       try { await write(it.id, { countEvery: v }); it.countEvery = v;
         logIt("Edited", it, `count schedule → ${v === "" ? "office default" : cntName(v)}`); sync("ok", "Saved"); toast(v === "0" ? "Won't be counted (off the Count page)" : `Count ${(v === "" ? cntName(cntDefault()) + " (default)" : cntName(v)).toLowerCase()}`);
-        const cb = $("#countBtn"); if (cb) { const on = countedToday(it); cb.classList.toggle("on", on); cb.querySelector("span").textContent = on ? "Counted" : "Mark counted"; }
+        const cb = $("#countBtn"); if (cb) { const on = countedToday(it); cb.classList.toggle("on", on); cb.querySelector(".icl > span").textContent = on ? "Counted" : "Mark counted"; }
       } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
     }; }
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true }); if (!ok) b.disabled = false; });
