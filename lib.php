@@ -937,12 +937,12 @@ function catalog_find(string $site, string $sku, string $name = '', int $budget 
             foreach ($got as $u => $r) {
                 $st['pages']++;
                 if ($r['loc'] !== '') { $nu = catalog_url(abs_url($r['loc'], $u), $st['host']); if ($nu !== '') $enqueue([$nu => '']); continue; }
+                if (in_array($r['code'], [401, 403, 429, 503], true) || ($r['ok'] && bot_wall($r['body']))) { $wall++; continue; }   // turned away
                 if (!$r['ok'] || stripos($r['type'], 'html') === false) continue;
-                if (bot_wall($r['body'])) { $wall++; continue; }
                 foreach (array_keys(sku_tokens($r['body'])) as $tok) if (!isset($st['index'][$tok]) && count($st['index']) < 80000) $st['index'][$tok] = $u;
                 $enqueue(catalog_links($r['body'], $u, $st['host']));
             }
-            if ($wall >= 3 && $st['pages'] <= 12) { $st['blocked'] = true; $st['done'] = true; break; }   // the store turns servers away
+            if ($wall >= 3 && $wall * 2 >= $st['pages']) { $st['blocked'] = true; $st['done'] = true; break; }   // the store turns servers away
             $hit = $look();
         }
         if (!$st['queue'] || $st['pages'] >= CATALOG_MAX_PAGES) $st['done'] = true;
@@ -1003,7 +1003,7 @@ function find_product_page(array $q, array $ctx = []): array {
     }
     $catMsg = '';
     if ($cat !== null && !$cat['ok']) {
-        $catMsg = $cat['blocked'] ? $site . ' turns the server away, so its pages couldn\'t be checked.'
+        $catMsg = $cat['blocked'] ? $site . ' turns the server away, so its pages couldn\'t be checked. Update this item from the Claude desktop app, or import a screenshot of its page.'
             : ($cat['done'] ? 'Item ' . $sku . ' isn\'t listed anywhere on ' . $site . ' (' . $cat['pages'] . ' pages checked).'
             : 'Item ' . $sku . ' wasn\'t on the ' . $cat['pages'] . ' pages of ' . $site . ' checked so far; run it again to keep looking.');
     }
