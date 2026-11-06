@@ -2177,6 +2177,10 @@ const OO_SUP = [
   { re: /net ?32/i, kind: "page", url: "https://www.net32.com/reorder", urlLabel: "Open Net32 Reorder (past purchases)" },
   { re: /ultradent/i, kind: "page", url: "https://www.ultradent.com/reorder", urlLabel: "Open Ultradent Reorder (past purchases)" },
   { re: /elevate/i, kind: "page", url: "https://www.elevateoralcare.com/cart?openQuickOrder=true", urlLabel: "Open Elevate Quick Order" },
+  { re: /dds ?gadget/i, kind: "page", url: "https://www.ddsgadget.com/accountv2/orders", urlLabel: "Open DDS Gadget orders",
+    note: "DDS Gadget's <b>Orders</b> page (signed in) has a <b>Re-Order</b> button that puts a whole past order back in the cart, handy when you're buying the same set again. Otherwise open each item below and tick it off." },
+  { re: /carifree/i, kind: "page", url: "https://carifreepro.com/shop/", urlLabel: "Open CariFree Pro shop", shop: "https://carifreepro.com",
+    note: "CariFree's professional store (carifreepro.com, signed in) adds one item at a time. Open each item below, add it to the cart, and tick it off." },
 ];
 const shopifyHandle = u => /^https?:\/\/[^/]+\/(?:collections\/[^/]+\/)?products\/[^/?#]+/i.test(String(u || ""));
 document.addEventListener("click", e => { const b = e.target.closest?.("[data-orderall]"); if (b) orderOnline(b.dataset.orderall); });
@@ -2188,7 +2192,7 @@ function orderOnline(sup){
   const linkOf = i => /^https?:/i.test(i.link || "") ? i.link : skuUrl(sup, i.sku);
   const bcLink = i => cfg.kind === "bcAdd" && skuOf(i) ? `${cfg.host}/cart.php?action=add&sku=${encodeURIComponent(skuOf(i))}&qty=${qn(i)}` : "";
   const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
-  const findUrl = i => cfg.kind === "amazon" || /amazon/i.test(sup) ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name);
+  const findUrl = i => cfg.kind === "amazon" || /amazon/i.test(sup) ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : cfg.shop ? cfg.shop + "/?s=" + encodeURIComponent(i.name) + "&post_type=product" : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name);
   const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${bcLink(i) ? `<a class="btn sm" href="${esc(bcLink(i))}" target="_blank" rel="noopener">${ic("cart")}Add ↗</a>` : linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(findUrl(i))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const noNum = list => list.length ? `<p class="hint">${plural(list.length, "item")} ${list.length === 1 ? "has" : "have"} no item number, so add ${list.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(list)}` : "";
@@ -2222,7 +2226,7 @@ function orderOnline(sup){
       <details class="oomore"><summary>See the ${ok.length} going in</summary>${check(ok)}</details>
       ${miss.length ? `<p class="hint">Add ${miss.length === 1 ? "this one" : "these"} yourself (no product link from ${esc(sup)}'s store yet):</p>${check(miss)}` : ""}`;
   } else {
-    body = `<p class="hint">${cfg.kind === "bcAdd" ? `Tap <b>Add</b> on each item: it opens ${esc(sup)}'s cart with that item added. Tick each one off as you go.` : cfg.kind === "page" ? `${esc(sup)} doesn't take a list at once. Its page of past purchases is often quicker than searching; otherwise open each item below and tick it off.` : `${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.`}</p>${check(rows)}
+    body = `<p class="hint">${cfg.kind === "bcAdd" ? `Tap <b>Add</b> on each item: it opens ${esc(sup)}'s cart with that item added. Tick each one off as you go.` : cfg.kind === "page" ? cfg.note || `${esc(sup)} doesn't take a list at once. Its page of past purchases is often quicker than searching; otherwise open each item below and tick it off.` : `${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.`}</p>${check(rows)}
       <div class="actions">${cfg.kind === "page" ? `<a class="btn" href="${esc(cfg.url)}" target="_blank" rel="noopener">${esc(cfg.urlLabel)} ↗</a>` : ""}<button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web && cfg.kind !== "page" ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
   }
   openPanel(head + body + `<p class="hint">Step ${steps}: after you've placed the order, mark ${rows.length === 1 ? "it" : "them"} ordered so ${rows.length === 1 ? "it moves" : "they move"} to On order.</p>` + done);
