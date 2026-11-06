@@ -2130,7 +2130,7 @@ const today = () => { const d = new Date(); return (d.getMonth()+1) + "/" + d.ge
 const normSku = s => String(s ?? "").toUpperCase().replace(/^SKU[:#\s]*/,"").replace(/[^A-Z0-9]/g, "");
 const when = t => t ? new Date(t).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) : "";
 
-let db = null, user = null, sample = null, downloads = null, canImages = false, readOnly = false, myId = null;
+let db = null, user = null, sample = null, downloads = null, canImages = false, readOnly = false, canWrite = null, myId = null;
 let items = [], archived = [], orders = [], logs = [], team = [], rules = { expDays: 60 }, supOrder = [], supReps = {}, supExtra = [], reps = [], supInfo = {}, openSups = new Set(), tab = "need", selected = new Set();
 const fromQty = new Map();
 const localQty = new Map(), saveTimers = new Map(), localOrd = new Map(), ordTimers = new Map();
@@ -2141,7 +2141,9 @@ let toastT;
 function toast(msg){ let t = $(".toast"); if(!t){ t = document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); document.body.append(t); } t.textContent = msg; t.hidden=false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden=true, 2600); }
 function dbErr(e){
   switch(e?.code){
-    case "invalid_argument": readOnly = true; return "You can view this list but not change it. Ask the owner to share it with you as a Contributor.";
+    /* a refused write means "view only" only when the platform didn't already say this person can write;
+       for someone who can, it was a bad write (too big, malformed): say so, and keep the page editable */
+    case "invalid_argument": if (canWrite === true) { console.warn("write refused", e); return "That change couldn't be saved. Try again; if it keeps happening, tell Claude what you changed."; } readOnly = true; return "You can view this list but not change it. Ask the owner to share it with you as a Contributor.";
     case "quota_exceeded": return "The inventory is full. Delete old products you no longer stock, then try again.";
     case "resource_exhausted": return "Too many changes at once. Wait a few seconds and try again.";
     case "revoked": return "Your access to this page changed. Reload to continue.";
@@ -7344,7 +7346,7 @@ async function boot(){
     return;
   }
   user = await claude.use("user");
-  if (user) { myId = await user.id(); if ((await user.can("data.write")) === false) readOnly = true; }
+  if (user) { myId = await user.id(); canWrite = await user.can("data.write"); if (canWrite === false) readOnly = true; }
   let first = true;
   db.collection("items").onSnapshot(snap => {
     const all = snap.docs.map(d => derive({ id: d.id, ...d.data() })).filter(i => i.name);
