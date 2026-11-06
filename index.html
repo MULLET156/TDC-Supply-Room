@@ -1338,6 +1338,22 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 .pstrip button{flex:none;width:64px;height:64px;border:2px solid var(--line);border-radius:9px;background:#fff;padding:3px;cursor:pointer;display:grid;place-items:center}
 .pstrip button.on{border-color:var(--accent)}.pstrip button.busy{opacity:.5}
 .pstrip img{max-width:100%;max-height:100%;object-fit:contain}
+.btn.unord{flex-basis:100%;justify-content:center}.btn.unord.armed{background:var(--bad);color:#fff;border-color:var(--bad)}
+.qcbar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden;margin:2px 0 10px}.qcbar i{display:block;height:100%;background:var(--accent)}
+.qc{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:6px 0 10px}
+.qcpic{width:120px;height:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:12px}
+.qcname{font-size:21px;font-weight:800;line-height:1.2}
+.qcmeta{color:var(--muted);font-size:14px}
+.qcstep{display:flex;align-items:center;gap:12px;margin-top:6px}
+.qcstep button{width:72px;height:72px;border-radius:18px;border:2px solid var(--line);background:var(--surface);color:var(--fg);font-size:34px;font-weight:700;cursor:pointer;touch-action:manipulation}
+.qcstep button:active{transform:scale(.96)}
+.qcstep input{width:110px;height:72px;text-align:center;font-size:34px;font-weight:800;font-family:var(--f-mono);border:2px solid var(--line);border-radius:14px;background:var(--sunk);color:var(--fg)}
+.grpsel.qc{margin-left:6px}
+#overlay .qcstep input#qcQ{font-size:34px!important;padding:0!important}
+.ptrend{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--surface)}
+.pthead{display:flex;align-items:center;gap:6px;font-size:13.5px}.pthead span{margin-left:auto;font-weight:700;font-size:12.5px;color:var(--muted)}.pthead span.up{color:var(--bad)}.pthead span.down{color:var(--ok)}
+.ptsvg{width:100%;height:48px;color:var(--accent);margin:6px 0 2px;display:block}
+.ptlist{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}.ptlist b{color:var(--fg)}
 #markOrd,#markRcv{display:none!important}
 .expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
 .exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
@@ -1726,6 +1742,9 @@ async function logIt(action, it, detail){
   try { await db.collection("log").add({ at: Date.now(), initials: me(), action, itemId: it?.id || "", name: it?.name || "", detail: detail || "" }); } catch {}
 }
 async function write(id, patch){
+  /* price history: every price change is kept on the item (last 24), for the trend in the item window */
+  if ("unitCost" in patch) { const old = byId(id), a = num(old?.unitCost), b = num(patch.unitCost);
+    if (b != null && b > 0 && a !== b) { let h = Array.isArray(old?.priceHist) ? old.priceHist.slice() : []; if (!h.length && a != null && a > 0) h.push({ at: old.updatedAt || old.createdAt || Date.now() - 1, p: a }); h.push({ at: Date.now(), p: b, by: me() }); patch = { ...patch, priceHist: h.slice(-24) }; } }
   await db.doc("items/" + id).update({ ...patch, updatedAt: Date.now(), updatedBy: me() });
 }
 function openTeam(){
@@ -2041,11 +2060,66 @@ function rowHtml(i, withChk){
 /* ---- inventory counts: select a whole location / category / supplier, mark it counted, and it's logged with the date ---- */
 const shortDate = t => t ? new Date(t).toLocaleDateString([], { month: "short", day: "numeric", year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : "numeric" }) : "";
 let grpPick = null; /* { label, ids } of the last "Select all" used */
+
+/* Quick count: one item at a time with big − / + buttons; Save & next moves on by itself */
+let QC = null;
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-qcount]"); if (!b) return; quickCount(b.dataset.qcount.split(","), b.dataset.qlabel || ""); });
+function quickCount(ids, label){
+  if (!needMe()) return;
+  const list = ids.map(byId).filter(Boolean); if (!list.length) return;
+  const first = list.findIndex(i => !countedToday(i));
+  QC = { list, i: first < 0 ? 0 : first, label, done: 0 };
+  qcShow();
+}
+function qcShow(){
+  if (!QC) return;
+  const it = QC.list[QC.i];
+  if (!it) { const d = QC.done; QC = null; openPanel(`<div class="ph"><h2>Quick count done</h2><button class="iconbtn" data-close type="button">Close</button></div><p>${d} item${d === 1 ? "" : "s"} counted. Nice work.</p><div class="actions savebar"><button class="btn pri grow" data-close type="button">Back to the list</button></div>`); render(); return; }
+  const cur = byId(it.id) || it, q0 = num(cur.qty) ?? 0;
+  openPanel(`<div class="ph"><div><h2>Quick count</h2><div class="lastby">${esc(QC.label)} · ${QC.i + 1} of ${QC.list.length}</div></div><button class="iconbtn" data-close type="button">Done</button></div>
+    <div class="qcbar"><i style="width:${Math.round(QC.i / QC.list.length * 100)}%"></i></div>
+    <div class="qc">${cur.photo ? `<img class="qcpic" src="blob.php?id=${esc(cur.photo)}" alt="" onerror="this.remove()">` : ""}
+      <div class="qcname">${esc(cur.name)}</div>
+      <div class="qcmeta">${[cur.loc, cur.units, cur.sku].filter(Boolean).map(esc).join(" · ")}</div>
+      <div class="qcstep"><button type="button" data-qd="-1" aria-label="One less">−</button><input id="qcQ" inputmode="decimal" value="${fmtQ(q0)}" aria-label="On hand"><button type="button" data-qd="1" aria-label="One more">+</button></div>
+      <div class="hint qcwas">Was ${fmtQ(q0)}${cur.desired != null ? ` · desired reserve ${fmtQ(cur.desired)}` : ""}${countedToday(cur) ? " · already counted today" : ""}</div></div>
+    <div class="actions savebar"><button class="btn" type="button" id="qcBack" ${QC.i ? "" : "disabled"} aria-label="Previous item">${ic("undo")}</button><button class="btn" type="button" id="qcSkip">Skip</button><button class="btn pri grow" type="button" id="qcNext">${ic("check")}Save &amp; next</button></div>`);
+  const inp = $("#qcQ");
+  document.querySelectorAll("#overlay [data-qd]").forEach(b => b.onclick = () => { inp.value = fmtQ(Math.max(0, (num(inp.value) ?? 0) + +b.dataset.qd)); });
+  inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#qcNext").click(); } };
+  inp.onfocus = () => inp.select();
+  $("#qcBack").onclick = () => { QC.i = Math.max(0, QC.i - 1); qcShow(); };
+  $("#qcSkip").onclick = () => { QC.i++; qcShow(); };
+  $("#qcNext").onclick = async e => {
+    const b = e.currentTarget, q = num(inp.value);
+    if (q == null || q < 0) { toast("Enter how many are on hand"); return; }
+    b.disabled = true;
+    try {
+      const at = Date.now(); await write(cur.id, { qty: q, countedAt: at, countedBy: me() }); localQty.delete(cur.id);
+      logIt(q === q0 ? "Counted" : "Count", cur, q === q0 ? `${fmtQ(q)} on hand (quick count)` : `${fmtQ(q0)} → ${fmtQ(q)} (quick count)`);
+      Sfx.play("count"); QC.done++; QC.i++; qcShow();
+    } catch(err) { b.disabled = false; toast(dbErr(err)); }
+  };
+}
+
+/* price trend in the item window (built from price changes: invoices, supplier updates, edits) */
+function priceTrend(it){
+  const h = (Array.isArray(it.priceHist) ? it.priceHist : []).filter(x => num(x.p) != null);
+  if (h.length < 2) return "";
+  const ps = h.map(x => num(x.p)), lo = Math.min(...ps), hi = Math.max(...ps), W = 220, H = 44, pad = 4;
+  const X = k => pad + k * (W - 2 * pad) / (h.length - 1), Y = v => hi === lo ? H / 2 : H - pad - (v - lo) * (H - 2 * pad) / (hi - lo);
+  const pts = ps.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+  const first = ps[0], last = ps[ps.length - 1], mv = first ? Math.round((last - first) / first * 100) : 0;
+  const d = x => new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
+  return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>Price history</b><span class="${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "+" : ""}${mv}% since ${esc(d(h[0]))}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" class="ptsvg" role="img" aria-label="Price went from $${first.toFixed(2)} to $${last.toFixed(2)}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${ps.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.6" fill="currentColor"><title>${esc(d(h[k]))}: $${v.toFixed(2)}</title></circle>`).join("")}</svg>
+    <div class="ptlist">${h.slice(-6).reverse().map(x => `<span>${esc(d(x))} <b>$${num(x.p).toFixed(2)}</b></span>`).join("")}</div></div>`;
+}
 function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
   const cnt = list.filter(i => i.countedAt).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
   const note = oldest ? `Counted ${shortDate(oldest)}` : cnt ? `${cnt} of ${list.length} counted` : "Not counted yet";
-  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? ic("boxcheck") + "All selected" : ic("box") + "Select all"}</button>`}</span>`;
+  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? ic("boxcheck") + "All selected" : ic("box") + "Select all"}</button>${CNT_MODES.includes(tab) && list.length ? `<button type="button" class="grpsel qc" data-qcount="${esc(ids.join(","))}" data-qlabel="${esc(label.replace(/^(Supplier|Category|Location) /, ""))}">${ic("zap")}Quick count</button>` : ""}`}</span>`;
 }
 async function markCounted(list){
   if (!list.length || !needMe()) return;
@@ -2095,7 +2169,8 @@ function bySupplier(list){
   const g = new Map(); list.forEach(i => { const k = i.supplier || "No supplier listed"; if(!g.has(k)) g.set(k, []); g.get(k).push(i); });
   return [...g.entries()].sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
 }
-function render(){ renderInner(); updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} }
+let lastRendered = "";   /* a refresh of the same page keeps the list where you were (after saving an item, live updates) */
+function render(){ const y = scrollY, same = lastRendered === tab; renderInner(); lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
 /* Which page you're on: a title in the page's color under the tiles (the page also takes on that color) */
 function pageHead(){
   document.body.dataset.view = tab;
@@ -2639,7 +2714,7 @@ function showBigPic(src, title){
 }
 /* closing the batch window stops the batch; closing any other window leaves a running quick add alone */
 function endBatchIfShown(){ if (typeof B !== "undefined" && B && !B.quick && $("#overlay #bStop, #overlay #bStart")) { B = null; render(); } }
-function closePanel(){ $("#overlay").innerHTML = ""; markOpenRow(null); }
+function closePanel(){ const y = scrollY; $("#overlay").innerHTML = ""; markOpenRow(null); requestAnimationFrame(() => { if (Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }); }
 /* desktop: outline the list row whose details are showing on the right */
 /* desktop: the item card starts level with the list (just under the header), and moves up as the header scrolls away */
 /* desktop: the item card lines its On hand / Desired / 911 boxes up with the row you clicked, and follows that row
@@ -3935,8 +4010,8 @@ async function openItem(it, prefill){
   const isOpen = (id, dflt) => keepOpen ? keepOpen.includes(id) : dflt;
   /* The big button fits the list you came from (Order list → Mark ordered, On order → Mark received,
      Expiring → Replaced, anywhere else → Save count). Save count is always there, in the same spot. */
-  const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">Mark received</button>`;
-  const ordBtn = big => `<button class="btn${big ? " pri big" : ""}${it.is911 && big ? " urgent" : ""}" id="ordBtn" type="button">Mark ordered (${fmtQ(it.orderQty)})</button>`;
+  const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">${ic("pkgcheck")}Mark received</button><button class="btn sm unord" id="unordBtn" type="button" title="Take it off On order without adding anything to stock">${ic("undo")}Not ordered after all</button>`;
+  const ordBtn = big => `<button class="btn${big ? " pri big" : ""}${it.is911 && big ? " urgent" : ""}" id="ordBtn" type="button">${ic("send")}Mark ordered (${fmtQ(it.orderQty)})</button>`;
   const expBtn = `<button class="btn pri big" id="expBtn" type="button">${ic("calcheck")}Replaced: new date</button>`;
   let main = "", side = "";
   if (tab === "ordered" && it.onOrder) main = rcvBtn(true);
@@ -3971,6 +4046,7 @@ async function openItem(it, prefill){
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
         ${ordFields(f)}
+        ${priceTrend(it)}
       </details>
       <details class="isec" id="sec-det" ${isOpen("sec-det", false) ? "open" : ""}><summary><b>Details</b><span class="sum">${detSum}</span></summary>
         ${detFields(f)}
@@ -4000,7 +4076,12 @@ async function openItem(it, prefill){
   const saveExp = async exp => { if (!needMe()) return; try { await write(it.id, { exp }); logIt("Expiration updated", it, `${it.exp || "none"} → ${exp || "no date"}`); it.exp = exp; if (openVals) openVals.exp = exp; const e = fld("e-exp"); if (e) e.value = exp; toast(exp ? `New expiration ${exp} saved` : "Expiration cleared"); closePanel(); } catch(err) { toast(dbErr(err)); } };
   $("#expSave") && ($("#expSave").onclick = () => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($("#expNew").value || ""); if (!m) { toast("Pick the new date first"); return; } saveExp(`${+m[2]}/${+m[3]}/${m[1]}`); });
   $("#expNone") && ($("#expNone").onclick = () => saveExp(""));
-  $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
+  $("#unordBtn") && ($("#unordBtn").onclick = async e => { const b = e.currentTarget; if (!needMe()) return;
+  if (!b.classList.contains("armed")) { b.classList.add("armed"); b.innerHTML = ic("undo") + "Tap again to undo the order"; return; }
+  b.disabled = true;
+  try { await write(it.id, { ordered: "", orderedQty: 0 }); logIt("Order undone", it, `Not ordered after all${it.ordered ? " (was marked ordered " + it.ordered + ")" : ""}`); toast(`${it.name} is off On order${it.need ? " and back on the Order list" : ""}`); closePanel(); render(); }
+  catch(err) { b.disabled = false; toast(dbErr(err)); } });
+$("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
   $("#countBtn") && ($("#countBtn").onclick = () => saveItem(it, { count: true }));
   $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0, orderAmt: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
@@ -5435,9 +5516,11 @@ function filterBar(){
 const FKEYS = ["#q","#fLoc","#fSup","#fCat"], tabFilters = {};
 const readF = () => Object.fromEntries(FKEYS.map(k => [k, $(k).value]));
 const writeF = f => FKEYS.forEach(k => { const el = $(k); el.value = (f && f[k]) || ""; if (el.tagName === "SELECT" && el.value !== ((f && f[k]) || "")) el.value = ""; });
-function setTab(t){ if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
+function setTab(t){ if (t !== "add") { try { localStorage.setItem("tdc.tab", t); } catch {} } if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
 $("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; tabClick(b); });
 $("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
+/* reopen on the last page used on this device */
+try { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "log", "setup"].includes(v)) setTab(v); } catch {}
 function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
