@@ -723,11 +723,15 @@ body.on-products .filters{display:none!important}
 .ititle{flex:1 1 auto;min-width:0;display:grid;gap:2px}
 .iloc{font-size:13.5px;font-weight:700;color:var(--fg)}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
-.manrow{flex-wrap:wrap;row-gap:8px}
-.manrow .cntgrp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-right:auto}
+.manrow{flex-wrap:nowrap!important;gap:8px!important}
+.manrow > .btn{flex:none;white-space:nowrap;padding:0 10px!important}
+.manrow .cntgrp{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;margin-right:auto;min-width:0;flex:1 1 auto}
 .manrow .cntgrp .cntrow{margin-right:0}
 .manrow .cs-s{display:none}
-.manrow .cntrow .cntsel{min-width:120px!important}
+.manrow .cntrow .cntsel{min-width:0!important;flex:1 1 auto;max-width:170px}
+.manrow .cntgrp .cntrow{flex:1 1 auto;min-width:0}
+.manrow .cntgrp .cntrow > span{display:none}
+@media (max-width:640px){.manrow .ao-x{display:none}.manrow > .btn .ic{display:none}.manrow > .btn{padding:0 9px!important;font-size:13.5px!important}.manrow .icnt .icw{font-size:10.5px}.manrow .cntok.icnt{padding:4px 8px 4px 6px!important;font-size:13px!important;gap:4px!important}.manrow .cntok.icnt .ic{width:16px!important;height:16px!important}.manrow .cntrow .cntsel{min-width:96px!important;padding:0 4px!important}}
 .manrow .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
 .manrow .cntok.icnt .ic{width:20px;height:20px;margin:0}
 .manrow .cntok.icnt{height:auto!important;min-height:44px!important;padding-top:4px!important;padding-bottom:4px!important}
@@ -4415,7 +4419,7 @@ async function openItem(it, prefill){
     <div class="istatus ${st.cls}">${st.html}</div>
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
-    <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span>${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button>` : ""}</div>
+    <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span>${it.onOrder ? "" : it.manual ? `<button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button>` : !it.need ? `<button class="btn sm" type="button" data-addorder="${esc(it.id)}" title="Add to order list">${ic("listplus")}Add to order<span class="ao-x"> list</span></button>` : ""}</div>
     <div class="isecs">
       <div class="isechead"><span>Item info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
