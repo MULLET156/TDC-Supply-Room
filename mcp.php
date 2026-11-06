@@ -177,7 +177,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $words = $q === '' ? [] : preg_split('/\s+/', $q);
             $res = [];
             foreach (all_docs($pdo, 'items') as $id => $it) {
-                if (empty($it['name'])) continue;
+                if (empty($it['name']) || !empty($it['archived'])) continue;
                 $d = derive($it, $ed);
                 if ($st === 'to_order' && !$d['need']) continue;
                 if ($st === 'on_order' && !$d['onOrder']) continue;

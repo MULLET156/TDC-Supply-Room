@@ -1134,7 +1134,15 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     $short = implode(' ', array_slice(preg_split('/\s+/', preg_replace('/[\(\)\[\],#]+/', ' ', $name)), 0, 7));
     $code = $mfr !== '' ? $mfr : '';
     $queries = [];
-    if ($scope === 'web') {
+    if ($scope === 'alt') {
+        // alternatives: search the product type, not the brand or part number
+        if (!$hosts) return ['ok' => false, 'error' => 'no_sites', 'message' => 'None of your suppliers has a website saved (Setup › Suppliers).'];
+        $g = ai_ready() ? ai_json("A dental office wants substitutes for \"$name\"" . (!empty($q['units']) ? " (sold as {$q['units']})" : '') . " from other brands. Give a short generic search phrase for this kind of product, without the brand or part number (e.g. \"bendable micro applicator fine\").\nReply with JSON: {\"phrase\": \"...\"}", [], 'quick') : ['ok' => false];
+        $phrase = trim((string)(($g['ok'] ?? false) ? ($g['value']['phrase'] ?? '') : '')) ?: $short;
+        $where = '(' . implode(' OR ', array_map(fn($h) => 'site:' . $h, array_slice(array_keys($hosts), 0, 10))) . ')';
+        $queries[] = $phrase . ' ' . $where;
+        $queries[] = $phrase . ' dental';
+    } elseif ($scope === 'web') {
         if ($code !== '') $queries[] = '"' . $code . '" ' . $short . ' price';
         $queries[] = $short . ' dental supply price';
     } else {
@@ -1151,7 +1159,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
             $host = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
             $mine = '';
             foreach ($hosts as $h => $sn) if ($host === $h || str_ends_with($host, '.' . $h) || str_ends_with($h, '.' . $host)) { $mine = $sn; break; }
-            if ($scope === 'mine' && $mine === '') continue;
+            if (($scope === 'mine' || $scope === 'alt') && $mine === '') continue;
             if ($scope === 'web' && $mine !== '') continue;
             if (in_array($c['url'], $skip, true)) continue;
             $cands[$c['url']] = $c + ['supplier' => $mine, 'host' => $host];
@@ -1159,6 +1167,17 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'No product pages turned up.'];
+    if ($scope === 'alt') {
+        if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs Claude (ANTHROPIC_API_KEY in config.php).'];
+        $list = implode("\n", array_map(fn($i, $c) => "$i: [{$c['supplier']}] {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
+        $a = ai_json("A dental office uses \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . " and wants alternatives: other products that do the same job and could replace it (another brand, or the same brand's equivalent).\nSearch results from their suppliers:\n$list\n\n"
+            . "Pick product pages (not category, search or article pages) that are good substitutes. Leave out the exact same product. Prefer the same size, shade or strength. Up to 8, best first, at most 2 per store. For each, say in a few words how it differs (brand, size, pack).\n"
+            . "Reply with JSON: {\"picks\": [{\"i\": index, \"name\": \"product name\", \"why\": \"e.g. Different brand, same size\"}]}", [], 'quick');
+        $keep = []; $per = [];
+        foreach ((array)(($a['ok'] ?? false) ? ($a['value']['picks'] ?? []) : []) as $p) { $i = (int)($p['i'] ?? -1); if (!isset($cands[$i])) continue; $h = $cands[$i]['host']; if (($per[$h] = ($per[$h] ?? 0) + 1) > 2) continue;
+            $keep[] = ['url' => $cands[$i]['url'], 'title' => mb_substr(trim((string)($p['name'] ?? '')) ?: $cands[$i]['title'], 0, 140), 'supplier' => $cands[$i]['supplier'], 'mine' => true, 'sure' => false, 'why' => mb_substr((string)($p['why'] ?? ''), 0, 80)]; if (count($keep) >= 8) break; }
+        return ['ok' => true, 'candidates' => $keep, 'message' => $keep ? '' : 'No alternatives turned up at your suppliers.'];
+    }
     $keep = []; $seenH = []; foreach ($cands as $c) { if (isset($seenH[$c['host']])) continue; $seenH[$c['host']] = 1; $keep[] = $c + ['sure' => false]; if (count($keep) >= 6) break; }
     if (ai_ready()) {
         $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
