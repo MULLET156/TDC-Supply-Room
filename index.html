@@ -4973,6 +4973,7 @@ async function openItem(it, prefill){
     ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent, f.countEvery, false)}
     <div class="manrow"><span class="cntgrp">${countB}${cntSelRow(f.countEvery)}</span></div>
+    ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
     <div class="isecs">
       <div class="isechead"><span>Product info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
@@ -4993,7 +4994,6 @@ async function openItem(it, prefill){
       <details class="isec" id="sec-ord" ${ordOpen ? "open" : ""}><summary><b>Ordering</b><span class="sum">${ordSum}</span></summary>
         ${repCompact(repOf(it.supplier), it.supplier)}
         ${ordFields(f)}
-        ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
       </details>
       <details class="isec" id="sec-price" ${isOpen("sec-price", false) ? "open" : ""}><summary><b>Prices</b><span class="sum">${priceSum(it)}</span></summary><div id="priceBox">${priceBox(it)}</div></details>
       <details class="isec" id="sec-det" ${isOpen("sec-det", false) ? "open" : ""}><summary><b>Details</b><span class="sum">${detSum}</span></summary>
