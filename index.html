@@ -3297,7 +3297,7 @@ function histHtml(){
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
 const cmpSel = new Set(); let cmpQ = "";
-let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = (() => { try { return localStorage.getItem("tdc.spmode") === "compare" ? "compare" : "spend"; } catch { return "spend"; } })(), cmpShow = "need";
+let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = "spend", spendKeep = false, cmpShow = "need";
 const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
 async function loadSpend(){
   if (spendLoading) return; spendLoading = true;
@@ -3349,7 +3349,7 @@ function offerAt(it, sup){
 }
 /* open Spending › Compare suppliers with this product showing and ticked */
 function goCompare(it){
-  closePanel(); spendMode = "compare"; try { localStorage.setItem("tdc.spmode", "compare"); } catch {}
+  closePanel(); spendMode = "compare"; spendKeep = true;
   cmpShow = "all"; cmpSel.clear(); cmpSel.add(it.id); cmpQ = it.name;
   setTab("spend"); window.scrollTo(0, 0);
 }
@@ -7133,7 +7133,7 @@ function filterBar(){
 const FKEYS = ["#q","#fLoc","#fSup","#fCat"], tabFilters = {};
 const readF = () => Object.fromEntries(FKEYS.map(k => [k, $(k).value]));
 const writeF = f => FKEYS.forEach(k => { const el = $(k); el.value = (f && f[k]) || ""; if (el.tagName === "SELECT" && el.value !== ((f && f[k]) || "")) el.value = ""; });
-function setTab(t){ if (t !== "add") { try { localStorage.setItem("tdc.tab", t); } catch {} } if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
+function setTab(t){ if (t === "spend" && tab !== "spend" && !spendKeep) spendMode = "spend"; spendKeep = false; if (t !== "add") { try { localStorage.setItem("tdc.tab", t); } catch {} } if (t !== tab && tab === "add") { addBuilt = false; } if (t !== tab) { selected.clear(); tabFilters[tab] = readF(); writeF(tabFilters[t]); } tab = t; document.body.dataset.view = t; { const own = { sups: "#fSup", cats: "#fCat", locs: "#fLoc" }[t]; if (own && $(own).value) { $(own).value = ""; syncFToggle?.(); } } document.body.classList.toggle("on-add", t === "add"); document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.t === t)); syncCounter(t); { const tl = { products: "Editor", log: "Log", setup: "Setup" }[t]; const mb = $("#menuBtn"); if (mb) { mb.classList.toggle("on", !!tl); $("#menuLabel").textContent = tl || "Menu"; } } document.activeElement?.blur?.(); render(); }
 $("header").addEventListener("click", e => { const b = e.target.closest(".tab"); if (!b) return; tabClick(b); });
 /* phone: "More" in the bottom bar holds Add item, Editor, Activity log, Setup, who's logging, sound and theme */
 $("#moreBtn")?.addEventListener("click", e => {
