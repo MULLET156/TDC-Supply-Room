@@ -1847,6 +1847,31 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
   .dock .tabs-main > .tab, .dock .tabs-main > .tab.big{min-height:50px!important}
   .dock .tabs-main .tl{font-size:11px!important}
 }
+/* Expiring rows on phones: info on top, the three actions in one row underneath */
+@media (max-width:640px){
+  .explist .list .row.xrow, .explist .row.xrow{grid-template-columns:minmax(0,1fr)!important;padding:10px 12px!important;gap:8px!important}
+  .explist .row.xrow .xacts{display:flex!important;justify-content:stretch;gap:6px;flex-wrap:nowrap}
+  .explist .row.xrow .xacts .btn{flex:1 1 0;min-height:40px;justify-content:center;padding:0 6px;font-size:14px}
+  .explist .row.xrow .xacts:has(input[type=date]){flex-wrap:wrap}
+  .explist .row.xrow .info .meta{white-space:normal!important}
+  .xdate, .xdate b{font-size:13px}
+}
+/* Expiring lives in the header buttons (next to Spending) on larger screens; phones reach it from More */
+header > .wrap > .tabs-main > .tab.t-exp{display:none!important}
+header > .wrap > .tabs-main{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+header .tooltabs .tab.t-exptool{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+header .tooltabs .tab.t-exptool[aria-selected="true"]{background:var(--warn);border-color:var(--warn);color:var(--surface)}
+header .tooltabs .tab.t-exptool .xn{margin-left:6px;font-family:var(--f-mono);font-size:12px;font-weight:700;background:var(--warn);color:var(--surface);border-radius:999px;padding:0 7px;line-height:18px}
+header .tooltabs .tab.t-exptool[aria-selected="true"] .xn{background:var(--surface);color:var(--warn)}
+@media (max-width:1100px){header .tooltabs .tab.t-exptool .xl{display:none}header .tooltabs .tab.t-exptool .xn{margin-left:4px}}
+@media (max-width:640px){header .tooltabs .tab.t-exptool{display:none!important}}
+/* Spending: money green */
+:root{--money:#1e7a3c;--money-soft:#e3f3e7;--money-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}}
+:root[data-theme="dark"]{--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}
+header .topright .tooltabs .tab[data-t="spend"]{border-color:var(--money);background:var(--money-soft);color:var(--money)}
+header .topright .tooltabs .tab[data-t="spend"]:hover{border-color:var(--money)}
+header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background:var(--money);border-color:var(--money);color:var(--money-fg)}
 </style>
 <header>
   <div class="wrap">
@@ -1923,31 +1948,6 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
 #signinForm button{min-height:44px;font-size:15px}
 #signinMsg{min-height:1.2em;margin:0;color:var(--bad);font-size:13.5px;font-weight:600}
 .sg-note{margin:0;font-size:12.5px;color:var(--muted)}
-/* Expiring rows on phones: info on top, the three actions in one row underneath */
-@media (max-width:640px){
-  .explist .list .row.xrow, .explist .row.xrow{grid-template-columns:minmax(0,1fr)!important;padding:10px 12px!important;gap:8px!important}
-  .explist .row.xrow .xacts{display:flex!important;justify-content:stretch;gap:6px;flex-wrap:nowrap}
-  .explist .row.xrow .xacts .btn{flex:1 1 0;min-height:40px;justify-content:center;padding:0 6px;font-size:14px}
-  .explist .row.xrow .xacts:has(input[type=date]){flex-wrap:wrap}
-  .explist .row.xrow .info .meta{white-space:normal!important}
-  .xdate, .xdate b{font-size:13px}
-}
-/* Expiring lives in the header buttons (next to Spending) on larger screens; phones reach it from More */
-header > .wrap > .tabs-main > .tab.t-exp{display:none!important}
-header > .wrap > .tabs-main{grid-template-columns:repeat(4,minmax(0,1fr))!important}
-header .tooltabs .tab.t-exptool{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
-header .tooltabs .tab.t-exptool[aria-selected="true"]{background:var(--warn);border-color:var(--warn);color:var(--surface)}
-header .tooltabs .tab.t-exptool .xn{margin-left:6px;font-family:var(--f-mono);font-size:12px;font-weight:700;background:var(--warn);color:var(--surface);border-radius:999px;padding:0 7px;line-height:18px}
-header .tooltabs .tab.t-exptool[aria-selected="true"] .xn{background:var(--surface);color:var(--warn)}
-@media (max-width:1100px){header .tooltabs .tab.t-exptool .xl{display:none}header .tooltabs .tab.t-exptool .xn{margin-left:4px}}
-@media (max-width:640px){header .tooltabs .tab.t-exptool{display:none!important}}
-/* Spending: money green */
-:root{--money:#1e7a3c;--money-soft:#e3f3e7;--money-fg:#ffffff}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}}
-:root[data-theme="dark"]{--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}
-header .topright .tooltabs .tab[data-t="spend"]{border-color:var(--money);background:var(--money-soft);color:var(--money)}
-header .topright .tooltabs .tab[data-t="spend"]:hover{border-color:var(--money)}
-header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background:var(--money);border-color:var(--money);color:var(--money-fg)}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
