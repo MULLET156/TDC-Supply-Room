@@ -1646,7 +1646,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
     <div role="tablist" aria-label="Orders" class="tabs-main">
       <button class="tab big allbtn" role="tab" data-t="all" aria-selected="false"><span class="tl"><i data-ic="list"></i>All items</span> <span class="n" id="n-all">–</span></button>
       <button class="tab big t-need" role="tab" data-t="need" aria-selected="true"><span class="tl"><i data-ic="cart"></i>Order list</span> <span class="n" id="n-need">–</span></button>
-      <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false"><span class="tl"><i data-ic="truck"></i>On order</span> <span class="n" id="n-ordered">–</span></button>
+      <button class="tab big t-ord" role="tab" data-t="ordered" aria-selected="false"><span class="tl"><i data-ic="truck"></i>On the way</span> <span class="n" id="n-ordered">–</span></button>
       <button class="tab big t-exp" role="tab" data-t="exp" aria-selected="false"><span class="tl"><i data-ic="hourglass"></i>Expiring</span> <span class="n" id="n-exp">–</span></button>
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl">Inventory counter</span></button>
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
@@ -2045,7 +2045,7 @@ function pills(i, noOrder, noExp){
   if (i.is911) h += `<span class="pill p-911">${ic("urgent")}911</span>`;
   if (i.need && !noOrder) h += `<span class="pill p-need">Order ${fmtQ(i.orderQty)}</span>`;
   if (i.need && i.manual) h += `<span class="pill p-man" title="Added to the order list by hand">${ic("hand")}Added</span>`;
-  if (i.onOrder) h += `<span class="pill p-ord">On order${i.ordered ? " · " + esc(i.ordered) : ""}</span>`;
+  if (i.onOrder) h += `<span class="pill p-ord">On the way${i.ordered ? " · " + esc(i.ordered) : ""}</span>`;
   if (i.expiring && !noExp) h += `<span class="pill p-exp">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>`;
   return h;
 }
@@ -2455,7 +2455,7 @@ function orderOnline(sup){
     body = `<p class="hint">${cfg.kind === "bcAdd" ? `Tap <b>Add</b> on each item: it opens ${esc(sup)}'s cart with that item added. Tick each one off as you go.` : cfg.kind === "page" ? cfg.note || `${esc(sup)} doesn't take a list at once. Its page of past purchases is often quicker than searching; otherwise open each item below and tick it off.` : `${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.`}</p>${check(rows)}
       <div class="actions">${cfg.kind === "page" ? `<a class="btn" href="${esc(cfg.url)}" target="_blank" rel="noopener">${esc(cfg.urlLabel)} ↗</a>` : ""}<button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web && cfg.kind !== "page" ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
   }
-  openPanel(head + body + `<p class="hint">Step ${steps}: after you've placed the order, mark ${rows.length === 1 ? "it" : "them"} ordered so ${rows.length === 1 ? "it moves" : "they move"} to On order.</p>` + done);
+  openPanel(head + body + `<p class="hint">Step ${steps}: after you've placed the order, mark ${rows.length === 1 ? "it" : "them"} ordered so ${rows.length === 1 ? "it moves" : "they move"} to On the way.</p>` + done);
   const copy = (txt, msg) => { try { navigator.clipboard.writeText(txt).then(() => toast(msg), () => toast("Select the text and copy it")); } catch { toast("Select the text and copy it"); } };
   $("#ooCopy") && ($("#ooCopy").onclick = () => { const t = $("#ooText"); t.select(); copy(t.value, `Copied. Paste it into ${cfg.name || sup}`); });
   $("#ooCopyList") && ($("#ooCopyList").onclick = () => copy(rows.map(i => `${q(i)} x ${i.name}${i.units ? " (" + i.units + ")" : ""}${i.sku ? " #" + i.sku : ""}`).join("\n"), "List copied"));
@@ -2546,7 +2546,7 @@ function pageHead(){
   const P = {
     all: ["All items", s(items.length), "Everything in the supply room. Tick items to add them to the order list."],
     need: ["Order list", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
-    ordered: ["On order", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
+    ordered: ["On the way", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap Replaced on it and enter the new box's date.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
     count: ["Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that item's schedule (Setup › Alerts, or per item). Tick what you've counted, then Mark counted."]
@@ -2608,7 +2608,7 @@ $("#dockAllAdd").addEventListener("click", async () => {
   if (!needMe()) return;
   const list = [...selected].map(byId).filter(Boolean);
   const add = list.filter(i => !i.need && !i.onOrder), skip = list.length - add.length;
-  if (!add.length) { toast(skip ? "Those are already on the Order list or On order" : "Tick items first"); return; }
+  if (!add.length) { toast(skip ? "Those are already on the Order list or On the way" : "Tick items first"); return; }
   sync("busy", "Saving…"); let ok = 0;
   for (const it of add) {
     const q = Math.max(1, Math.ceil((num(it.desired) || 0) - (num(it.qty) || 0)) || 1);
@@ -2617,7 +2617,7 @@ $("#dockAllAdd").addEventListener("click", async () => {
   }
   sync(ok === add.length ? "ok" : "err", ok === add.length ? "Saved" : "Not all saved");
   selected.clear(); render();
-  toast(`Added ${ok} to the order list${skip ? ` (${skip} already on the Order list or On order)` : ""}.`);
+  toast(`Added ${ok} to the order list${skip ? ` (${skip} already on the Order list or On the way)` : ""}.`);
 });
 $("#bulkForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -2681,7 +2681,7 @@ function renderInner(){
     const list = all.filter(i=>i.onOrder);
     const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>${ic("receipt")}Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
-    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} on order. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
+    v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} on the way. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open an item to receive a different amount.</p>
       <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp"><span class="grpname">${supLogo(s)}${esc(s)}</span><span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
       : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
@@ -4393,7 +4393,7 @@ function unlockItem(){
 }
 function itemStatus(it){
   const u = it.units ? " × " + esc(it.units) : "", from = it.supplier ? " from " + esc(it.supplier) : "";
-  if (it.onOrder) return { cls: "s-ord", html: `${ic("truck")}On order since ${esc(it.ordered)} · expecting ${fmtQ(it.orderedQty || it.orderQty)}${u}` };
+  if (it.onOrder) return { cls: "s-ord", html: `${ic("truck")}On the way · ordered ${esc(it.ordered)} · expecting ${fmtQ(it.orderedQty || it.orderQty)}${u}` };
   if (it.is911) return { cls: "s-911", html: `${ic("urgent")}911: only ${fmtQ(it.qty)} left. Order ${fmtQ(it.orderQty)}${u}${from} now` };
   if (it.need && it.manual && !(it.qty != null && it.desired != null && it.qty < it.desired)) return { cls: "s-low", html: `${ic("hand")}On the order list · order ${fmtQ(it.orderQty)}${u}${from}` };
   if (it.need) return { cls: "s-low", html: `Below reserve · order ${fmtQ(it.orderQty)}${u}${from}` };
@@ -4418,7 +4418,7 @@ async function openItem(it, prefill){
   const isOpen = (id, dflt) => keepOpen ? keepOpen.includes(id) : dflt;
   /* The big button fits the list you came from (Order list → Mark ordered, On order → Mark received,
      Expiring → Replaced, anywhere else → Save count). Save count is always there, in the same spot. */
-  const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">${ic("pkgcheck")}Mark received</button><button class="btn sm unord" id="unordBtn" type="button" title="Take it off On order without adding anything to stock">${ic("undo")}Not ordered after all</button>`;
+  const rcvBtn = big => `<span class="rcvq"><label for="rcv">Got</label><input id="rcv" inputmode="decimal" value="${fmtQ(it.orderedQty || it.orderQty)}" aria-label="Quantity received"></span><button class="btn${big ? " pri big" : ""}" id="rcvBtn" type="button">${ic("pkgcheck")}Mark received</button><button class="btn sm unord" id="unordBtn" type="button" title="Take it off On the way without adding anything to stock">${ic("undo")}Not ordered after all</button>`;
   const ordBtn = big => `<button class="btn${big ? " pri big" : ""}${it.is911 && big ? " urgent" : ""}" id="ordBtn" type="button">${ic("send")}Mark ordered (${fmtQ(it.orderQty)})</button>`;
   const expBtn = `<button class="btn pri big" id="expBtn" type="button">${ic("calcheck")}Replaced: new date</button>`;
   let main = "", side = "";
@@ -4494,7 +4494,7 @@ async function openItem(it, prefill){
   $("#unordBtn") && ($("#unordBtn").onclick = async e => { const b = e.currentTarget; if (!needMe()) return;
   if (!b.classList.contains("armed")) { b.classList.add("armed"); b.innerHTML = ic("undo") + "Tap again to undo the order"; return; }
   b.disabled = true;
-  try { await write(it.id, { ordered: "", orderedQty: 0 }); logIt("Order undone", it, `Not ordered after all${it.ordered ? " (was marked ordered " + it.ordered + ")" : ""}`); toast(`${it.name} is off On order${it.need ? " and back on the Order list" : ""}`); closePanel(); render(); }
+  try { await write(it.id, { ordered: "", orderedQty: 0 }); logIt("Order undone", it, `Not ordered after all${it.ordered ? " (was marked ordered " + it.ordered + ")" : ""}`); toast(`${it.name} is off On the way${it.need ? " and back on the Order list" : ""}`); closePanel(); render(); }
   catch(err) { b.disabled = false; toast(dbErr(err)); } });
 $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
@@ -5112,8 +5112,8 @@ function docChg(row, l, sup){
   const q = num(row.querySelector("[data-qty]").value), pr = num(row.querySelector("[data-price]").value), on = row.querySelector("[data-on]").checked;
   const bits = [], warn = [];
   if (it) {
-    if (mode === "receive" && q > 0) bits.push(`+${fmtQ(q)} → ${fmtQ((it.qty ?? 0) + q)} on hand${it.onOrder ? ", off the On order list" : ""}`);
-    if (mode === "ordered" && q > 0) bits.push(`On order: ${fmtQ(q)}${it.units ? " × " + esc(it.units) : ""}`);
+    if (mode === "receive" && q > 0) bits.push(`+${fmtQ(q)} → ${fmtQ((it.qty ?? 0) + q)} on hand${it.onOrder ? ", off On the way" : ""}`);
+    if (mode === "ordered" && q > 0) bits.push(`On the way: ${fmtQ(q)}${it.units ? " × " + esc(it.units) : ""}`);
     const cur = num(it.unitCost);
     if (pr != null && pr > 0 && (cur == null || Math.abs(cur - pr) >= 0.005)) bits.push(`price ${cur == null ? "" : "$" + cur.toFixed(2) + " → "}$${pr.toFixed(2)}`);
     if (l.sku && !clean(it.sku)) bits.push("adds SKU " + esc(l.sku));
@@ -5121,7 +5121,7 @@ function docChg(row, l, sup){
     if (id === l.match && l.packDiffers) warn.push(`This line is per ${esc(l.pack || "a different pack")}; you count it in ${esc(it.units || "other units")}. Adjust Qty and Price to match`);
     if (mode !== "prices" && !(q > 0)) warn.push("No quantity");
   } else {
-    bits.push(`new item${sup ? " from " + esc(sup) : ""}${l.pack ? " · " + esc(l.pack) : ""}${pr != null ? " · $" + pr.toFixed(2) : ""}${mode === "receive" && q > 0 ? ` · ${fmtQ(q)} on hand` : mode === "ordered" && q > 0 ? ` · ${fmtQ(q)} on order` : ""}`);
+    bits.push(`new item${sup ? " from " + esc(sup) : ""}${l.pack ? " · " + esc(l.pack) : ""}${pr != null ? " · $" + pr.toFixed(2) : ""}${mode === "receive" && q > 0 ? ` · ${fmtQ(q)} on hand` : mode === "ordered" && q > 0 ? ` · ${fmtQ(q)} on the way` : ""}`);
   }
   if (l.backordered && mode !== "prices") warn.push("Backordered, so it hasn't arrived");
   row.classList.toggle("off", !on);
@@ -5356,7 +5356,7 @@ function setupHtml(){
     <div class="list">${[["ok","Above desired reserve"],["low","At or below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
-  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On order and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
+  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
     <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these items">${g.n} item${g.n>1?"s":""} ›</button>` : "0 items"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>

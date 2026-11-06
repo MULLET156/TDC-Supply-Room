@@ -84,7 +84,7 @@ function tools(): array {
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('Counted on hand')] + $who, 'required' => ['id', 'qty']]],
         ['name' => 'add_to_order_list', 'description' => 'Put an item on the Order list by hand (even if stock looks fine), or change how many to order. qty 0 takes it off.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many to order')] + $who, 'required' => ['id', 'qty']]],
-        ['name' => 'mark_ordered', 'description' => 'Mark items as ordered (moves them to On order). qty defaults to the suggested order amount.',
+        ['name' => 'mark_ordered', 'description' => 'Mark items as ordered (moves them to On the way). qty defaults to the suggested order amount.',
          'inputSchema' => ['type' => 'object', 'properties' => ['items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many were ordered')], 'required' => ['id']]]] + $who, 'required' => ['items']]],
         ['name' => 'mark_received', 'description' => 'Mark an ordered item as received and add it to stock. qty defaults to the amount that was ordered.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many arrived')] + $who, 'required' => ['id']]],
@@ -102,7 +102,7 @@ function brief(string $id, array $it, int $expDays): array {
         'id' => $id, 'name' => $it['name'] ?? '', 'sku' => $it['sku'] ?? '', 'supplier' => $it['supplier'] ?? '',
         'onHand' => numv($it['qty'] ?? null), 'reserve' => numv($it['desired'] ?? null), 'level911' => numv($it['urgent'] ?? null),
         'units' => $it['units'] ?? '', 'unitCost' => $it['unitCost'] ?? '', 'location' => $it['loc'] ?? '', 'category' => trim(($it['cat'] ?? '') . ' › ' . ($it['sub'] ?? ''), ' ›'),
-        'status' => $d['onOrder'] ? 'on order since ' . $it['ordered'] . ' (' . ($it['orderedQty'] ?? '') . ')' : ($d['need'] ? ($d['is911'] ? 'URGENT (911) — order ' : 'to order — ') . $d['orderQty'] : 'ok'),
+        'status' => $d['onOrder'] ? 'on the way, ordered ' . $it['ordered'] . ' (' . ($it['orderedQty'] ?? '') . ')' : ($d['need'] ? ($d['is911'] ? 'URGENT (911) — order ' : 'to order — ') . $d['orderQty'] : 'ok'),
         'expires' => ($it['exp'] ?? '') !== '' ? $it['exp'] . ($d['expiring'] ? ' (soon)' : '') : '',
         'link' => $it['link'] ?? '',
     ], fn($v) => $v !== '' && $v !== null);
