@@ -1639,9 +1639,9 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
     <div class="cmrow"><div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
+      <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
       <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
-      <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
     </div><div id="jumpSlot"></div></div>
     <div id="alertSlot"></div>
     <div class="filters">
@@ -5956,7 +5956,7 @@ try { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "
 function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
-function cntMode(){ try { const v = localStorage.getItem("tdc-cntmode"); if (CNT_MODES.includes(v)) return v; } catch {} return "sups"; }
+function cntMode(){ try { const v = localStorage.getItem("tdc-cntmode"); if (CNT_MODES.includes(v)) return v; } catch {} return "locs"; }
 document.querySelectorAll('#countModes input[name="cmode"]').forEach(r => r.addEventListener("change", () => { if (r.checked) setTab(r.value); }));
 function syncCounter(t){
   const on = CNT_MODES.includes(t);
