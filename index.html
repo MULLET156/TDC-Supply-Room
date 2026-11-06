@@ -1473,6 +1473,7 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 .dock .dockord:not(#dockCnt):has(> .btn.pri:disabled){display:none!important}
 .dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
 @media (min-width:641px){
+  .dock.dkempty{display:none!important}
   .dock:not(:has(.wrap > :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
   .dock{background:transparent!important;border-top:0!important;box-shadow:none!important;pointer-events:none}
   .dock .wrap{pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px!important;margin-bottom:12px!important;max-width:620px}
@@ -1494,6 +1495,10 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   header .pagehead{padding-top:6px!important;padding-bottom:6px!important}
   header .pagehead p{display:none!important}
 }
+/* Order list: the supplier name is the link to its webstore */
+.grp .grpweb{display:inline-flex;align-items:center;gap:8px;color:inherit;text-decoration:none;border-radius:8px}
+.grp .grpweb:hover{text-decoration:underline;text-underline-offset:3px}
+.grp .grpweb .gwext .ic{width:14px;height:14px;opacity:.6;margin:0}
 /* Order list: no SKU on the rows (it is in the Order online list, the item window and the rep email) */
 body[data-view="need"] .list .row .info .meta > .p-sku{display:none!important}
 /* All items is for browsing: on hand shows read-only; counting happens on the Count page */
@@ -2530,7 +2535,8 @@ function updateOrdFloat(){
   $("#ofN").textContent = `${selected.size} ticked`;
   $("#ofGo").textContent = tab === "need" ? `Mark ${selected.size} ordered` : `Mark ${selected.size} received`;
 }
-function updateBulk(){
+function dockEmpty(){ try { const d = $(".dock"), w = d?.querySelector(".wrap"); if (!w) return; d.classList.toggle("dkempty", ![...w.children].some(c => !c.classList.contains("navslot") && getComputedStyle(c).display !== "none")); } catch {} }
+function updateBulk(){ setTimeout(dockEmpty, 0);
   updateOrdFloat();
   const show = tab === "products" && !readOnly;   /* in the Editor the "change a field" bar stays put next to Batch Update */   /* the Inventory counter has Mark counted in the bottom bar */
   const bar = $("#bulkBar"), slot = $("#bulkSlot");
@@ -2628,7 +2634,7 @@ function renderInner(){
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${real ? supLogo(s) : ""}${esc(s)}${web ? `<a class="grpicon" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open ${esc(s)} webstore" aria-label="Open ${esc(s)} webstore">${ic("ext")}</a>` : ""}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} items in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp"><span class="grpname">${web ? `<a class="grpweb" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open the ${esc(s)} webstore">${real ? supLogo(s) : ""}${esc(s)}<span class="gwext">${ic("ext")}</span></a>` : `${real ? supLogo(s) : ""}${esc(s)}`}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} items to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} items in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} item${rows.length>1?"s":""}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
