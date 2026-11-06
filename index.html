@@ -2151,57 +2151,99 @@ function skuUrl(sup, sku){
   return "";
 }
 const asinOf = u => (String(u || "").match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aws\/cart\/add\.html\?ASIN\.1=|[?&]asin=)([A-Z0-9]{10})/i) || [])[1]?.toUpperCase() || "";
-const OO_FMT = { space: ["Item number, space, quantity", (k, q) => `${k} ${q}`], comma: ["Item number, comma, quantity", (k, q) => `${k},${q}`], tab: ["Item number, tab, quantity (from a spreadsheet)", (k, q) => `${k}\t${q}`] };
-function ooFmt(){ try { const v = localStorage.getItem("tdc.ooFmt"); if (OO_FMT[v]) return v; } catch {} return "space"; }
+/* How each supplier's website takes a whole order (checked on their sites, signed in, Nov 2026).
+   file: a spreadsheet the site uploads; paste: lines for a bulk-entry box; amazon: one cart link;
+   shopify: the store's cart link (server looks up each product); bcAdd: one add-to-cart link per item;
+   page: a page of past purchases or quick entry to open next to the checklist. */
+const OO_SUP = [
+  { re: /amazon/i, kind: "amazon" },
+  { re: /schein/i, kind: "file", name: "Henry Schein", head: ["Item Code (Required)", "Reorder Quantity"], num: s => s.replace(/\D+/g, ""), file: "Henry Schein list",
+    url: "https://www.henryschein.com/en-us/dashboard/myfavoritesandlists", urlLabel: "Open My Lists & Favorites",
+    steps: "On Henry Schein (signed in), go to <b>My Lists &amp; Favorites</b>, open or create a list (for example \"TDC order\"), choose <b>Upload Excel</b> and pick the file. Then add the list to your cart." },
+  { re: /darby/i, kind: "file", name: "Darby", head: ["SKU", "QTY"], file: "Darby order",
+    url: "https://www.darbydental.com/quickorder/", urlLabel: "Open Darby Quick Order",
+    steps: "On Darby's <b>Quick Order</b> page (signed in), choose <b>Add from File</b>, pick the file, then <b>Add to Cart</b>." },
+  { re: /safco/i, kind: "file", name: "Safco", head: ["SKU", "QTY"], file: "Safco order",
+    url: "https://www.safcodental.com/quickorder/", urlLabel: "Open Safco Quick Order",
+    steps: "On Safco's <b>Quick Order</b> page (signed in), choose <b>Add from File</b>, pick the file, then <b>Add to Cart</b>." },
+  { re: /brasseler/i, kind: "file", name: "Brasseler", head: ["Item", "Quantity"], file: "Brasseler order",
+    url: "https://shop.brasselerusa.com/OrderUpload", urlLabel: "Open Brasseler Order Upload",
+    steps: "On Brasseler's <b>Quick Order › Upload an Order</b> page (signed in), tick <b>First row is column headings</b>, pick the file and press <b>Upload Order</b>." },
+  { re: /benco/i, kind: "paste", name: "Benco", line: (s, q) => { const d = s.replace(/\D+/g, ""); return `${/^\d{6,8}$/.test(d) ? d.slice(0, -3) + "-" + d.slice(-3) : s},${q}`; },
+    url: "https://shop.benco.com/", urlLabel: "Open Benco",
+    steps: "On Benco, press <b>Quick Add</b> at the top, choose <b>Bulk Entry</b>, paste, and add to cart." },
+  { re: /dess/i, kind: "bcAdd", host: "https://www.dess-usa.com" },
+  { re: /bisco/i, kind: "bcAdd", host: "https://www.bisco.com" },
+  { re: /net ?32/i, kind: "page", url: "https://www.net32.com/reorder", urlLabel: "Open Net32 Reorder (past purchases)" },
+  { re: /ultradent/i, kind: "page", url: "https://www.ultradent.com/reorder", urlLabel: "Open Ultradent Reorder (past purchases)" },
+  { re: /elevate/i, kind: "page", url: "https://www.elevateoralcare.com/cart?openQuickOrder=true", urlLabel: "Open Elevate Quick Order" },
+];
+const shopifyHandle = u => /^https?:\/\/[^/]+\/(?:collections\/[^/]+\/)?products\/[^/?#]+/i.test(String(u || ""));
 document.addEventListener("click", e => { const b = e.target.closest?.("[data-orderall]"); if (b) orderOnline(b.dataset.orderall); });
 function orderOnline(sup){
   const rows = items.filter(i => i.need && !i.onOrder && keyOf(i.supplier) === keyOf(sup)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!rows.length) { toast("Nothing from " + sup + " on the Order list"); return; }
-  const q = i => fmtQ(i.orderQty || 1), web = clean(infoOf(sup).website), isAmz = /amazon/i.test(sup), isHS = /schein/i.test(sup), isSafco = /safco/i.test(sup), isBenco = /benco/i.test(sup), isDarby = /darby/i.test(sup);
-  const qn = i => Math.max(1, Math.round(num(i.orderQty) || 1)), skuOf = i => clean(i.sku).replace(/\s+/g, "");
-  const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
+  const web = clean(infoOf(sup).website), cfg = OO_SUP.find(c => c.re.test(sup)) || {};
+  const q = i => fmtQ(i.orderQty || 1), qn = i => Math.max(1, Math.round(num(i.orderQty) || 1)), skuOf = i => clean(i.sku).replace(/\s+/g, "");
   const linkOf = i => /^https?:/i.test(i.link || "") ? i.link : skuUrl(sup, i.sku);
-  const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(isAmz ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
+  const bcLink = i => cfg.kind === "bcAdd" && skuOf(i) ? `${cfg.host}/cart.php?action=add&sku=${encodeURIComponent(skuOf(i))}&qty=${qn(i)}` : "";
+  const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
+  const findUrl = i => cfg.kind === "amazon" || /amazon/i.test(sup) ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name);
+  const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${bcLink(i) ? `<a class="btn sm" href="${esc(bcLink(i))}" target="_blank" rel="noopener">${ic("cart")}Add ↗</a>` : linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(findUrl(i))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const noNum = list => list.length ? `<p class="hint">${plural(list.length, "item")} ${list.length === 1 ? "has" : "have"} no item number, so add ${list.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(list)}` : "";
   const done = `<div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" type="button" id="ooMark">${ic("send")}${rows.length === 1 ? "Mark it ordered" : `Mark these ${rows.length} ordered`}</button></div>`;
-  let body = "";
-  if (isAmz) {
+  let body = "", steps = 2;
+  if (cfg.kind === "amazon") {
     const ok = rows.filter(i => asinOf(i.link)), miss = rows.filter(i => !asinOf(i.link));
-    const url = "https://www.amazon.com/gp/aws/cart/add.html?" + ok.map((i, k) => `ASIN.${k + 1}=${asinOf(i.link)}&Quantity.${k + 1}=${Math.max(1, Math.round(num(i.orderQty) || 1))}`).join("&");
-    body = `${ok.length ? `<p class="hint">Step 1: open Amazon with ${ok.length} item${ok.length === 1 ? "" : "s"} already in the cart. Amazon shows a page to confirm; press <b>Add to cart</b>, then check out as usual.</p>
+    const url = "https://www.amazon.com/gp/aws/cart/add.html?" + ok.map((i, k) => `ASIN.${k + 1}=${asinOf(i.link)}&Quantity.${k + 1}=${qn(i)}`).join("&");
+    steps = ok.length ? 3 : 2;
+    body = `${ok.length ? `<p class="hint">Step 1: open Amazon with ${plural(ok.length, "item")} already in the cart. Amazon shows a page to confirm; press <b>Add to cart</b>, then check out as usual.</p>
       <div class="actions"><a class="btn pri grow" href="${esc(url)}" target="_blank" rel="noopener">${ic("cart")}Add ${ok.length} to Amazon cart ↗</a></div>` : ""}
       ${miss.length ? `<p class="hint">${ok.length ? "These" : "None of these"} have an Amazon product link${ok.length ? " yet, so add them yourself" : ", so add them yourself (add the Amazon link to an item once and next time it goes in automatically)"}:</p>${check(miss)}` : ""}
       ${ok.length ? `<details class="oomore"><summary>See the ${ok.length} going in automatically</summary>${check(ok)}</details>` : ""}`;
-  } else if (isHS) {
-    const ok = rows.filter(i => clean(i.sku)), miss = rows.filter(i => !clean(i.sku)), f = ooFmt();
-    const text = () => ok.map(i => OO_FMT[ooFmt()][1](clean(i.sku).replace(/[\s-]/g, ""), Math.max(1, Math.round(num(i.orderQty) || 1)))).join("\n");
-    body = `${ok.length ? `<p class="hint">Step 1: copy these item numbers. Step 2: on Henry Schein, open <b>Quick Order</b> (sign in first), paste them in and add to cart.</p>
-      <textarea id="ooText" class="mono" rows="${Math.min(10, ok.length + 1)}" readonly>${esc(text())}</textarea>
-      <div class="actions"><button class="btn pri grow" type="button" id="ooCopy">${ic("copy")}Copy ${ok.length} item number${ok.length === 1 ? "" : "s"}</button><a class="btn" href="https://www.henryschein.com/us-en/dental/default.aspx" target="_blank" rel="noopener">Open Henry Schein ↗</a></div>
-      <label class="hint oofmt">Format <select id="ooFmt">${Object.entries(OO_FMT).map(([k, [l]]) => `<option value="${k}" ${k === f ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
-      ${miss.length ? `<p class="hint">${miss.length} item${miss.length === 1 ? " has" : "s have"} no item number, so add ${miss.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(miss)}` : ""}`;
-  } else if (isSafco) {
+  } else if (cfg.kind === "file") {
     const ok = rows.filter(i => skuOf(i)), miss = rows.filter(i => !skuOf(i));
-    body = `${ok.length ? `<p class="hint">Step 1: download the order file (${ok.length} item${ok.length === 1 ? "" : "s"} with quantities). Step 2: on Safco's <b>Quick Order</b> page (sign in first), choose <b>Add from File</b>, pick the file, then <b>Add to Cart</b>.</p>
-      <div class="actions"><button class="btn pri grow" type="button" id="ooCsv">${ic("download")}Download Safco order file</button><a class="btn" href="https://www.safcodental.com/quickorder/" target="_blank" rel="noopener">Open Safco Quick Order ↗</a></div>
-      <details class="oomore"><summary>See the ${ok.length} in the file</summary>${check(ok)}</details>` : ""}
-      ${miss.length ? `<p class="hint">${miss.length} item${miss.length === 1 ? " has" : "s have"} no Safco item number, so add ${miss.length === 1 ? "it" : "them"} yourself:</p>${check(miss)}` : ""}`;
-  } else if (isBenco || isDarby) {
-    const ok = rows.filter(i => skuOf(i));
-    body = `<p class="hint">Open each item${ok.length ? " (they go straight to the product page from the item number)" : ""}, add it to the cart, and tick it off.${ok.length ? ` If ${esc(sup)}'s site has a quick-order box when you're signed in, copy the item numbers below and paste them there instead.` : ""}</p>${check(rows)}
-      <div class="actions">${ok.length ? `<button class="btn" type="button" id="ooCopyNums">${ic("copy")}Copy ${ok.length} item number${ok.length === 1 ? "" : "s"}</button>` : ""}<button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
+    steps = ok.length ? 3 : 2;
+    body = `${ok.length ? `<p class="hint">Step 1: download the order file (${plural(ok.length, "item")} with quantities). Step 2: ${cfg.steps}</p>
+      <div class="actions"><button class="btn pri grow" type="button" id="ooCsv">${ic("download")}Download order file</button><a class="btn" href="${esc(cfg.url)}" target="_blank" rel="noopener">${esc(cfg.urlLabel)} ↗</a></div>
+      <details class="oomore"><summary>See the ${ok.length} in the file</summary>${check(ok)}</details>` : ""}${noNum(miss)}`;
+  } else if (cfg.kind === "paste") {
+    const ok = rows.filter(i => skuOf(i)), miss = rows.filter(i => !skuOf(i));
+    steps = ok.length ? 3 : 2;
+    body = `${ok.length ? `<p class="hint">Step 1: copy these item numbers and quantities. Step 2: ${cfg.steps}</p>
+      <textarea id="ooText" class="mono" rows="${Math.min(10, ok.length + 1)}" readonly>${esc(ok.map(i => cfg.line(skuOf(i), qn(i))).join("\n"))}</textarea>
+      <div class="actions"><button class="btn pri grow" type="button" id="ooCopy">${ic("copy")}Copy ${plural(ok.length, "item")}</button><a class="btn" href="${esc(cfg.url)}" target="_blank" rel="noopener">${esc(cfg.urlLabel)} ↗</a></div>` : ""}${noNum(miss)}`;
+  } else if (window.HOSTED && rows.some(i => shopifyHandle(i.link))) {
+    const ok = rows.filter(i => shopifyHandle(i.link)), miss = rows.filter(i => !shopifyHandle(i.link));
+    steps = 3;
+    body = `<p class="hint">Step 1: ${esc(sup)}'s store can take a whole cart in one link. Press the button: the server looks up ${ok.length === 1 ? "the product" : `the ${ok.length} products`}, then the store opens with ${ok.length === 1 ? "it" : "them"} in the cart.</p>
+      <div class="actions"><button class="btn pri grow" type="button" id="ooShop">${ic("cart")}Fill ${esc(sup)} cart (${plural(ok.length, "item")}) ↗</button></div><p class="hint" id="ooShopMsg"></p>
+      <details class="oomore"><summary>See the ${ok.length} going in</summary>${check(ok)}</details>
+      ${miss.length ? `<p class="hint">Add ${miss.length === 1 ? "this one" : "these"} yourself (no product link from ${esc(sup)}'s store yet):</p>${check(miss)}` : ""}`;
   } else {
-    body = `<p class="hint">${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.</p>${check(rows)}
-      <div class="actions"><button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
+    body = `<p class="hint">${cfg.kind === "bcAdd" ? `Tap <b>Add</b> on each item: it opens ${esc(sup)}'s cart with that item added. Tick each one off as you go.` : cfg.kind === "page" ? `${esc(sup)} doesn't take a list at once. Its page of past purchases is often quicker than searching; otherwise open each item below and tick it off.` : `${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.`}</p>${check(rows)}
+      <div class="actions">${cfg.kind === "page" ? `<a class="btn" href="${esc(cfg.url)}" target="_blank" rel="noopener">${esc(cfg.urlLabel)} ↗</a>` : ""}<button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web && cfg.kind !== "page" ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
   }
-  openPanel(head + body + `<p class="hint">Step ${isAmz || isHS || isSafco ? "3" : "2"}: after you've placed the order, mark them ordered so they move to On order.</p>` + done);
-  $("#ooFmt") && ($("#ooFmt").onchange = e => { try { localStorage.setItem("tdc.ooFmt", e.target.value); } catch {} const t = $("#ooText"); if (t) t.value = rows.filter(i => clean(i.sku)).map(i => OO_FMT[e.target.value][1](clean(i.sku).replace(/[\s-]/g, ""), Math.max(1, Math.round(num(i.orderQty) || 1)))).join("\n"); });
+  openPanel(head + body + `<p class="hint">Step ${steps}: after you've placed the order, mark ${rows.length === 1 ? "it" : "them"} ordered so ${rows.length === 1 ? "it moves" : "they move"} to On order.</p>` + done);
   const copy = (txt, msg) => { try { navigator.clipboard.writeText(txt).then(() => toast(msg), () => toast("Select the text and copy it")); } catch { toast("Select the text and copy it"); } };
-  $("#ooCopy") && ($("#ooCopy").onclick = () => { const t = $("#ooText"); t.select(); copy(t.value, "Copied. Paste into Henry Schein Quick Order"); });
+  $("#ooCopy") && ($("#ooCopy").onclick = () => { const t = $("#ooText"); t.select(); copy(t.value, `Copied. Paste it into ${cfg.name || sup}`); });
   $("#ooCopyList") && ($("#ooCopyList").onclick = () => copy(rows.map(i => `${q(i)} x ${i.name}${i.units ? " (" + i.units + ")" : ""}${i.sku ? " #" + i.sku : ""}`).join("\n"), "List copied"));
-  $("#ooCopyNums") && ($("#ooCopyNums").onclick = () => copy(rows.filter(i => skuOf(i)).map(i => `${skuOf(i)} ${qn(i)}`).join("\n"), "Item numbers copied"));
   $("#ooCsv") && ($("#ooCsv").onclick = () => {
-    const csv = "SKU,QTY\n" + rows.filter(i => skuOf(i)).map(i => `${csvCell(skuOf(i))},${qn(i)}`).join("\n") + "\n";
-    if (downloads) downloads.save({ filename: `Safco order ${new Date().toLocaleDateString("en-CA")}.csv`, data: csv }); else copy(csv, "Order file copied");
+    const num_ = cfg.num || (s => s);
+    const csv = cfg.head.map(csvCell).join(",") + "\n" + rows.filter(i => skuOf(i)).map(i => `${csvCell(num_(skuOf(i)))},${qn(i)}`).join("\n") + "\n";
+    const fn = `${cfg.file} ${new Date().toLocaleDateString("en-CA")}.csv`;
+    if (downloads) downloads.save({ filename: fn, data: csv }); else copy(csv, "Order file copied");
+  });
+  $("#ooShop") && ($("#ooShop").onclick = async e => {
+    const b = e.currentTarget, msg = $("#ooShopMsg"); b.disabled = true; msg.textContent = "Looking up the products…";
+    const w = window.open("", "_blank");   /* opened now so the browser allows it; filled in once the link is ready */
+    try {
+      const j = await TDC.call("shopifycart", { lines: rows.filter(i => shopifyHandle(i.link)).map(i => ({ link: i.link, sku: skuOf(i), qty: qn(i) })) });
+      if (w) w.location = j.url; else window.open(j.url, "_blank");
+      msg.textContent = j.missed?.length ? `Couldn't find ${j.missed.length} of them on the store; add ${j.missed.length === 1 ? "it" : "those"} yourself.` : "Opened the store with everything in the cart.";
+    } catch(err) { try { w?.close(); } catch {} msg.textContent = (err?.message || "Couldn't build the cart") + ". Use the links below instead."; }
+    b.disabled = false;
   });
   $("#ooMark").onclick = () => { closePanel(); markOrdered(rows); };
 }

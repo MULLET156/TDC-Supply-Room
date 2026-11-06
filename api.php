@@ -197,6 +197,12 @@ try {
             out(200, $r);
         }
 
+        case 'shopifycart': {
+            $r = shopify_cart(is_array($req['lines'] ?? null) ? $req['lines'] : []);
+            if (!$r['ok']) fail(502, $r['error'], $r['message']);
+            out(200, $r);
+        }
+
         case 'fetchlogo': {
             $r = fetch_logo((string)($req['site'] ?? ''));
             if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);

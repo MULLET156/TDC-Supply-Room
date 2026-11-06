@@ -1216,3 +1216,33 @@ function fetch_logo(string $site): array {
     if (!$out) return ['ok' => false, 'error' => 'no_logo', 'message' => 'Couldn\'t find a logo on ' . $host . '. Upload one instead.'];
     return ['ok' => true, 'logos' => $out];
 }
+
+/*
+ * Order online for Shopify stores (Zirc, TruAbutment, Common Sense Dental, American Dental Accessories…):
+ * a Shopify store fills its cart from one link, /cart/VARIANT:QTY,VARIANT:QTY. The variant ids come from
+ * each product page's public .js data; the ?variant= in a saved link, then a matching SKU, picks the right size.
+ */
+function shopify_cart(array $lines): array {
+    $host = ''; $parts = []; $missed = [];
+    foreach (array_slice($lines, 0, 60) as $l) {
+        if (!is_array($l)) continue;
+        $link = trim((string)($l['link'] ?? '')); $qty = max(1, (int)round((float)($l['qty'] ?? 1)));
+        $sku = preg_replace('/[^a-z0-9]/', '', strtolower((string)($l['sku'] ?? '')));
+        if (!preg_match('#^(https?://[^/]+)/(?:collections/[^/]+/)?products/([^/?\#]+)#i', $link, $m)) { $missed[] = $link; continue; }
+        $h = strtolower($m[1]);
+        if ($host === '') $host = $h; elseif ($host !== $h) { $missed[] = $link; continue; }
+        $r = http_get($h . '/products/' . $m[2] . '.js', 1048576, 15, ['Accept: application/json']);
+        $p = $r['ok'] ? json_decode((string)$r['body'], true) : null;
+        $vs = is_array($p['variants'] ?? null) ? $p['variants'] : [];
+        if (!$vs) { $missed[] = $link; continue; }
+        $want = preg_match('/[?&]variant=(\d+)/', $link, $vm) ? $vm[1] : '';
+        $pick = null;
+        foreach ($vs as $v) if ($want !== '' && (string)($v['id'] ?? '') === $want) $pick = $v;
+        if (!$pick && $sku !== '') foreach ($vs as $v) if (preg_replace('/[^a-z0-9]/', '', strtolower((string)($v['sku'] ?? ''))) === $sku) { $pick = $v; break; }
+        if (!$pick) foreach ($vs as $v) if (!empty($v['available'])) { $pick = $v; break; }
+        $pick = $pick ?: $vs[0];
+        $parts[] = (int)$pick['id'] . ':' . $qty;
+    }
+    if (!$parts) return ['ok' => false, 'error' => 'no_match', 'message' => 'Couldn\'t look up these products on the store'];
+    return ['ok' => true, 'url' => $host . '/cart/' . implode(',', $parts), 'missed' => $missed];
+}
