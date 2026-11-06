@@ -1892,7 +1892,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "signedinprices"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
@@ -2018,12 +2018,11 @@ window.TDC = (function(){
   async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
-  async function signedInPrices(supplier, pages, run){ return call("signedinprices", { supplier, pages, run: run || "" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, signedInPrices, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -3263,7 +3262,7 @@ function compareHtml(){
   };
   return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Items with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All items</option></select></label>
-    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button>${window.TDC?.signedInPrices && compareSups().some(s => /schein/i.test(s)) ? `<button type="button" class="btn" id="cmpHS" title="Test: log in to Henry Schein with the saved login and read your prices (up to 10 items)">${ic("zap")}Henry Schein sign-in (test)</button>` : ""}<button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} item${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
     ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">Item</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
       ${rows.map(r => `<tr><th class="cn"><button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
@@ -3272,7 +3271,6 @@ function compareHtml(){
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
   $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
-  $("#cmpHS") && ($("#cmpHS").onclick = () => hsSignedIn(cmpRows().map(r => r.it)));
   $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(cmpRows().map(r => r.it).slice(0, 40)));
   $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
@@ -3307,66 +3305,10 @@ async function fetchPrices(list){
   openPanel(`<div class="ph"><h2>Prices fetched</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <p>${stop ? `Stopped after ${n} of ${todo.length}.` : `Checked ${n} item${n === 1 ? "" : "s"}${skip ? ` (${skip} were checked recently)` : ""}.`}${cheaper ? ` <b>${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper at another supplier</b>; look for green prices.` : ""}</p>
     ${gaps.length ? `<p>Still without a price: ${gaps.map(([s, c]) => `<b>${esc(s)}</b> (${c})`).join(", ")}. These suppliers only show your price after you sign in, so the website can't read them. Two ways to fill them in:</p>
-      <div class="mmenu">${missing.get("Henry Schein") && window.TDC?.signedInPrices ? `<button type="button" class="mi pri" id="fpHS">${ic("zap")}Try Henry Schein sign-in (test)<small>uses the login in Setup › Suppliers</small></button>` : ""}<button type="button" class="mi" id="fpLive">${ic("monitor")}Have Claude read them while you're signed in<small>Claude desktop app</small></button><button type="button" class="mi" id="fpImp">${ic("upload")}Import a price list<small>Excel, CSV, PDF or screenshot</small></button></div>` : `<p>Every item has a price at each supplier.</p>`}
+      <div class="mmenu"><button type="button" class="mi" id="fpLive">${ic("monitor")}Have Claude read them while you're signed in<small>Claude desktop app</small></button><button type="button" class="mi" id="fpImp">${ic("upload")}Import a price list<small>Excel, CSV, PDF or screenshot</small></button></div>` : `<p>Every item has a price at each supplier.</p>`}
     <div class="actions savebar"><button class="btn pri grow" data-close type="button">Show the comparison</button></div>`);
   $("#fpLive") && ($("#fpLive").onclick = () => livePricesHelp(null));
-  $("#fpHS") && ($("#fpHS").onclick = () => hsSignedIn(list));
   $("#fpImp") && ($("#fpImp").onclick = () => openPriceListImport(gaps[0]?.[0]));
-  render();
-}
-/* TEST: Henry Schein account prices through Apify, logging in with the saved supplier login (server side) */
-function hsPage(it){
-  const hs = s => /schein/i.test(s || "");
-  if (hs(it.supplier) && it.link && /henryschein\.com/i.test(it.link)) return webHref(it.link);
-  const o = (Array.isArray(it.offers) ? it.offers : []).find(o => hs(o.src) && /henryschein\.com/i.test(o.url || "")); if (o) return o.url;
-  const a = (Array.isArray(it.altSources) ? it.altSources : []).find(a => hs(a.supplier) && /henryschein\.com/i.test(a.link || "")); if (a) return webHref(a.link);
-  if (hs(it.supplier) && /^\d{7}$/.test(clean(it.sku))) return HS_ITEM(clean(it.sku));
-  return "";
-}
-async function hsSignedIn(list){
-  /* items with a Henry Schein link are opened directly; the rest are searched for on Henry Schein (part #, else name) */
-  const query = it => clean(it.mfr) || (/schein/i.test(it.supplier || "") ? clean(it.sku) : "") || searchWords(it.name);
-  const pages = list.map(i => byId(i.id) || i).map(it => ({ id: it.id, name: it.name, url: hsPage(it), q: hsPage(it) ? "" : query(it) })).filter(p => p.url || p.q).slice(0, 10);
-  if (!pages.length) { toast("No items to look up"); return; }
-  openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p class="hint" id="hsStat">Logging in to Henry Schein and reading ${pages.length} product page${pages.length > 1 ? "s" : ""}. This takes 1–4 minutes; keep this open.</p><div class="fpbar"><i class="indet"></i></div>`);
-  let r;
-  try {
-    r = await TDC.signedInPrices("Henry Schein", pages);
-    const t0 = Date.now();
-    while (r?.pending && r.run && Date.now() - t0 < 9 * 60e3) {
-      await new Promise(res => setTimeout(res, 8000));
-      const st = $("#hsStat"); if (st) st.textContent = `Logging in to Henry Schein and reading ${pages.length} product page${pages.length > 1 ? "s" : ""}… ${Math.round((Date.now() - t0) / 1000)} s so far (usually 1–4 minutes).`;
-      r = { ...(await TDC.signedInPrices("Henry Schein", [], r.run)), run: r.run };
-    }
-    if (r?.pending) r = { ok: false, message: "It's taking longer than 9 minutes, so the page stopped waiting." };
-    if (r?.failed) r = { ...r, ok: false };
-  } catch(e) { r = { ok: false, message: e?.message || dbErr(e) }; }
-  if (!$("#hsStat")) { if (r?.ok) toast("Henry Schein prices saved"); }
-  if (!r?.ok) {
-    openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
-      <p><b>It didn't get in.</b> ${esc(r?.message || "Unknown problem.")}</p>
-      ${r?.debug ? `<details><summary class="hint">Details for Claude</summary><pre class="hint" style="white-space:pre-wrap">${esc(JSON.stringify(r.debug, null, 1))}</pre></details>` : ""}
-      <p class="hint">The Claude desktop app route still works: it uses the browser where you're already signed in.</p>
-      <div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" id="hsLive" type="button">Use the desktop app instead</button></div>`);
-    $("#hsLive").onclick = () => livePricesHelp(null);
-    return;
-  }
-  let saved = 0; const rows = [];
-  for (const x of r.results || []) {
-    const it = byId(x.id); if (!it) continue;
-    /* a page found by search is kept as Henry Schein's link for this item (hidden until you switch), flagged if it may be another product */
-    if (x.url) {
-      const offers = upsertOffer(it.offers, { src: "Henry Schein", price: x.price > 0 ? x.price : null, pack: clean(x.units) || (/schein/i.test(it.supplier || "") ? it.units || "" : ""), url: x.url, sku: clean(x.sku), kind: x.price > 0 ? "live" : "signin", at: Date.now(), sure: x.same !== false, mine: true, title: clean(x.title || "").slice(0, 120) });
-      try { await write(it.id, { offers }); it.offers = offers; if (x.price > 0) saved++; } catch {}
-    }
-    rows.push(`<li>${esc(it.name)}: ${x.price > 0 ? `<b>${esc(money(x.price))}</b>${x.units ? " / " + esc(x.units) : ""}${x.same === false ? ` <span class="pflag">Similar product</span>${x.title ? ` <span class="hint">${esc(x.title)}</span>` : ""}` : x.found ? ` <span class="hint">(found by search)</span>` : ""}` : `<span class="hint">no price (${esc(x.note || "not shown")})</span>`}</li>`);
-  }
-  if (saved) logIt("Price checked", null, `Henry Schein signed-in prices for ${saved} item${saved > 1 ? "s" : ""} (test)`);
-  openPanel(`<div class="ph"><h2>Henry Schein sign-in test</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p><b>${saved ? `It worked: ${saved} price${saved > 1 ? "s" : ""} saved.</b> They show as "Signed in" in the comparison.` : `It logged in, but no prices were found on the pages.</b>`}</p><ul class="hint">${rows.join("")}</ul>
-    <details><summary class="hint">Details for Claude</summary><pre class="hint" style="white-space:pre-wrap;max-height:260px;overflow:auto">${esc(JSON.stringify((r.results || []).map(x => ({ url: x.url, price: x.price, note: x.note, ...(x.debug || {}) })), null, 1))}</pre></details>
-    <div class="actions savebar"><button class="btn pri grow" data-close type="button">Show the comparison</button></div>`);
   render();
 }
 function compareColumns(){
