@@ -1109,6 +1109,14 @@ header .wrap{position:relative}
 @media (max-width:360px){ .tab.big{font-size:12.5px;gap:4px} .tab.big .n{font-size:15px} .menubtn .mlabel{display:none} }
 
 .jumprow{display:flex;align-items:center;gap:10px;margin:0 2px 8px;flex-wrap:wrap}
+.cmrow{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap}
+.cmrow:has(> #countModes[hidden]){display:contents}
+.cmrow > #countModes{margin-bottom:0}
+#jumpSlot{flex:1 1 260px;min-width:0;display:flex;justify-content:flex-end}
+#jumpSlot:empty{display:none}
+#jumpSlot .jumprow{margin:0;flex-wrap:nowrap;width:100%;justify-content:flex-end}
+#jumpSlot .jumprow label{white-space:nowrap}
+#jumpSlot .jumprow select{flex:1 1 auto;max-width:300px;min-height:40px}
 .jumprow label{font-size:13px;font-weight:700;color:var(--muted)}
 .jumprow select{flex:1 1 220px;max-width:360px;min-height:42px;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:9px;padding:0 10px;font:inherit;font-size:15px}
 /* the view already groups by this, so its filter is redundant there */
@@ -1424,6 +1432,14 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .bulkbar{bottom:var(--dockh,70px)!important}
   body:has(#overlay .panel.item) .dock, body:has(#overlay .panel) .dock{z-index:6}
 }
+/* the bottom action bar only appears once something is ticked (all screen sizes); the Count page keeps Scan + Mark counted */
+.dock .dockord:not(#dockCnt):has(> .btn.pri:disabled){display:none!important}
+.dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
+@media (min-width:641px){
+  .dock:not(:has(.wrap > :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
+  .dock{background:transparent!important;border-top:0!important;box-shadow:none!important;pointer-events:none}
+  .dock .wrap{pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px!important;margin-bottom:12px!important;max-width:620px}
+}
 /* All items: one slim "select all" line instead of the color key; denser rows on computers */
 .selbar.slim{display:flex;align-items:center;justify-content:flex-start;padding:2px 19px!important;margin:-4px 0 -6px!important;min-height:0;background:none!important;border:0!important;box-shadow:none!important}
 .selbar.slim .selall{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;min-height:32px}
@@ -1515,6 +1531,9 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
   .jumprow label{font-size:13px!important}
   .jumprow select{min-height:40px!important}
   .jumprow + .hint, .jumprow .hint{display:none!important}
+  #jumpSlot{flex-basis:100%}
+  #jumpSlot .jumprow label{display:none}
+  #jumpSlot .jumprow select{max-width:none}
   header .pagehead .phn{white-space:nowrap}
   .dock .wrap > #scanBtn{flex:1 1 0!important;min-width:0;min-height:44px!important;white-space:nowrap;padding:0 10px!important}
   .list .grp.cathead{padding:8px 10px!important;gap:4px 8px!important;align-items:center}
@@ -1525,8 +1544,6 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
   .list .grp .grpsel{min-height:34px!important;padding:0 11px!important;font-size:13px!important;display:inline-flex!important;flex-direction:row!important;align-items:center;border-radius:999px!important;white-space:nowrap}
   .list .grp .grpsel .ic{width:15px!important;height:15px!important;margin:0 5px 0 0!important}
   /* bottom: the action button only shows once something is ticked */
-  .dock .dockord:not(#dockCnt):has(> .btn.pri:disabled){display:none!important}
-  .dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
   .dock .wrap:has(> #dockCnt:not([hidden])){display:flex!important;flex-wrap:nowrap!important;gap:8px!important}
   .dock .wrap > #dockCnt{flex:1 1 0!important;min-width:0;display:flex;gap:6px}
   .dock .wrap > #dockCnt .btn{flex:1 1 auto;white-space:nowrap;padding:0 10px!important}
@@ -1567,11 +1584,11 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
-    <div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
+    <div class="cmrow"><div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
       <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
       <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
-    </div>
+    </div><div id="jumpSlot"></div></div>
     <div id="alertSlot"></div>
     <div class="filters">
       <input id="q" type="search" placeholder="Search items, SKU, supplier…" autocomplete="off">
@@ -2435,7 +2452,7 @@ function bySupplier(list){
   return [...g.entries()].map(([k, v]) => [nm.get(k), v]).sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
 }
 let lastRendered = "";   /* a refresh of the same page keeps the list where you were (after saving an item, live updates) */
-function render(){ const y = scrollY, same = lastRendered === tab; renderInner(); lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
+function render(){ const y = scrollY, same = lastRendered === tab; renderInner(); try { const slot = $("#jumpSlot"), jr = $("#view .jumprow"); if (slot) { slot.innerHTML = ""; if (jr && CNT_MODES.includes(tab)) slot.append(jr); } } catch {} lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
 /* Which page you're on: a title in the page's color under the tiles (the page also takes on that color) */
 function pageHead(){
   document.body.dataset.view = tab;
@@ -2597,7 +2614,6 @@ function renderInner(){
     const slug = n => tab + "-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
     const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${supLogo(g.name)}${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
     v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
-      <p class="hint" style="margin:0 2px 8px">Change the order of these in Setup › ${isLoc ? "Storage locations" : "Suppliers"}.</p>
       <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
