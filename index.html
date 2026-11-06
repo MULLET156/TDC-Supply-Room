@@ -2376,7 +2376,7 @@ function orderOnline(sup){
   const bcLink = i => cfg.kind === "bcAdd" && skuOf(i) ? `${cfg.host}/cart.php?action=add&sku=${encodeURIComponent(skuOf(i))}&qty=${qn(i)}` : "";
   const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
   const findUrl = i => cfg.kind === "amazon" || /amazon/i.test(sup) ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : cfg.shop ? cfg.shop + "/?s=" + encodeURIComponent(i.name) + "&post_type=product" : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name);
-  const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${bcLink(i) ? `<a class="btn sm" href="${esc(bcLink(i))}" target="_blank" rel="noopener">${ic("cart")}Add ↗</a>` : linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(findUrl(i))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
+  const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock data-id="${esc(i.id)}"><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${bcLink(i) ? `<a class="btn sm" href="${esc(bcLink(i))}" target="_blank" rel="noopener">${ic("cart")}Add ↗</a>` : linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(findUrl(i))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const noNum = list => list.length ? `<p class="hint">${plural(list.length, "item")} ${list.length === 1 ? "has" : "have"} no item number, so add ${list.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(list)}` : "";
   const done = `<div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" type="button" id="ooMark">${ic("send")}${rows.length === 1 ? "Mark it ordered" : `Mark these ${rows.length} ordered`}</button></div>`;
@@ -2432,7 +2432,13 @@ function orderOnline(sup){
     } catch(err) { try { w?.close(); } catch {} msg.textContent = (err?.message || "Couldn't build the cart") + ". Use the links below instead."; }
     b.disabled = false;
   });
-  $("#ooMark").onclick = () => { closePanel(); markOrdered(rows); };
+  /* ticking items off narrows Mark ordered to just those; with nothing ticked it marks them all */
+  const ticked = () => { const ids = new Set([...document.querySelectorAll("#overlay [data-oock]:checked")].map(x => x.dataset.id)); return rows.filter(i => ids.has(i.id)); };
+  const syncMark = () => { const t = ticked(), b = $("#ooMark"); if (!b) return; const n = t.length;
+    b.innerHTML = ic("send") + (n ? (n === rows.length ? (n === 1 ? "Mark it ordered" : `Mark all ${n} ordered`) : `Mark ${n} ticked ordered`) : (rows.length === 1 ? "Mark it ordered" : `Mark all ${rows.length} ordered`)); };
+  document.querySelectorAll("#overlay [data-oock]").forEach(x => { x.onchange = syncMark; });
+  syncMark();
+  $("#ooMark").onclick = () => { const t = ticked(); closePanel(); markOrdered(t.length ? t : rows); };
 }
 function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
