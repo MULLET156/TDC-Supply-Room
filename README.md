@@ -89,7 +89,7 @@ The same token is the fallback for any other supplier site that blocks the serve
 
 Anyone with the full connector URL can read and change the inventory, so keep it private. To disconnect everything, change or empty `MCP_KEY`.
 
-What Claude can do through the connector: search items, see one item, list suppliers/categories/locations, add an item (with a photo from a link), change an item, record a count, put something on the order list, mark items ordered or received, and read a product page. Every change shows in the Activity log with the initials given (or `CL` for Claude).
+What Claude can do through the connector: search items, see one item, list suppliers/categories/locations, add an item (with a photo from a link), change an item, record a count, put something on the order list, mark items ordered or received, read a product page, find an item's pages at your suppliers, record a price found at a supplier, and show an item's price history. Every recorded price is kept (in the `prices` collection, one entry per check), so Claude can tell you how a supplier's price has changed over time and which supplier is cheapest now. Every change shows in the Activity log with the initials given (or `CL` for Claude).
 
 ## Updating
 

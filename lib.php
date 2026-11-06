@@ -10,7 +10,7 @@
 
 declare(strict_types=1);
 
-const COLLECTIONS = ['items', 'log', 'orders', 'reps', 'counts', 'supinfo', 'settings'];
+const COLLECTIONS = ['items', 'log', 'orders', 'reps', 'counts', 'supinfo', 'settings', 'prices'];
 const COOKIE      = 'tdc_supply_auth';
 const TOKEN_DAYS  = 90;
 const MAX_FAILS   = 10;      // failed sign-ins per IP …
