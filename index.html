@@ -972,10 +972,10 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{display:block;justify-
 body[data-view="products"] .ptools > .actions > .pright{justify-self:end;display:flex;gap:8px;flex-wrap:nowrap}
 @media (max-width:1000px){body[data-view="products"] .ptools > .actions{display:flex;flex-wrap:wrap}body[data-view="products"] .ptools > .actions > .pright{margin-left:auto}}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
-/* Order list: navy (the logo's dark color); red is kept for 911 / urgent */
-:root{--navy:#1f3a5f;--navy-soft:#e2e8f1;--navy-fg:#ffffff}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--navy:#9fbbe3;--navy-soft:#1a2639;--navy-fg:#0c1626}}
-:root[data-theme="dark"]{--navy:#9fbbe3;--navy-soft:#1a2639;--navy-fg:#0c1626}
+/* Order list: the logo's slate blue (#23333d); red is kept for 911 / urgent */
+:root{--navy:#23333d;--navy-soft:#e3e8ec;--navy-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--navy:#b4c6d2;--navy-soft:#1c2a33;--navy-fg:#11191c}}
+:root[data-theme="dark"]{--navy:#b4c6d2;--navy-soft:#1c2a33;--navy-fg:#11191c}
 .tabs-main .tab.t-need{background:var(--navy-soft)!important;border-color:var(--navy)!important;color:var(--navy)!important}
 .tabs-main .tab.t-need .n{color:var(--navy)!important}
 .tabs-main .tab.t-need[aria-selected="true"]{background:var(--navy)!important;border-color:var(--navy)!important;color:var(--navy-fg)!important}
