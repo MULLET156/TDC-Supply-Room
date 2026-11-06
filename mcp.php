@@ -167,7 +167,10 @@ function call_tool(PDO $pdo, string $name, array $a): array {
                 if (!empty($it['cat'])) { $cats[$it['cat']] ??= []; if (!empty($it['sub'])) $cats[$it['cat']][$it['sub']] = true; }
                 if (!empty($it['loc'])) $locs[$it['loc']] = true;
             }
-            $s = load($pdo, 'settings', 'suppliers') ?? []; foreach (array_merge($s['order'] ?? [], $s['extra'] ?? []) as $x) if (is_string($x) && $x !== '') $sup[$x] = true;
+            // 'order' holds lowercase sort keys, not names, so only the names in 'extra' are added; one entry per supplier, whatever the capitals.
+            $s = load($pdo, 'settings', 'suppliers') ?? []; foreach ($s['extra'] ?? [] as $x) if (is_string($x) && $x !== '') $sup[$x] = true;
+            $one = []; foreach (array_keys($sup) as $n) { $k = preg_replace('/[^a-z0-9]+/', '', mb_strtolower($n)); if (!isset($one[$k]) || (!preg_match('/[A-Z]/', $one[$k]) && preg_match('/[A-Z]/', $n))) $one[$k] = $n; }
+            $sup = array_fill_keys(array_values($one), true);
             $c = load($pdo, 'settings', 'cats') ?? []; foreach ($c['extra'] ?? [] as $x) if (!empty($x['c'])) { $cats[$x['c']] ??= []; if (!empty($x['s'])) $cats[$x['c']][$x['s']] = true; }
             $l = load($pdo, 'settings', 'locs') ?? []; foreach ($l['extra'] ?? [] as $x) if (is_string($x) && $x !== '') $locs[$x] = true;
             $team = (load($pdo, 'settings', 'team') ?? [])['initials'] ?? [];
