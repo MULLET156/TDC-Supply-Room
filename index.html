@@ -1941,6 +1941,13 @@ header .tooltabs .tab.t-exptool .xn{margin-left:6px;font-family:var(--f-mono);fo
 header .tooltabs .tab.t-exptool[aria-selected="true"] .xn{background:var(--surface);color:var(--warn)}
 @media (max-width:1100px){header .tooltabs .tab.t-exptool .xl{display:none}header .tooltabs .tab.t-exptool .xn{margin-left:4px}}
 @media (max-width:640px){header .tooltabs .tab.t-exptool{display:none!important}}
+/* Spending: money green */
+:root{--money:#1e7a3c;--money-soft:#e3f3e7;--money-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}}
+:root[data-theme="dark"]{--money:#6fd08c;--money-soft:#183a24;--money-fg:#0d2214}
+header .topright .tooltabs .tab[data-t="spend"]{border-color:var(--money);background:var(--money-soft);color:var(--money)}
+header .topright .tooltabs .tab[data-t="spend"]:hover{border-color:var(--money)}
+header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background:var(--money);border-color:var(--money);color:var(--money-fg)}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
