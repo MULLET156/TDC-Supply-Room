@@ -1442,7 +1442,21 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
 .qcstep button{width:72px;height:72px;border-radius:18px;border:2px solid var(--line);background:var(--surface);color:var(--fg);font-size:34px;font-weight:700;cursor:pointer;touch-action:manipulation}
 .qcstep button:active{transform:scale(.96)}
 .qcstep input{width:110px;height:72px;text-align:center;font-size:34px;font-weight:800;font-family:var(--f-mono);border:2px solid var(--line);border-radius:14px;background:var(--sunk);color:var(--fg)}
-.grpsel.qc{margin-left:6px}
+.grpsel.qc{margin-left:6px;display:inline-flex;flex-direction:row;align-items:center;gap:0;padding:5px 11px;text-align:left}
+/* scrub fixes */
+.grpsel{display:inline-flex;align-items:center;white-space:nowrap}
+.grp.subhead{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+.grp.subhead > span:first-child{white-space:nowrap}
+.grp.subhead .grptools{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:640px){
+  .list .row .rside .exprep.inrow{max-width:none}
+  .list .grp.subhead .grptools{width:100%;margin-left:0!important;justify-content:flex-start}
+  .list .grp.subhead .grptools .grpcnt, .list .grp.cathead .grptools .grpcnt{flex-basis:100%}
+  .list .grp .grptools .grpsel.qc{margin-left:0}
+  .cbox .cntsel{font-size:12px!important;padding:0 2px!important;text-align:center}
+}
+/* the floating count bar shouldn't sit on top of the last rows */
+body[data-view="sups"] #view, body[data-view="cats"] #view, body[data-view="locs"] #view{padding-bottom:84px}
 #overlay .qcstep input#qcQ{font-size:34px!important;padding:0!important}
 .ptrend{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:10px;background:var(--surface)}
 .pthead{display:flex;align-items:center;gap:6px;font-size:13.5px}.pthead span{margin-left:auto;font-weight:700;font-size:12.5px;color:var(--muted)}.pthead span.up{color:var(--bad)}.pthead span.down{color:var(--ok)}
@@ -3235,7 +3249,7 @@ function detFields(it){
 function countBoxes(q, d, u, cnt, inBox = true){
   const short = { "7": "Weekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" };
   const sched = `<span class="chint cntlab">Count schedule</span><select id="e-cnt" class="cntsel" aria-label="Count schedule" title="How often this item is counted. Default follows Setup › Alerts (now ${esc(cntName(cntDefault()).toLowerCase())}).">${`<option value="">Default (${esc(short[String(cntDefault())] || cntName(cntDefault()))})</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(cnt ?? "") === k ? " selected" : ""}>${short[k]}</option>`).join("")}</select>`;
-  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" && inBox ? sched : ""}</div>`;
+  const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" && inBox ? sched.replace(/>Default \([^)<]*\)</, ">Default<") : ""}</div>`;
   return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
 }
 /* the count schedule dropdown on its own (item window: on the line with Add to order list) */
