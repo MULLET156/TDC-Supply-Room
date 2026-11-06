@@ -518,7 +518,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v2|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v3|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -610,7 +610,9 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
     $primary = $f['primary'] ?? [];
-    $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge([$f['images'][$pick]], $primary, $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
+    // The page's own product picture (og:image / product data) wins over Claude's pick from the gallery, which on some
+    // sites is a clinical or lifestyle shot; Claude's pick still comes before the rest of the gallery.
+    $order = $pick >= 0 && isset($f['images'][$pick]) ? array_merge($primary, [$f['images'][$pick]], $f['images']) : array_merge($primary, $pick < 0 ? [] : $f['images']);
     // Front-of-box shots first (Henry Schein names them ..._front_01), back/side shots last; Claude's pick leads its group.
     $skuImgs = array_flip($f['skuImages'] ?? []);
     $rank = fn($u) => isset($skuImgs[$u]) ? -1 : (preg_match('/front|main|hero|primary/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 0 : (preg_match('/back|side|top|bottom|label|detail|group|lifestyle|spec/i', basename((string)parse_url($u, PHP_URL_PATH))) ? 2 : 1));
