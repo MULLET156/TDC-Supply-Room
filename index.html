@@ -5092,8 +5092,11 @@ async function loadPriceHist(it, force){
   const c = PHIST.get(it.id); if (c && (c.loading || (c.rows && !force))) return;
   PHIST.set(it.id, { ...(c || {}), loading: true });
   try {
-    const rows = await TDC.priceHistory(it.id), seen = new Set(rows.map(phKey));
-    const add = phFromOffers(byId(it.id) || it).filter(h => !seen.has(phKey(h)));
+    const rows = await TDC.priceHistory(it.id), seen = new Set(rows.map(phKey)), cur = phFromOffers(byId(it.id) || it);
+    /* rows saved before similar products were marked: mark them from the item's own price */
+    for (const h of rows) { const o = cur.find(x => x.similar && phKey(x) === phKey(h)); if (o && !h.similar) { h.similar = true; if (o.title) h.title = o.title;
+      if (!readOnly && h.id) { try { await db.doc("prices/" + h.id).update({ similar: true, ...(o.title ? { title: o.title } : {}) }); } catch {} } } }
+    const add = cur.filter(h => !seen.has(phKey(h)));
     for (const h of add) { if (!readOnly) { try { await db.collection("prices").add(h); } catch {} } rows.push(h); seen.add(phKey(h)); }
     rows.sort((a, b) => (a.at || 0) - (b.at || 0));
     PHIST.set(it.id, { rows });
@@ -5141,7 +5144,7 @@ function priceHistInner(it){
   };
   const tbl = `<div class="phtab">${S.map(s => `<div class="phrow"><span class="phsup"><i style="background:${s.color}"></i>${esc(s.src)}</span>
       <span class="phnow"><b>${esc(money(v(s.last)))}</b><small>${esc(shortDate(s.last.at))}</small></span>${chg(s)}
-      <span class="phrng">${s.pts.length > 1 ? `${esc(money(s.lo))}–${esc(money(s.hi))}` : ""}<small>${s.pts.length} check${s.pts.length > 1 ? "s" : ""}</small></span></div>`).join("")}</div>`;
+      <span class="phrng">${s.hi - s.lo >= .005 ? `${esc(money(s.lo))}–${esc(money(s.hi))}` : ""}<small>${s.pts.length} check${s.pts.length > 1 ? "s" : ""}</small></span></div>`).join("")}</div>`;
   const all = `<details class="phall"><summary>All ${rows.length} check${rows.length > 1 ? "s" : ""}</summary><div class="phlist">${rows.slice().reverse().map(h => `<div><span>${esc(shortDate(h.at))}</span><span>${esc(h.src)}${h.similar ? ` <span class="pflag" title="${esc(h.title || "")}">Similar product</span>` : ""}</span><b>${esc(money(Number(h.price)))}</b><small>${[h.pack, KIND_LBL[h.kind] || (h.kind === "saved" ? "Saved" : "Website"), h.by].filter(Boolean).map(esc).join(" · ")}</small></div>`).join("")}</div></details>`;
   return head(`since ${esc(shortDate(t0))}${usePU ? " · per piece" : ""}`) + chart + tbl + all;
 }
