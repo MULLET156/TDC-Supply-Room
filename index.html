@@ -3013,7 +3013,7 @@ function renderInner(){
     if (slot911) slot911.innerHTML = "";
     const allT = grpTotal(list, true);
     v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} product${list.length>1?"s":""} to order${allT}, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
-      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="ordPrices" type="button" ${readOnly || !window.TDC?.priceSearch ? "hidden" : ""}>${ic("dollar")}Check prices</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
+      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
@@ -3025,7 +3025,6 @@ function renderInner(){
     $("#markOrd").onclick = () => markOrdered(list.filter(i=>selected.has(i.id)));
     document.querySelectorAll("[data-ordprice]").forEach(b => b.onclick = e => { e.stopPropagation(); orderPriceEdit(byId(b.dataset.ordprice)); });
     document.querySelectorAll("[data-psave]").forEach(b => b.onclick = e => { e.stopPropagation(); const it = byId(b.dataset.psave); if (!it) return; openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); });
-    $("#ordPrices") && ($("#ordPrices").onclick = () => checkOrderPrices(selected.size ? list.filter(i => selected.has(i.id)) : list));
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
