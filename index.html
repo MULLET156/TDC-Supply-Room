@@ -1391,7 +1391,7 @@ div.altpic{background:var(--sunk)}
 .psub small{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px}
 .plist.sim .prow{background:transparent}.plist.sim .pw b{font-weight:600}
 .pnone{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 0;font-size:13px;color:var(--muted)}.pnone .ic{width:15px;height:15px}.pnone a .ic{width:13px;height:13px}
-.phist{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}.phist:empty{display:none}
+.phist{border-bottom:1px solid var(--line);margin-bottom:12px;padding-bottom:10px}.phist:empty{display:none}
 .phhead{display:flex;align-items:center;gap:6px;font-size:14px}.phhead .ic{width:16px;height:16px}.phhead span{margin-left:auto;font-size:12.5px;color:var(--muted)}
 .phsvg{display:block;width:100%;height:auto;margin:8px 0 4px;overflow:visible}
 .phsvg .phgrid{stroke:var(--line);stroke-width:1}.phsvg .phax{fill:var(--muted);font-size:10px;font-family:var(--f-mono)}
@@ -5169,11 +5169,11 @@ function priceBox(it){
   /* stores that had the product but showed no price: one line, not a row each */
   const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && o.mine !== false && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
   const cheaperWeb = bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best);
-  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
+  return `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>${mine.length ? `<h4 class="psub">Supplier prices</h4><div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
     ${noPrice.length ? `<p class="pnone">${ic("alert")}No price shown at ${noPrice.map(o => `${esc(o.src)}${o.url ? ` <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}`).join(", ")}${noPrice.some(o => o.kind === "signin") ? " (needs sign-in)" : ""}</p>` : ""}
     ${similar.length ? `<h4 class="psub">Similar products <small>not this exact product</small></h4><div class="plist sim">${similar.map(row).join("")}</div>` : ""}
     ${backupsHtml(it)}
-    ${window.TDC?.priceHistory ? `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>` : ""}`;
+`;
 }
 
 /* ---------- Prices: price over time ----------
@@ -5205,8 +5205,9 @@ async function loadPriceHist(it, force){
   const box = $("#pHist"); if (box && box.dataset.item === it.id) { box.innerHTML = priceHistInner(byId(it.id) || it); wirePriceHist(); }
 }
 function priceHistInner(it){
-  const head = sub => `<div class="phhead">${ic("trend")}<b>Price over time</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
-  const c = PHIST.get(it.id);
+  const head = sub => `<div class="phhead">${ic("receipt")}<b>What you've paid</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
+  /* the website keeps every invoice price; the app copy has only the latest one per supplier on the product */
+  const c = PHIST.get(it.id) || (window.TDC?.priceHistory ? null : { rows: phFromOffers(it) });
   if (!c || (c.loading && !c.rows)) return head("") + `<p class="hint">Loading…</p>`;
   if (c.err) return head("") + `<p class="hint">Couldn't load the price history: ${esc(c.err)}</p>`;
   /* only what you've actually paid: prices that came from your invoices (not other suppliers' or website prices) */
