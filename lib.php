@@ -607,6 +607,13 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     } elseif ($res['skuCheck'] === 'missing') {
         $res['note'] = trim('Item ' . $wantSku . ' isn\'t shown on this page, so it may be a different product or size. ' . $res['note']);
     }
+    // Price comparison: does the page show the manufacturer part number we're matching on?
+    $wantMpn = trim((string)($ctx['mpn'] ?? ''));
+    if ($wantMpn !== '') {
+        $n = sku_norm($wantMpn);
+        $res['mpnCheck'] = (sku_in($f['skus'] ?? [], $wantMpn) || ($n !== '' && (sku_norm($res['mfrNumber']) === $n || sku_norm($res['sku']) === $n))
+            || ($n !== '' && strlen($n) >= 4 && str_contains(sku_norm(json_encode($f['jsonld'] ?? []) . ' ' . ($f['title'] ?? '')), $n))) ? 'found' : 'missing';
+    }
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
     $primary = $f['primary'] ?? [];
@@ -1092,6 +1099,28 @@ function find_product_page(array $q, array $ctx = []): array {
         $res['note'] = trim('Found by search, so check it\'s the right product. ' . ($res['note'] ?? ''));
     }
     return $res;
+}
+/* Price comparison: product pages that may carry this exact manufacturer part number, at one supplier's site
+   ($host) or anywhere else on the web ($host === '', leaving out $skip hosts). The caller reads each page and keeps it
+   only when the page shows the part number. */
+function mpn_search(string $mpn, string $host, array $skip = []): array {
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
+    $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
+    $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
+    $r = apify_search('"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' dental'), 8);
+    if (!$r['ok']) return ['ok' => false, 'error' => 'search', 'message' => $r['message']];
+    $skip = array_map(fn($s) => strtolower(preg_replace('#^www\.#', '', (string)$s)), $skip);
+    $out = []; $seen = [];
+    foreach ($r['results'] as $c) {
+        $h = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
+        if ($host !== '' && !($h === $host || str_ends_with($h, '.' . $host))) continue;
+        if ($host === '' && array_filter($skip, fn($s) => $s !== '' && ($h === $s || str_ends_with($h, '.' . $s)))) continue;
+        if (preg_match('#/(search|s|cart|account|login|blog|category|categories|c)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) continue;
+        if ($host === '' && isset($seen[$h])) continue; $seen[$h] = 1;
+        $out[] = ['url' => $c['url'], 'title' => $c['title'], 'host' => $h];
+        if (count($out) >= 5) break;
+    }
+    return ['ok' => true, 'candidates' => $out];
 }
 function apify_search(string $query, int $max = 5): array {
     @set_time_limit(120);

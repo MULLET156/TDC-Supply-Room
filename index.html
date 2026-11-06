@@ -1351,6 +1351,8 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+.cfind{all:unset;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--accent);text-decoration:underline;text-underline-offset:2px;display:inline-flex;gap:3px;align-items:center}.cfind:disabled{color:var(--muted);text-decoration:none}
+.nompn{color:var(--warn)}
 .sugcap{color:var(--muted)}.sugcap b{color:var(--fg);font-family:var(--f-mono)}
 /* What you've paid: the invoice history when there is one, else the simple trend from price changes */
 .phist:not(:empty) + .ptrend{display:none}
@@ -2095,13 +2097,14 @@ window.TDC = (function(){
   async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
   async function usage(){ return call("usage", {}); }
+  async function mpnSearch(mpn, host, skip){ const j = await call("mpnsearch", { mpn, host: host || "", skip: skip || [] }); return j.failed ? { candidates: [], message: j.message } : j; }
   async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -3086,7 +3089,7 @@ function renderInner(){
   }
 }
 /* ---------- products master list (grid editing) ---------- */
-const PCOLS = [["name","Item name","text",244],["link","Reorder link","text",120],["sku","SKU / catalog #","text",90],["units","Package size","text",112],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["countEvery","Count","cnt",84],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the product window */
+const PCOLS = [["name","Product name","text",244],["link","Reorder link","text",120],["sku","SKU / catalog #","text",90],["mfr","Mfr part #","text",100],["units","Package size","text",112],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["countEvery","Count","cnt",84],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the product window */
 let pSort = { k: "name", dir: 1 };
 /* Products editor's own search and filters (the header search is hidden here) */
 let pF = { q: "", sup: "", cat: "", loc: "", flag: "" };
@@ -3345,7 +3348,7 @@ function spendInner(){
 }
 /* the best known price at one supplier: account prices (invoice, price list, signed in) beat website prices */
 function offerAt(it, sup){
-  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false);
+  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false && (ACCT_KINDS.includes(o.kind) || o.kind === "saved" || o.mpn === true));
   const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
   return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 }
@@ -3356,12 +3359,12 @@ function goCompare(it){
   setTab("spend"); window.scrollTo(0, 0);
 }
 /* cheapest price found at a store that isn't one of your suppliers */
-function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false && Number(o.price) > 0 && o.sure !== false); const pu = L.some(o => perUnit(o) != null); return L.sort((a, b) => (pu ? (perUnit(a) ?? Infinity) - (perUnit(b) ?? Infinity) : a.price - b.price))[0] || null; }
+function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false && o.mpn === true && Number(o.price) > 0 && o.sure !== false); const pu = L.some(o => perUnit(o) != null); return L.sort((a, b) => (pu ? (perUnit(a) ?? Infinity) - (perUnit(b) ?? Infinity) : a.price - b.price))[0] || null; }
 function similarAt(it, sup){ const k = keyOf(sup); return offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure === false).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null; }
 function cmpRows(){
   const sups = compareSups();
   let list = (cmpShow === "need" ? items.filter(i => i.need) : cmpShow === "priced" ? items.filter(i => sups.filter(s => offerAt(i, s)).length >= 2) : items.slice()).filter(compareable);
-  const q = keyOf(cmpQ || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.supplier].join(" ")).includes(q));
+  const q = keyOf(cmpQ || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.mfr, i.supplier].join(" ")).includes(q));
   return list.sort((a, b) => a.name.localeCompare(b.name)).map(it => {
     const cells = sups.map(s => ({ s, o: offerAt(it, s) }));
     const vals = cells.filter(c => c.o).map(c => ({ ...c, pu: perUnit(c.o), p: Number(c.o.price) }));
@@ -3377,41 +3380,131 @@ function cmpRows(){
     return { it, cells, best, cur, comparable, save, usePU };
   });
 }
+/* ---------- Compare prices ----------
+   Same product = same manufacturer part number (MPN). Each product keeps one saved page per supplier (it.links),
+   found once by searching that supplier's site for the MPN and kept only when the page shows it. Refresh re-reads
+   the saved pages. Prices from invoices and price lists (your real prices) always win over website prices. */
+const linkFor = (it, sup) => { const l = it.links?.[keyOf(sup)]; if (l?.url) return l.url; return keyOf(it.supplier) === keyOf(sup) && it.link ? webHref(it.link) : ""; };
+const KNOWN_HOSTS = { "henry schein": "henryschein.com", "benco": "shop.benco.com", "net32": "net32.com", "darby dental": "darbydental.com", "darby": "darbydental.com", "safco dental supply": "safcodental.com", "safco": "safcodental.com" };
+const siteHost = sup => { const s = supplierSites().find(x => keyOf(x.name) === keyOf(sup)); const w = s?.site || infoOf(sup).website || ""; try { return new URL(webHref(w)).hostname.replace(/^www\./, ""); } catch { return KNOWN_HOSTS[keyOf(sup)] || ""; } };
+let cmpBusy = null; /* { stop, label } while a run is going */
 function compareHtml(){
   const sups = compareSups(), rows = cmpRows();
   const cheaper = rows.filter(r => r.save > 0.004), totalSave = cheaper.reduce((a, r) => a + r.save, 0);
+  const noMpn = items.filter(i => compareable(i) && !clean(i.mfr)).length;
   const cell = (r, c) => {
-    const o = c.o;
-    if (!o) { const s = similarAt(r.it, c.s); return s ? `<td class="cc sim"><button type="button" class="ccb" data-cmpopen="${esc(r.it.id)}" title="Similar product, not the same product${s.title ? ": " + esc(s.title) : ""}. Not counted in the comparison."><b>${esc(money(Number(s.price)))}</b><small>${esc(s.pack || "")}</small><i class="csrc">Similar</i></button></td>` : `<td class="cc none"><span>—</span></td>`; }
-    const pu = perUnit(o), isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(r.it.supplier);
+    const o = c.o, it = r.it;
+    if (!o) {
+      const url = linkFor(it, c.s), miss = it.links?.[keyOf(c.s)]?.none;
+      if (url) return `<td class="cc none"><a class="cfind" href="${esc(url)}" target="_blank" rel="noopener" title="Saved ${esc(c.s)} page: no price read yet. Refresh prices reads it.">${ic("ext")}page</a></td>`;
+      if (readOnly || !clean(it.mfr) || !window.TDC?.mpnSearch) return `<td class="cc none"><span>—</span></td>`;
+      return `<td class="cc none"><button type="button" class="cfind" data-cfind="${esc(it.id)}" data-sup="${esc(c.s)}" title="Search ${esc(c.s)} for part # ${esc(it.mfr)}">${miss ? "not found · retry" : "Find"}</button></td>`;
+    }
+    const pu = perUnit(o), isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(it.supplier);
     const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
     const src = o.kind === "saved" ? "Saved" : (KIND_LBL[o.kind] || "Website");
-    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(r.it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(r.usePU && pu != null && unitCount(o.pack) > 1 ? money(pu) : money(Number(o.price)))}</b><small>${r.usePU && pu != null && unitCount(o.pack) > 1 ? "each · " + esc(money(Number(o.price))) + "/" + esc(o.pack) : esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
+    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(r.usePU && pu != null && unitCount(o.pack) > 1 ? money(pu) : money(Number(o.price)))}</b><small>${r.usePU && pu != null && unitCount(o.pack) > 1 ? "each · " + esc(money(Number(o.price))) + "/" + esc(o.pack) : esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
   };
-  return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
+  const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
+  return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by manufacturer part number. Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
+    ${noMpn && !readOnly ? `<div class="notice spest"><span>${noMpn} product${noMpn > 1 ? "s have" : " has"} no manufacturer part number yet, so ${noMpn > 1 ? "they" : "it"} can't be matched at other suppliers.</span>${window.TDC?.readLink ? `<button type="button" class="btn" id="cmpMpn">${ic("search")}Fill in part numbers</button>` : ""}</div>` : ""}
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
-    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or supplier" style="min-width:200px"></label>
-    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch" title="Look up the ticked products (or all shown) at your suppliers' websites">${ic("refresh")}<span>Check prices${cmpSel.size ? ` (${cmpSel.size})` : rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</span></button><button type="button" class="btn" id="cmpWeb" ${cmpSel.size ? "" : "disabled"} title="Tick products, then search every online store for them">${ic("globe")}<span>Search the whole web${cmpSel.size ? ` (${cmpSel.size})` : ""}</span></button><button type="button" class="btn" id="cmpDesk" ${cmpSel.size ? "" : "disabled"} title="Tick products in the table, then have the Claude desktop app look them up at your suppliers while you're signed in">${ic("monitor")}<span>Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop</span></button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or part #" style="min-width:200px"></label></div>
+    ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
+    ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
     ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="ce">Elsewhere</th><th class="cs">Save</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><a class="ccb" href="${esc(webHref(w.url || ""))}" target="_blank" rel="noopener" title="${esc(w.src)}${w.title ? ": " + esc(w.title) : ""} · website price"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></a></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
-    </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "No prices to compare yet. Import a price list from each supplier, or check website prices."}</div></div>`}`;
+      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${clean(r.it.mfr) ? `Part # ${esc(r.it.mfr)}` : `<span class="nompn">No part #</span>`}${r.it.units ? " · " + esc(r.it.units) : ""}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><a class="ccb" href="${esc(webHref(w.url || ""))}" target="_blank" rel="noopener" title="${esc(w.src)} · website price"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></a></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
+    </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
   $("#cmpQ") && ($("#cmpQ").oninput = e => { cmpQ = e.target.value; clearTimeout(wireCompare.t); wireCompare.t = setTimeout(() => { render(); const el = $("#cmpQ"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 300); });
   $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
-  const selSync = () => { const b = $("#cmpDesk"); if (b) { b.disabled = !cmpSel.size; b.querySelector("span").textContent = `Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop`; } const f = $("#cmpFetch"); if (f) f.querySelector("span").textContent = `Check prices${cmpSel.size ? ` (${cmpSel.size})` : ` (${Math.min(cmpRows().length, 40)})`}`; const w = $("#cmpWeb"); if (w) { w.disabled = !cmpSel.size; w.querySelector("span").textContent = `Search the whole web${cmpSel.size ? ` (${cmpSel.size})` : ""}`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
+  $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
+  $("#cmpStop") && ($("#cmpStop").onclick = () => { if (cmpBusy) { cmpBusy.stop = true; $("#cmpProg").textContent = "Stopping after this one…"; } });
+  const selSync = () => { const n = cmpSel.size || Math.min(cmpRows().length, 40); const r = $("#cmpRefresh"); if (r) r.lastChild.textContent = `Update prices (${n})`; const w = $("#cmpWeb"); if (w) { w.disabled = !cmpSel.size; w.lastChild.textContent = `Search the web${cmpSel.size ? ` (${cmpSel.size})` : ""}`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
   document.querySelectorAll("[data-cmpsel]").forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.cmpsel) : cmpSel.delete(c.dataset.cmpsel); selSync(); });
   $("#cmpAll") && ($("#cmpAll").onchange = e => { const ids = cmpRows().map(r => r.it.id); ids.forEach(i => e.target.checked ? cmpSel.add(i) : cmpSel.delete(i)); document.querySelectorAll("[data-cmpsel]").forEach(c => c.checked = cmpSel.has(c.dataset.cmpsel)); selSync(); });
-  $("#cmpDesk") && ($("#cmpDesk").onclick = () => deskPriceCheck([...cmpSel].map(byId).filter(Boolean)));
   const picked = () => cmpSel.size ? [...cmpSel].map(byId).filter(Boolean) : cmpRows().map(r => r.it).slice(0, 40);
-  $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(picked()));
-  $("#cmpWeb") && ($("#cmpWeb").onclick = () => fetchPrices([...cmpSel].map(byId).filter(Boolean), "web"));
-  $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
-  document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
-  document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} product link saved for this product yet: open the product and check prices to find it`); return; } useOffer(it, o); });
+  $("#cmpRefresh") && ($("#cmpRefresh").onclick = () => cmpRun("update", picked()));
+  $("#cmpWeb") && ($("#cmpWeb").onclick = () => cmpRun("web", [...cmpSel].map(byId).filter(Boolean)));
+  $("#cmpMpn") && ($("#cmpMpn").onclick = () => cmpRun("mpn", items.filter(i => compareable(i) && !clean(i.mfr))));
+  document.querySelectorAll("[data-cfind]").forEach(b => b.onclick = async () => { const it = byId(b.dataset.cfind); if (!it || cmpBusy) return; b.disabled = true; b.textContent = "Searching…"; await findAt(it, b.dataset.sup); render(); });
+  document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) openItem(it); });
+  document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} page saved for this product`); return; } useOffer(it, o); });
 }
+/* read one saved page and keep its price only when the page shows the part number */
+async function readAt(it, sup, url){
+  const mpn = clean(it.mfr);
+  const r = await TDC.readLink(url, { name: it.name, mpn });
+  if (mpn && r.mpnCheck === "missing") return { ok: false, why: "part # not on the page" };
+  const price = Number(r.price) > 0 ? Number(r.price) : null;
+  return { ok: true, price, pack: clean(r.units), sku: clean(r.sku), url: r.url || url, title: (r.names || [])[0] || r.pageTitle || "" };
+}
+/* one write per product: the found pages (links) and the prices read (offers) together, so parallel lookups don't overwrite each other */
+async function saveResults(it, res){
+  if (!res.length) return;
+  const fresh = byId(it.id) || it; let links = { ...(fresh.links || {}) }, offers = fresh.offers;
+  for (const x of res) {
+    const k = keyOf(x.sup);
+    if (x.none) { if (!links[k]?.url) links[k] = { sup: x.sup, none: true, at: Date.now() }; continue; }
+    if (x.mine) links[k] = { sup: x.sup, url: x.f.url, sku: x.f.sku || "", at: Date.now() };
+    if (x.f.price) offers = upsertOffer(offers, { src: x.sup, price: x.f.price, pack: x.f.pack || "", url: x.f.url, sku: x.f.sku || "", kind: "public", at: Date.now(), sure: true, mine: x.mine, mpn: true, title: clean(x.f.title).slice(0, 120) });
+  }
+  const patch = { links, ...(offers !== fresh.offers ? { offers } : {}) };
+  await write(it.id, patch); Object.assign(fresh, patch);
+}
+/* find this product's page at one supplier: search its site for the part number, keep the first page that shows it */
+async function probeFind(it, sup){
+  const mpn = clean(it.mfr), host = siteHost(sup); if (!mpn || !host) return null;
+  let res; try { res = await TDC.mpnSearch(mpn, host); } catch { return null; }
+  for (const c of (res.candidates || []).slice(0, 4)) { try { const f = await readAt(it, sup, c.url); if (f.ok) return { sup, f, mine: true }; } catch {} }
+  return { sup, none: true };
+}
+async function findAt(it, sup){ const x = await probeFind(it, sup); if (!x) return false; try { await saveResults(it, [x]); } catch(e) { toast(dbErr(e)); } return !x.none; }
+async function cmpRun(kind, list){
+  if (cmpBusy || !list.length || !needMe()) return;
+  const sups = compareSups(); let i = 0, found = 0, priced = 0, nf = [];
+  cmpBusy = { stop: false, label: "Starting…" }; render();
+  const say = t => { cmpBusy.label = t; const el = $("#cmpProg"); if (el) el.textContent = t; };
+  for (const it0 of list) {
+    if (cmpBusy.stop) break; i++;
+    const it = byId(it0.id) || it0;
+    if (kind === "mpn") {
+      say(`Reading part numbers: ${i} of ${list.length} · ${it.name}`);
+      const url = it.link ? webHref(it.link) : "";
+      let mpn = "";
+      if (url) { try { const r = await TDC.readLink(url, { name: it.name }); mpn = clean(r.mfrNumber); } catch {} }
+      if (mpn && sku_ok(mpn)) { try { await write(it.id, { mfr: mpn }); found++; } catch {} } else nf.push(it.name);
+      continue;
+    }
+    if (!clean(it.mfr)) { nf.push(it.name); continue; }
+    if (kind === "web") {
+      say(`Searching the web: ${i} of ${list.length} · ${it.name}`);
+      const skip = [...sups.map(siteHost), ...orderedSuppliers().map(g => siteHost(g.name))].filter(Boolean);
+      const got = [];
+      try { const res = await TDC.mpnSearch(clean(it.mfr), "", skip);
+        for (const c of (res.candidates || []).slice(0, 4)) { try { const f = await readAt(it, c.host, c.url); if (f.ok && f.price) { got.push({ sup: c.host.replace(/\.(com|net|org|co|us)$/, "").replace(/^./, x => x.toUpperCase()), f, mine: false }); priced++; } } catch {} }
+      } catch {}
+      try { await saveResults(it, got.map(x => ({ ...x, mine: false })).map(x => ({ ...x, none: false }))); } catch {}
+      continue;
+    }
+    /* update: find missing pages once, then read every saved page */
+    say(`Updating ${i} of ${list.length}: ${it.name}`);
+    const cur = byId(it.id) || it;
+    const got = (await Promise.all(sups.map(async s => {
+      if (!linkFor(cur, s)) { if (cur.links?.[keyOf(s)]?.none) return null; const x = await probeFind(cur, s); if (x && !x.none) { found++; if (x.f.price) priced++; } return x; }
+      try { const f = await readAt(cur, s, linkFor(cur, s)); if (f.ok && f.price) { priced++; return { sup: s, f, mine: true }; } } catch {}
+      return null;
+    }))).filter(Boolean);
+    try { await saveResults(it, got); } catch(e) { toast(dbErr(e)); }
+  }
+  const stopped = cmpBusy.stop; cmpBusy = null; render();
+  if (kind === "mpn") toast(`${found} part number${found === 1 ? "" : "s"} filled in${nf.length ? `; ${nf.length} not found on their pages (add those by hand)` : ""}${stopped ? " (stopped)" : ""}`);
+  else toast(`${priced} price${priced === 1 ? "" : "s"} read${found ? `, ${found} new supplier page${found === 1 ? "" : "s"} found` : ""}${nf.length ? `; ${nf.length} without a part # skipped` : ""}${stopped ? " (stopped)" : ""}`);
+}
+const sku_ok = s => clean(s).replace(/[^A-Za-z0-9]/g, "").length >= 3;
 /* Fetch prices: everything the app can do by itself (each supplier's public website), skipping items checked this week,
    then what's left at suppliers that only show prices after sign-in, with the two ways to get those. */
 async function fetchPrices(list, scope = "mine"){
@@ -3709,6 +3802,7 @@ function ordFields(it){
     ${fwrap("", it.unitCost, `<label for="e-cost">Price</label><input id="e-cost" value="${esc(it.unitCost)}" placeholder="$0.00" inputmode="decimal">`)}
     ${fwrap("", it.units, `<label for="e-units">Unit / package size</label><input id="e-units" value="${esc(it.units)}" placeholder="e.g. Box of 100">`)}
     ${fwrap("", it.sku, `<label for="e-sku">SKU / catalog #</label><input id="e-sku" class="mono" value="${esc(it.sku)}">`)}
+    ${fwrap("", it.mfr, `<label for="e-mfr" title="The manufacturer's own part number, the same at every supplier. Price comparison only matches on this.">Manufacturer part #</label><input id="e-mfr" class="mono" value="${esc(it.mfr)}">`)}
     ${fwrap("full", it.link, `<label for="e-link">Reorder link</label><div class="linkrow"><input id="e-link" value="${esc(it.link)}" placeholder="https://…" type="url"><a class="btn openlink" data-openlink href="#" target="_blank" rel="noopener">Open ↗</a></div>`)}
     <div class="f full pastebox" hidden><label>Open the reorder link, select all the text on that page (Ctrl/⌘+A, or long-press → Select all), copy it, and paste it here:</label><textarea rows="4" data-pastetxt placeholder="Paste the product page text"></textarea><div class="pbtns2"><button type="button" class="btn pri" data-pastego>Fill in SKU, price and details</button><button type="button" class="btn" data-pfill>Cancel</button></div><span class="hint" data-pastestat></span></div>
   </div>${dl("dl-sup", orderedSuppliers().map(g => g.name))}`;
@@ -3740,7 +3834,7 @@ function wireCounts(){
 }
 function readFields(){
   const g = id => clean(fld(id)?.value);
-  return { name:g("e-name"), sku:g("e-sku"), units:g("e-units"), cat:g("e-cat"), sub:g("e-sub"), loc:g("e-loc"), supplier:g("e-sup"), exp:g("e-exp"), unitCost:g("e-cost"), link:g("e-link"), notes:g("e-notes"), desc:clean(fld("e-desc")?.value), ...(fld("e-cnt") ? { countEvery: g("e-cnt") } : {}), qty:num(g("c-qty")) ?? 0, desired:num(g("c-des")) ?? 0, urgent:num(g("c-911")) ?? 0 };
+  return { name:g("e-name"), sku:g("e-sku"), units:g("e-units"), cat:g("e-cat"), sub:g("e-sub"), loc:g("e-loc"), supplier:g("e-sup"), exp:g("e-exp"), unitCost:g("e-cost"), link:g("e-link"), ...(fld("e-mfr") ? { mfr: g("e-mfr") } : {}), notes:g("e-notes"), desc:clean(fld("e-desc")?.value), ...(fld("e-cnt") ? { countEvery: g("e-cnt") } : {}), qty:num(g("c-qty")) ?? 0, desired:num(g("c-des")) ?? 0, urgent:num(g("c-911")) ?? 0 };
 }
 
 /* ---------- price lookup ---------- */

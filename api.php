@@ -195,6 +195,13 @@ try {
             out(200, usage_stats($pdo));
         }
 
+        case 'mpnsearch': {
+            $skip = is_array($req['skip'] ?? null) ? array_map('strval', array_slice($req['skip'], 0, 30)) : [];
+            $r = mpn_search((string)($req['mpn'] ?? ''), (string)($req['host'] ?? ''), $skip);
+            if (!$r['ok']) out(200, ['ok' => true, 'failed' => true] + $r);
+            out(200, $r);
+        }
+
         case 'pricesearch': {
             $q = is_array($req['q'] ?? null) ? $req['q'] : [];
             $sites = is_array($req['sites'] ?? null) ? array_slice($req['sites'], 0, 20) : [];
