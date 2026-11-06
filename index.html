@@ -1312,6 +1312,7 @@ table.cmp thead th{border-top:0;font-size:12px;color:var(--muted);font-weight:70
 table.cmp thead th .suplogo{display:block;margin:0 auto 3px;height:18px;max-width:60px}
 table.cmp .cn{text-align:left;min-width:200px;max-width:320px;position:sticky;left:0;background:var(--surface);z-index:1}
 table.cmp .cnb{all:unset;cursor:pointer;font-weight:600;display:block}
+table.cmp .cmpchk{float:left;width:18px;height:18px;margin:2px 8px 0 0;accent-color:var(--accent)}table.cmp .cmpall{width:18px;height:18px;vertical-align:-4px;accent-color:var(--accent)}
 table.cmp .cnb:hover{text-decoration:underline}
 table.cmp th.cn small, table.cmp td small{display:block;color:var(--muted);font-weight:500;font-size:11.5px}
 table.cmp .ccb{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 6px;border-radius:8px;border:2px solid transparent;min-width:78px}
@@ -3179,6 +3180,7 @@ function histHtml(){
   }).join("")}</div>`;
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
+const cmpSel = new Set();
 let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = (() => { try { return localStorage.getItem("tdc.spmode") === "compare" ? "compare" : "spend"; } catch { return "spend"; } })(), cmpShow = "need";
 const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
 async function loadSpend(){
@@ -3262,15 +3264,19 @@ function compareHtml(){
   };
   return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Items with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All items</option></select></label>
-    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpDesk" ${cmpSel.size ? "" : "disabled"} title="Tick items in the table, then have the Claude desktop app look them up at your suppliers while you're signed in">${ic("monitor")}<span>Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop</span></button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} item${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
-    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">Item</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><th class="cn"><button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
+    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Item</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "No prices to compare yet. Import a price list from each supplier, or check website prices."}</div></div>`}`;
 }
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
   $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
+  const selSync = () => { const b = $("#cmpDesk"); if (b) { b.disabled = !cmpSel.size; b.querySelector("span").textContent = `Check ${cmpSel.size ? cmpSel.size + " " : ""}with Claude desktop`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
+  document.querySelectorAll("[data-cmpsel]").forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.cmpsel) : cmpSel.delete(c.dataset.cmpsel); selSync(); });
+  $("#cmpAll") && ($("#cmpAll").onchange = e => { const ids = cmpRows().map(r => r.it.id); ids.forEach(i => e.target.checked ? cmpSel.add(i) : cmpSel.delete(i)); document.querySelectorAll("[data-cmpsel]").forEach(c => c.checked = cmpSel.has(c.dataset.cmpsel)); selSync(); });
+  $("#cmpDesk") && ($("#cmpDesk").onclick = () => deskPriceCheck([...cmpSel].map(byId).filter(Boolean)));
   $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(cmpRows().map(r => r.it).slice(0, 40)));
   $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
@@ -5084,6 +5090,22 @@ async function checkOrderPrices(list){
   const el = $("#ordPrices"); if (el) { el.disabled = false; el.innerHTML = was || (ic("dollar") + "Check prices"); }
   render();
   toast(cheaper ? `${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper elsewhere: about ${money(total)} in all. Look for the green Save tags.` : "Checked. Your current suppliers have the best prices found.");
+}
+/* the Claude desktop app looks up the ticked items at the main suppliers in its browser, where you're signed in */
+function deskPriceCheck(list){
+  if (!list.length) { toast("Tick the items to check first"); return; }
+  const sups = compareSups();
+  const lines = list.map(it => `- ${it.name} (id ${it.id}${it.sku ? `, ${it.supplier || "item"} # ${clean(it.sku)}` : ""}${it.mfr ? `, mfr # ${clean(it.mfr)}` : ""}${it.units ? `, sold as ${it.units}` : ""})`).join("\n");
+  const prompt = `Compare prices in the TDC Supply Room. For each item below, search ${sups.join(", ")} in your browser (I'm signed in to my supplier accounts) and save each supplier's price with record_price (signed_in true when you read it signed in). If a supplier doesn't sell the same product but has a close substitute, save it with similar true and the product name. Skip suppliers that have neither. Only read prices: don't add anything to a cart. When you're done, give me a short table of the results.\n\nItems:\n${lines}`;
+  openPanel(`<div class="ph"><h2>Check ${list.length} item${list.length > 1 ? "s" : ""} with Claude desktop</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>Claude will search <b>${esc(sups.join(", "))}</b> for each item, in the Claude desktop app's browser where you're signed in, and save the prices here. Similar substitutes are saved and marked "Similar product". It only reads prices; it never adds to a cart or orders.</p>
+    <p>Copy this and paste it into a chat in the <b>Claude desktop app</b>:</p><div class="copybox"><code id="dpTxt" style="white-space:pre-wrap;max-height:220px;overflow:auto;display:block">${esc(prompt)}</code><button type="button" class="btn sm" id="dpCopy">${ic("copy")}Copy</button></div>
+    <p class="hint">Prices appear in the comparison as Claude saves them. Takes about a minute per item.</p>
+    <div class="actions savebar"><button class="btn" id="dpClear" type="button">Untick all</button><button class="btn pri grow" id="dpGo" type="button">${ic("copy")}Copy and close</button></div>`);
+  const copy = async () => { try { await navigator.clipboard.writeText(prompt); toast("Copied: paste it into the Claude desktop app"); return true; } catch { toast("Select the text and copy it"); return false; } };
+  $("#dpCopy").onclick = copy;
+  $("#dpGo").onclick = async () => { if (await copy()) closePanel(); };
+  $("#dpClear").onclick = () => { cmpSel.clear(); closePanel(); render(); };
 }
 function livePricesHelp(it){
   const sups = it ? ([...new Set(offersFor(it).filter(o => o.mine !== false).map(o => o.src))].join(", ") || it.supplier || "your suppliers") : compareSups().join(", ");
