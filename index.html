@@ -1325,6 +1325,8 @@ table.cmp td.cur .ccb{border-color:var(--line)}
 table.cmp td.none{color:var(--muted)}
 table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .ccols{display:grid;gap:8px}
+.fpbar{height:8px;background:var(--sunk);border-radius:6px;overflow:hidden;margin:6px 0 10px}
+.fpbar i{display:block;height:100%;background:var(--accent);transition:width .3s}
 .ccols label{display:flex;gap:10px;align-items:center;font-weight:600}
 /* Prices */
 .plist{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -3255,7 +3257,7 @@ function compareHtml(){
   };
   return `<div class="toolbar spendtools"><p>Your price at each main supplier, side by side (per unit when packs differ). Green is the cheapest; the outlined price is who you buy from now. Prices from invoices, price lists or signed-in checks are your real prices; "Website" prices are list prices.</p>
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Items with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All items</option></select></label>
-    ${readOnly ? "" : `<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn" id="cmpCheck" ${window.TDC?.priceSearch ? "" : "hidden"}>${ic("refresh")}Check website prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpLive">${ic("monitor")}Signed-in prices</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
+    ${readOnly ? "" : `<button type="button" class="btn pri" id="cmpFetch">${ic("refresh")}Fetch prices${rows.length ? ` (${Math.min(rows.length, 40)})` : ""}</button><button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button>`}</div></div>
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} item${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
     ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">Item</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="cs">Save</th></tr></thead><tbody>
       ${rows.map(r => `<tr><th class="cn"><button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${esc(r.it.units || "")}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
@@ -3264,16 +3266,45 @@ function compareHtml(){
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
   $("#cmpImport") && ($("#cmpImport").onclick = () => openPriceListImport());
-  $("#cmpLive") && ($("#cmpLive").onclick = () => livePricesHelp(null));
+  $("#cmpFetch") && ($("#cmpFetch").onclick = () => fetchPrices(cmpRows().map(r => r.it).slice(0, 40)));
   $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
-  $("#cmpCheck") && ($("#cmpCheck").onclick = async () => {
-    const list = cmpRows().map(r => r.it).slice(0, 40), b = $("#cmpCheck"); if (!list.length || priceRun) return;
-    b.disabled = true; let n = 0;
-    for (const it of list) { n++; b.innerHTML = ic("refresh") + `Checking ${n} of ${list.length}…`; await runPriceCheck(byId(it.id) || it, "mine", { quiet: true, status: () => {} }); }
-    render(); toast("Website prices checked");
-  });
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) { openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); } });
   document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} product link saved for this item yet: open the item and check prices to find it`); return; } useOffer(it, o); });
+}
+/* Fetch prices: everything the app can do by itself (each supplier's public website), skipping items checked this week,
+   then what's left at suppliers that only show prices after sign-in, with the two ways to get those. */
+async function fetchPrices(list){
+  if (!list.length) { toast("No items to fetch prices for"); return; }
+  if (!window.TDC?.priceSearch) { livePricesHelp(null); return; }
+  if (priceRun) { toast("A price check is already running"); return; }
+  const sups = compareSups(), wk = Date.now() - 7 * 864e5;
+  const fresh = it => sups.every(s => { const o = offerAt(it, s); return o && (o.at || 0) > wk; }) || (Array.isArray(it.offers) && it.offers.some(o => o.run === undefined && o.kind !== "invoice" && o.kind !== "list" && (o.at || 0) > Date.now() - 864e5 && o.mine));
+  const todo = list.filter(it => !fresh(it)), skip = list.length - todo.length;
+  let stop = false, n = 0;
+  openPanel(`<div class="ph"><h2>Fetching prices</h2><button class="iconbtn" id="fpX" type="button">Stop</button></div>
+    <p class="hint" id="fpStat">Checking ${todo.length} item${todo.length === 1 ? "" : "s"} at your suppliers' websites${skip ? ` (${skip} checked recently, skipped)` : ""}. About 30–60 seconds each; you can keep this open or close it and come back.</p>
+    <div class="fpbar"><i id="fpBar" style="width:0%"></i></div><div id="fpOut" class="hint"></div>`);
+  $("#fpX").onclick = () => { stop = true; $("#fpX").textContent = "Stopping…"; };
+  for (const it of todo) {
+    if (stop) break; n++;
+    const st = $("#fpStat"); if (st) st.textContent = `Checking ${n} of ${todo.length}: ${it.name}`;
+    await runPriceCheck(byId(it.id) || it, "mine", { quiet: true, status: () => {} });
+    const bar = $("#fpBar"); if (bar) bar.style.width = (n / todo.length * 100).toFixed(0) + "%";
+  }
+  /* what's still missing: suppliers that hide prices until you sign in */
+  const missing = new Map();
+  list.map(i => byId(i.id) || i).forEach(it => sups.forEach(s => { if (!offerAt(it, s)) missing.set(s, (missing.get(s) || 0) + 1); }));
+  const gaps = [...missing.entries()].filter(([, c]) => c > 0).sort((a, b) => b[1] - a[1]);
+  const cheaper = cmpRows().filter(r => r.save > 0.004).length;
+  if (!$("#fpStat")) { render(); toast(`Prices fetched${cheaper ? `: ${cheaper} item${cheaper > 1 ? "s" : ""} cheaper elsewhere` : ""}`); return; }
+  openPanel(`<div class="ph"><h2>Prices fetched</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>${stop ? `Stopped after ${n} of ${todo.length}.` : `Checked ${n} item${n === 1 ? "" : "s"}${skip ? ` (${skip} were checked recently)` : ""}.`}${cheaper ? ` <b>${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper at another supplier</b>; look for green prices.` : ""}</p>
+    ${gaps.length ? `<p>Still without a price: ${gaps.map(([s, c]) => `<b>${esc(s)}</b> (${c})`).join(", ")}. These suppliers only show your price after you sign in, so the website can't read them. Two ways to fill them in:</p>
+      <div class="mmenu"><button type="button" class="mi" id="fpLive">${ic("monitor")}Have Claude read them while you're signed in<small>Claude desktop app</small></button><button type="button" class="mi" id="fpImp">${ic("upload")}Import a price list<small>Excel, CSV, PDF or screenshot</small></button></div>` : `<p>Every item has a price at each supplier.</p>`}
+    <div class="actions savebar"><button class="btn pri grow" data-close type="button">Show the comparison</button></div>`);
+  $("#fpLive") && ($("#fpLive").onclick = () => livePricesHelp(null));
+  $("#fpImp") && ($("#fpImp").onclick = () => openPriceListImport(gaps[0]?.[0]));
+  render();
 }
 function compareColumns(){
   const all = [...new Set([...compareSups(), ...items.map(i => clean(i.supplier)).filter(Boolean)])].sort((a, b) => a.localeCompare(b)), on = new Set(compareSups().map(keyOf));
