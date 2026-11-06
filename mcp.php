@@ -88,6 +88,10 @@ function tools(): array {
          'inputSchema' => ['type' => 'object', 'properties' => ['items' => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many were ordered')], 'required' => ['id']]]] + $who, 'required' => ['items']]],
         ['name' => 'mark_received', 'description' => 'Mark an ordered item as received and add it to stock. qty defaults to the amount that was ordered.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'qty' => $n('How many arrived')] + $who, 'required' => ['id']]],
+        ['name' => 'find_price_pages', 'description' => 'Search for an item\'s product pages at the office\'s suppliers (scope "mine") or anywhere online (scope "web"), for price comparison. Returns page addresses; read each with read_product_page, or open it signed in, then save prices with record_price.',
+         'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'scope' => ['type' => 'string', 'enum' => ['mine', 'web'], 'description' => 'mine = the office\'s suppliers (default); web = other stores']], 'required' => ['id']], 'annotations' => ['readOnlyHint' => true]],
+        ['name' => 'record_price', 'description' => 'Save a price found for an item at a supplier (for example one you read from a supplier page you are signed in to). It shows in the item\'s Prices table in the Supply Room.',
+         'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Store name (use list_options names for the office\'s suppliers)'), 'price' => $n('Price for one unit as sold'), 'pack' => $s('What one unit is, e.g. Box of 100'), 'url' => $s('Product page address'), 'sku' => $s('The store\'s item number'), 'signed_in' => ['type' => 'boolean', 'description' => 'true if read from a signed-in (account) page']] + $who, 'required' => ['id', 'supplier', 'price']]],
         ['name' => 'read_product_page', 'description' => 'Have the Supply Room server read a supplier product page and suggest name, SKU, price, units, description and photo. Pages that need sign-in may not show prices; if you can open the page yourself (signed in), prefer what you see there.',
          'inputSchema' => ['type' => 'object', 'properties' => ['url' => $s('Product page address')], 'required' => ['url']], 'annotations' => ['readOnlyHint' => true]],
     ];
@@ -231,7 +235,8 @@ function call_tool(PDO $pdo, string $name, array $a): array {
                 $it = array_merge($it, ['ordered' => today_str(), 'orderedQty' => $q, 'orderReq' => 0, 'orderAmt' => 0, 'updatedAt' => (int)round(microtime(true) * 1000), 'updatedBy' => $w]);
                 save($pdo, 'items', $id, $it);
                 logit($pdo, 'Ordered', $id, $it['name'] ?? '', fmtq($q) . (!empty($it['units']) ? ' × ' . $it['units'] : '') . (!empty($it['supplier']) ? ' from ' . $it['supplier'] : ''), $w);
-                $lines[] = ['id' => $id, 'name' => $it['name'] ?? '', 'qty' => $q, 'units' => $it['units'] ?? '', 'supplier' => $it['supplier'] ?? ''];
+                $pr = numv(preg_replace('/[$,\s]/', '', (string)($it['unitCost'] ?? '')));
+                $lines[] = ['id' => $id, 'name' => $it['name'] ?? '', 'qty' => $q, 'units' => $it['units'] ?? '', 'supplier' => $it['supplier'] ?? '', 'cat' => $it['cat'] ?? ''] + ($pr && $pr > 0 ? ['price' => $pr] : []);
                 $done[] = ['id' => $id, 'name' => $it['name'] ?? '', 'qty' => $q];
             }
             if (!$done) throw new RuntimeException('Give at least one item.');
@@ -247,6 +252,29 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             save($pdo, 'items', $id, $it);
             logit($pdo, 'Received', $id, $it['name'] ?? '', '+' . fmtq($got) . ', now ' . fmtq($now) . ' on hand', $w);
             return text_result(['id' => $id, 'received' => $got, 'onHand' => $now]);
+        }
+        case 'find_price_pages': {
+            $id = (string)($a['id'] ?? ''); $it = item_or_fail($pdo, $id);
+            $sites = [];
+            $info = []; foreach (all_docs($pdo, 'supinfo') as $si) { $k = mb_strtolower(trim((string)($si['key'] ?? $si['name'] ?? ''))); if ($k !== '' && trim((string)($si['website'] ?? '')) !== '') $info[$k] = trim((string)$si['website']); }
+            $names = []; foreach (all_docs($pdo, 'items') as $x) { $n = trim((string)($x['supplier'] ?? '')); if ($n !== '') $names[mb_strtolower($n)] = $n; }
+            foreach ($names as $k => $n) { $w = $info[$k] ?? supplier_site_guess($n); if ($w !== '') $sites[] = ['name' => $n, 'site' => $w]; }
+            $r = price_search(['name' => $it['name'] ?? '', 'sku' => $it['sku'] ?? '', 'mfr' => $it['mfr'] ?? '', 'units' => $it['units'] ?? ''], $sites, ($a['scope'] ?? '') === 'web' ? 'web' : 'mine');
+            if (!$r['ok']) throw new RuntimeException($r['message']);
+            return text_result($r + ['item' => ['name' => $it['name'] ?? '', 'supplier' => $it['supplier'] ?? '', 'price' => $it['unitCost'] ?? '', 'units' => $it['units'] ?? '', 'link' => $it['link'] ?? '']]);
+        }
+        case 'record_price': {
+            $id = (string)($a['id'] ?? ''); $it = item_or_fail($pdo, $id); $w = who($a);
+            $pr = numv($a['price'] ?? null); if (!$pr || $pr <= 0) throw new RuntimeException('price must be more than 0.');
+            $sup = canon_supplier($pdo, (string)($a['supplier'] ?? '')); if ($sup === '') throw new RuntimeException('supplier is required.');
+            $offer = ['src' => $sup, 'price' => $pr, 'pack' => trim((string)($a['pack'] ?? '')), 'url' => trim((string)($a['url'] ?? '')), 'sku' => trim((string)($a['sku'] ?? '')),
+                      'kind' => !empty($a['signed_in']) ? 'live' : 'public', 'at' => (int)round(microtime(true) * 1000), 'sure' => true, 'by' => $w];
+            $offers = array_values(array_filter((array)($it['offers'] ?? []), fn($o) => !(is_array($o) && strcasecmp((string)($o['src'] ?? ''), $sup) === 0 && ($o['kind'] ?? '') !== 'invoice')));
+            $offers[] = $offer;
+            $it['offers'] = array_slice($offers, -20);
+            save($pdo, 'items', $id, $it);
+            logit($pdo, 'Price checked', $id, $it['name'] ?? '', $sup . ': $' . number_format($pr, 2) . ($offer['pack'] ? ' / ' . $offer['pack'] : '') . ($offer['kind'] === 'live' ? ' (signed in)' : ''), $w);
+            return text_result(['saved' => true, 'id' => $id, 'offer' => $offer]);
         }
         case 'read_product_page': {
             $r = read_product_link((string)($a['url'] ?? ''), [], true);  // the connector has to answer quickly: skip Apify's slow full browser

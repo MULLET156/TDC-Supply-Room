@@ -1093,10 +1093,10 @@ function find_product_page(array $q, array $ctx = []): array {
     }
     return $res;
 }
-function apify_search(string $query): array {
+function apify_search(string $query, int $max = 5): array {
     @set_time_limit(120);
     $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
-    $input = ['query' => $query, 'maxResults' => 5, 'outputFormats' => ['markdown'], 'scrapingTool' => 'raw-http', 'maxRequestRetries' => 0, 'removeCookieWarnings' => true];
+    $input = ['query' => $query, 'maxResults' => max(1, min(10, $max)), 'outputFormats' => ['markdown'], 'scrapingTool' => 'raw-http', 'maxRequestRetries' => 0, 'removeCookieWarnings' => true];
     $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=60&format=json&clean=true');
     curl_setopt_array($ch, [
         CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 75, CURLOPT_CONNECTTIMEOUT => 10,
@@ -1120,6 +1120,58 @@ function apify_search(string $query): array {
         $out[] = ['url' => $u, 'title' => mb_substr((string)($s['title'] ?? ($it['metadata']['title'] ?? '')), 0, 200), 'description' => mb_substr((string)($s['description'] ?? ($it['metadata']['description'] ?? '')), 0, 300)];
     }
     return ['ok' => true, 'results' => $out];
+}
+
+/* ---------- price comparison: find this product's pages at the office's suppliers, or anywhere ---------- */
+// $q: name, sku, mfr, units, supplier; $sites: [['name' => supplier, 'site' => host]]; $scope: 'mine' | 'web'.
+// Returns candidate product pages (url, supplier, title, sure). The page reads (price, pack) are done one by one by the caller.
+function price_search(array $q, array $sites, string $scope = 'mine', array $skip = []): array {
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching the web needs APIFY_TOKEN in config.php.'];
+    $name = trim((string)($q['name'] ?? '')); $mfr = trim((string)($q['mfr'] ?? '')); $sku = trim((string)($q['sku'] ?? ''));
+    if ($name === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The item needs a name.'];
+    $hosts = [];
+    foreach ($sites as $s) { $site = trim((string)($s['site'] ?? '')) ?: supplier_site_guess((string)($s['name'] ?? '')); $h = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', $site)); $h = explode('/', $h)[0]; if ($h !== '' && !preg_match('/blueskybio/i', $h)) $hosts[$h] = (string)($s['name'] ?? $h); }
+    $short = implode(' ', array_slice(preg_split('/\s+/', preg_replace('/[\(\)\[\],#]+/', ' ', $name)), 0, 7));
+    $code = $mfr !== '' ? $mfr : '';
+    $queries = [];
+    if ($scope === 'web') {
+        if ($code !== '') $queries[] = '"' . $code . '" ' . $short . ' price';
+        $queries[] = $short . ' dental supply price';
+    } else {
+        if (!$hosts) return ['ok' => false, 'error' => 'no_sites', 'message' => 'None of your suppliers has a website saved (Setup › Suppliers).'];
+        $where = '(' . implode(' OR ', array_map(fn($h) => 'site:' . $h, array_slice(array_keys($hosts), 0, 10))) . ')';
+        if ($code !== '') $queries[] = '"' . $code . '" ' . $where;
+        $queries[] = $short . ' ' . $where;
+    }
+    $cands = []; $err = '';
+    foreach (array_slice($queries, 0, 2) as $qq) {
+        $r = apify_search($qq, 10);
+        if (!$r['ok']) { $err = $r['message']; continue; }
+        foreach ($r['results'] as $c) {
+            $host = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
+            $mine = '';
+            foreach ($hosts as $h => $sn) if ($host === $h || str_ends_with($host, '.' . $h) || str_ends_with($h, '.' . $host)) { $mine = $sn; break; }
+            if ($scope === 'mine' && $mine === '') continue;
+            if ($scope === 'web' && $mine !== '') continue;
+            if (in_array($c['url'], $skip, true)) continue;
+            $cands[$c['url']] = $c + ['supplier' => $mine, 'host' => $host];
+        }
+    }
+    $cands = array_values($cands);
+    if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'No product pages turned up.'];
+    $keep = array_map(fn($c) => $c + ['sure' => false], array_slice($cands, 0, 6));
+    if (ai_ready()) {
+        $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
+        $a = ai_json("A dental office wants to compare prices for this exact product: \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . ($sku !== '' ? " (their supplier's SKU $sku)" : '')
+            . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . ".\nSearch results:\n$list\n\nPick the results that are a product page (not a category, search or article page) selling this same product. "
+            . "Different pack sizes of the same product are fine; a different shade, size, strength or a different brand is not. At most one page per store, best first, up to 6. "
+            . "Reply with JSON: {\"picks\": [{\"i\": index, \"sure\": true if it is clearly the same product, false if it might be a different variant}]}", [], 'quick');
+        if ($a['ok'] && is_array($a['value']['picks'] ?? null)) {
+            $keep = []; $seenHost = [];
+            foreach ($a['value']['picks'] as $p) { $i = (int)($p['i'] ?? -1); if (!isset($cands[$i]) || isset($seenHost[$cands[$i]['host']])) continue; $seenHost[$cands[$i]['host']] = 1; $keep[] = $cands[$i] + ['sure' => !empty($p['sure'])]; if (count($keep) >= 6) break; }
+        }
+    }
+    return ['ok' => true, 'candidates' => array_map(fn($c) => ['url' => $c['url'], 'title' => $c['title'], 'supplier' => $c['supplier'] ?: $c['host'], 'mine' => $c['supplier'] !== '', 'sure' => $c['sure']], $keep)];
 }
 
 /* ---------- reading invoices, packing slips, order confirmations and screenshots ---------- */

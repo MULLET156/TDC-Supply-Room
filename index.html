@@ -1300,6 +1300,30 @@ body[data-view="all"] .row .meta .catpath{display:none}
 body[data-view="need"] .row .meta .m-loc{display:none}
 body[data-view="sups"] .row .meta .m-sup, body[data-view="cats"] .row .meta .m-sup, body[data-view="locs"] .row .meta .m-sup{display:none}
 body[data-view="locs"] .row .meta .m-loc{display:none}
+/* Prices */
+.plist{display:grid;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.prow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);font-size:14px}
+.prow:first-child{border-top:0}
+.prow.best{background:color-mix(in srgb,var(--ok,#2e7d32) 10%,transparent)}
+.prow .pw{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.prow .pw .suplogo{height:18px;max-width:54px}
+.prow .pp{display:flex;flex-direction:column;line-height:1.2}
+.prow .pp b{font-family:var(--f-mono)}
+.prow .pp small{color:var(--muted);font-size:12px}
+.prow .pp .ppu{color:var(--fg);font-weight:600}
+.prow .pk{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.prow .pk small{color:var(--muted);font-size:12px;white-space:nowrap}
+.prow .pk a .ic{width:15px;height:15px}
+.pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
+.pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
+.psub{margin:12px 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.pbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pnote{margin:8px 0 0}
+.psave{color:var(--ok,#2e7d32);font-weight:700}
+.row .rside button.xc.psv{font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ok,#2e7d32);border:1px solid currentColor;background:color-mix(in srgb,var(--ok,#2e7d32) 8%,transparent);border-radius:999px;padding:2px 9px}
+.copybox{display:flex;gap:8px;align-items:flex-start;background:var(--sunk);border-radius:10px;padding:10px}
+.copybox code{flex:1;white-space:normal;font-size:13px}
+@media (max-width:640px){ .prow{grid-template-columns:minmax(0,1fr) auto} .prow .pk{grid-column:1 / -1;justify-content:flex-start} }
 /* Spending */
 body[data-view="spend"] .filters, body[data-view="spend"] #pageHead{display:none!important}
 .spcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -1835,7 +1859,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
@@ -1960,11 +1984,12 @@ window.TDC = (function(){
   async function fetchPhoto(url, page){ const j = await call("fetchphoto", { url, page: page || "" }); return unb64(j.photo.data, j.photo.type); }
   async function fetchLogo(site){ const j = await call("fetchlogo", { site }); return (j.logos || []).map(l => ({ ...l, blob: unb64(l.data, l.type) })); }
   async function readDoc(files, ctx){ return call("readdoc", { files, ctx: ctx || {} }); }
+  async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -2458,7 +2483,7 @@ function grpTotal(rows, intro){
   return intro ? ` (about <b>${money(sum)}</b>${miss ? `, ${miss} without a price` : ""})` : ` · <span class="gtot" title="${tip}">${miss ? "≈ " : ""}${money(sum)}</span>`;
 }
 function xcols(i){
-  if (tab === "need") { const t = lineTotal(i), op = Number(i.orderPrice) > 0; return readOnly ? (t != null ? `<span class="xc xtot">${money(t)}</span>` : "") : `<button type="button" class="xc xtot${t == null ? " none" : ""}${op ? " custom" : ""}" data-ordprice="${esc(i.id)}" title="${t != null ? `${money(ordPrice(i))} × ${fmtQ(i.orderQty)}${op ? " (price set for this order)" : ""}. Tap to change the price for this order` : "Add a price for this order"}">${t != null ? money(t) : "+ price"}</button>`; }
+  if (tab === "need") { const t = lineTotal(i), op = Number(i.orderPrice) > 0, sv = saving(i); return (sv ? `<button type="button" class="xc psv" data-psave="${esc(i.id)}" title="Cheaper at ${esc(sv.at)}: open the price comparison">Save ${esc(money(sv.amt))} at ${esc(sv.at)}</button>` : "") + (readOnly ? (t != null ? `<span class="xc xtot">${money(t)}</span>` : "") : `<button type="button" class="xc xtot${t == null ? " none" : ""}${op ? " custom" : ""}" data-ordprice="${esc(i.id)}" title="${t != null ? `${money(ordPrice(i))} × ${fmtQ(i.orderQty)}${op ? " (price set for this order)" : ""}. Tap to change the price for this order` : "Add a price for this order"}">${t != null ? money(t) : "+ price"}</button>`); }
   if (tab === "ordered" && i.onOrder) { const d = daysSince(i.ordered), c = Number(i.orderedPrice) > 0 ? Number(i.orderedPrice) * (Number(i.orderedQty) || 0) : null; return `${c ? `<span class="xc xcost" title="${money(Number(i.orderedPrice))} × ${fmtQ(i.orderedQty)}">${money(c)}</span>` : ""}${d != null ? `<span class="xc xwait${d >= 10 ? " late" : ""}" title="Ordered ${esc(i.ordered)}">${d === 0 ? "Today" : d === 1 ? "1 day" : d + " days"}</span>` : ""}`; }
   if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
   return "";
@@ -2839,7 +2864,7 @@ function renderInner(){
     if (slot911) slot911.innerHTML = "";
     const allT = grpTotal(list, true);
     v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} item${list.length>1?"s":""} to order${allT}, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
-      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
+      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="ordPrices" type="button" ${readOnly || !window.TDC?.priceSearch ? "hidden" : ""}>${ic("dollar")}Check prices</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
@@ -2850,6 +2875,8 @@ function renderInner(){
     document.querySelectorAll("[data-cart]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.cart); const tick = grp.filter(i => selected.has(i.id)); cartStart(b.dataset.cart, tick.length ? tick : grp); });
     $("#markOrd").onclick = () => markOrdered(list.filter(i=>selected.has(i.id)));
     document.querySelectorAll("[data-ordprice]").forEach(b => b.onclick = e => { e.stopPropagation(); orderPriceEdit(byId(b.dataset.ordprice)); });
+    document.querySelectorAll("[data-psave]").forEach(b => b.onclick = e => { e.stopPropagation(); const it = byId(b.dataset.psave); if (!it) return; openItem(it); setTimeout(() => { const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ block: "start" }); } }, 80); });
+    $("#ordPrices") && ($("#ordPrices").onclick = () => checkOrderPrices(selected.size ? list.filter(i => selected.has(i.id)) : list));
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
@@ -4673,7 +4700,7 @@ async function openItem(it, prefill){
       <div class="isechead"><span>Item info</span><span class="ihbtns">${readOnly ? "" : `<button class="btn sm" type="button" id="ptoolsBtn" aria-expanded="false" aria-controls="ptoolsMenu">${ic("gear")}Tools ▾</button>`}<button class="btn sm" type="button" id="toolsBtn" aria-expanded="false" aria-controls="toolsMenu">${ic("search")}Look up ▾</button><button class="btn sm" type="button" id="editBtn">${ic("pencil")}Edit info</button></span></div>
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
       <button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>
-      <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      <button type="button" class="pmi" id="tPrices">${ic("dollar")}Compare prices</button>
       <button type="button" class="pmi" id="tHist">${ic("history")}Item history</button>
       <button type="button" class="pmi" id="tLabel">${ic("tag")}Print shelf label</button>
       <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
@@ -4689,6 +4716,7 @@ async function openItem(it, prefill){
         ${ordFields(f)}
         ${priceTrend(it)}
       </details>
+      <details class="isec" id="sec-price" ${isOpen("sec-price", false) ? "open" : ""}><summary><b>Prices</b><span class="sum">${priceSum(it)}</span></summary><div id="priceBox">${priceBox(it)}</div></details>
       <details class="isec" id="sec-det" ${isOpen("sec-det", false) ? "open" : ""}><summary><b>Details</b><span class="sum">${detSum}</span></summary>
         ${detFields(f)}
         <p class="dethist">${it.updatedAt ? "Changed " + esc(when(it.updatedAt)) + (by ? ` by <span class="init">${esc(by)}</span>` : "") : "Imported from the spreadsheet"}${it.lastReceived ? " · received " + esc(it.lastReceived) : ""}${!countable(it) ? " · not on the count schedule" : it.countedAt ? ` · counted ${esc(shortDate(it.countedAt))}${it.countedBy ? " by " + esc(it.countedBy) : ""} (${esc(cntName(cycleOf(it)).toLowerCase())}; ${countedToday(it) ? "next due " + esc(shortDate(+nextDue(it))) : "due now"})` : ` · not counted yet (${esc(cntName(cycleOf(it)).toLowerCase())})`}</p>
@@ -4739,6 +4767,8 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
     }; }
   $("#tLabel") && ($("#tLabel").onclick = () => shelfLabels([it]));
+  $("#tPrices") && ($("#tPrices").onclick = () => { $("#ptoolsMenu").hidden = true; const s = $("#sec-price"); if (s) { s.open = true; s.scrollIntoView({ behavior: "smooth", block: "start" }); } runPriceCheck(it, "mine"); });
+  wirePriceBox(it);
   $("#tHist") && ($("#tHist").onclick = () => itemHistory(it));
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true, stay: true }); b.disabled = false;
     if (!ok) return;
@@ -4763,7 +4793,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
       const pb = document.createElement("button"); pb.type = "button"; pb.className = "pmi"; pb.id = "tPhotos"; pb.setAttribute("aria-expanded", "false");
       pb.innerHTML = ic("camera") + `${it.photo ? "Photos" : "Add a photo"}<span class="pmarr">▸</span>`;
       pb.onclick = () => { pm.hidden = !pm.hidden; pb.setAttribute("aria-expanded", String(!pm.hidden)); pb.querySelector(".pmarr").textContent = pm.hidden ? "▸" : "▾"; };
-      const cp = pt.querySelector('[data-pfind="shop"]'); pt.insertBefore(pb, pt.firstChild); pt.insertBefore(pm, pb.nextSibling); if (cp) pt.insertBefore(cp, pt.firstChild); $("#tChgPhoto")?.remove();
+      const cp = pt.querySelector('#tPrices'); pt.insertBefore(pb, pt.firstChild); pt.insertBefore(pm, pb.nextSibling); if (cp) pt.insertBefore(cp, pt.firstChild); $("#tChgPhoto")?.remove();
       const sk = it.skuPhoto ? "blob.php?id=" + it.skuPhoto : ""; if (sk) { const b = document.createElement("button"); b.type = "button"; b.className = "pmi"; b.innerHTML = ic("tag") + "View SKU / label photo"; b.onclick = () => showBigPic(sk, "SKU / label"); pm.insertBefore(b, pm.querySelector("p.hint")); } } }
   $("#pSku") && ($("#pSku").onclick = e => { if (!needMe()) e.preventDefault(); }) && ($("#pSku").onchange = e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setItemPhoto(it, f, null, "skuPhoto"); });
   $(".skupic img") && ($(".skupic img").onclick = e => showBigPic(e.target.src, "SKU photo"));
@@ -4784,6 +4814,162 @@ async function saveIfChanged(it){
 }
 /* "12.5" -> "$12.50"; anything that isn't a plain number is shown as typed */
 function priceTxt(v){ v = clean(v); const n = Number(v.replace(/[$,\s]/g, "")); return v && /^\$?\s*[\d,]*\.?\d+$/.test(v) && isFinite(n) ? "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v; }
+/* ---------- price comparison ---------- */
+/* how many units are in one "pack" as sold: "Box of 200" -> 200, "Pack of 3" -> 3, "Each" -> 1 */
+function unitCount(pack){
+  const s = clean(pack).toLowerCase(); if (!s) return null;
+  let m = s.match(/\b(?:of|x)\s*(\d[\d,]*)\b/) || s.match(/(\d[\d,]*)\s*(?:\/|per\s)?\s*(?:pk|pack|ct|count|pcs?|pieces|tips|ea\b|units?|bx|box|bag|case)/) || s.match(/^\(?(\d[\d,]*)\)?\s/);
+  if (m) { const n = Number(m[1].replace(/,/g, "")); return n > 0 && n < 100000 ? n : null; }
+  return /^(each|ea|1 each|single|unit|kit|bottle|vial|tube|syringe)\b/.test(s) ? 1 : null;
+}
+const perUnit = o => { const n = unitCount(o.pack), p = Number(o.price); return p > 0 && n ? p / n : null; };
+function upsertOffer(list, o){
+  const L = (Array.isArray(list) ? list : []).filter(x => x && !(keyOf(x.src) === keyOf(o.src) && (x.kind === "invoice") === (o.kind === "invoice")));
+  return [...L, o].slice(-20);
+}
+const KIND_LBL = { invoice: "Invoice", live: "Signed in", public: "Website", signin: "Website" };
+function offersFor(it){
+  const L = (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src);
+  const cur = priceNum(it.unitCost);
+  if (cur != null && it.supplier && !L.some(o => keyOf(o.src) === keyOf(it.supplier) && Number(o.price) > 0 && Math.abs(Number(o.price) - cur) < .005)) L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: it.updatedAt || 0, sure: true, mine: true, url: it.link || "" });
+  return L;
+}
+function bestOffer(it, mineOnly = true){
+  const L = offersFor(it).filter(o => Number(o.price) > 0 && o.sure !== false && (!mineOnly || o.mine !== false));
+  const anyPU = L.some(o => perUnit(o) != null);
+  const val = o => anyPU ? (perUnit(o) ?? Infinity) : Number(o.price);
+  return L.sort((a, b) => val(a) - val(b))[0] || null;
+}
+/* "Save $X at Benco": the cheapest of your suppliers vs what this item is ordered at now */
+function saving(it){
+  const b = bestOffer(it); if (!b || keyOf(b.src) === keyOf(it.supplier)) return null;
+  const cur = { price: ordPrice(it), pack: it.units };
+  if (!(cur.price > 0)) return null;
+  const pb = perUnit(b), pc = perUnit(cur);
+  let per = null;
+  if (pb != null && pc != null) per = pc - pb; else if (keyOf(b.pack) === keyOf(cur.pack) || !b.pack) per = (cur.price - b.price) / (unitCount(cur.pack) || 1);
+  if (per == null || per <= 0.0049) return null;
+  const n = (unitCount(cur.pack) || 1) * (Number(it.orderQty) || 1);
+  return { at: b.src, amt: per * n, pct: Math.round(per / ((pc ?? cur.price / (unitCount(cur.pack) || 1)) || 1) * 100) };
+}
+function priceSum(it){
+  const b = bestOffer(it), n = offersFor(it).filter(o => Number(o.price) > 0).length;
+  if (!n) return "Not checked yet";
+  const sv = saving(it);
+  return `${n} price${n > 1 ? "s" : ""}${b ? ` · best ${esc(money(Number(b.price)))} at ${esc(b.src)}` : ""}${sv ? ` · <span class="psave">save ${esc(money(sv.amt))}</span>` : ""}`;
+}
+function priceBox(it){
+  const L = offersFor(it), best = bestOffer(it), bestW = bestOffer(it, false);
+  const row = o => {
+    const pu = perUnit(o), isCur = keyOf(o.src) === keyOf(it.supplier) && (o.kind === "saved" || !o.url || o.url === it.link), isBest = best && o === best;
+    const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+    const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " " + when : "");
+    return `<div class="prow${isBest ? " best" : ""}${o.price > 0 ? "" : " noprice"}">
+      <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${o.sure === false ? `<span class="pflag" title="This page might be a different size, shade or pack. Open it and check before switching.">Check match</span>` : ""}</div>
+      <div class="pp">${o.price > 0 ? `<b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}${pu != null && unitCount(o.pack) > 1 ? `<small class="ppu">${esc(money(pu))} each</small>` : ""}` : `<span class="hint">${o.kind === "signin" ? "Price shows after signing in" : "No price shown"}</span>`}</div>
+      <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.price > 0 && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
+    </div>`;
+  };
+  const mine = L.filter(o => o.mine !== false), web = L.filter(o => o.mine === false);
+  const hosted = !!window.HOSTED;
+  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices saved yet. Check prices looks this item up at your suppliers' websites; invoices you import add your real prices automatically.</p>`}
+    ${web.length ? `<h4 class="psub">Not your suppliers</h4><div class="plist">${web.map(row).join("")}</div>` : ""}
+    <p class="hint pnote" id="pStatus">${bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best) ? `Cheapest anywhere: ${esc(money(Number(bestW.price)))} at ${esc(bestW.src)}. ` : ""}Prices from websites are list prices unless marked "Signed in"; your invoices show what you really pay.</p>
+    ${readOnly ? "" : `<div class="pbtns"><button type="button" class="btn sm" id="pCheck">${ic("refresh")}Check prices</button><button type="button" class="btn sm" id="pWeb">${ic("globe")}Search the whole web</button><button type="button" class="btn sm" id="pLive">${ic("monitor")}Signed-in prices</button></div>`}`;
+}
+function wirePriceBox(it){
+  const box = $("#priceBox"); if (!box) return;
+  $("#pCheck") && ($("#pCheck").onclick = () => runPriceCheck(it, "mine"));
+  $("#pWeb") && ($("#pWeb").onclick = () => runPriceCheck(it, "web"));
+  $("#pLive") && ($("#pLive").onclick = () => livePricesHelp(it));
+  box.querySelectorAll("[data-useoffer]").forEach(b => b.onclick = () => useOffer(it, offersFor(it)[+b.dataset.useoffer]));
+}
+function refreshPriceBox(it){
+  const cur = byId(it.id) || it, box = $("#priceBox"); if (!box) return;
+  box.innerHTML = priceBox(cur); const s = $("#sec-price .sum"); if (s) s.innerHTML = priceSum(cur); wirePriceBox(cur);
+}
+function supplierSites(){
+  const names = new Set([...items.map(i => clean(i.supplier)), ...Object.values(supInfo || {}).map(x => clean(x?.name))].filter(Boolean));
+  return [...names].map(n => ({ name: n, site: clean(infoOf(n).website) }));
+}
+let priceRun = null;
+async function runPriceCheck(it, scope, opt = {}){
+  const status = t => { if (opt.status) opt.status(t); else { const el = $("#pStatus"); if (el) el.textContent = t; } };
+  if (!window.TDC?.priceSearch) { status("Price checks run on the Supply Room website (they need its server to read supplier pages)."); return false; }
+  if (!opt.quiet && priceRun) { toast("A price check is already running"); return false; }
+  const run = priceRun = {}; const btns = ["#pCheck", "#pWeb"].map(s => $(s)).filter(Boolean); btns.forEach(b => b.disabled = true);
+  try {
+    status(scope === "web" ? "Searching the web for this product…" : "Looking for this product at your suppliers…");
+    const known = (Array.isArray(it.offers) ? it.offers : []).filter(o => o.url && o.at > Date.now() - 864e5).map(o => o.url);
+    const res = await TDC.priceSearch({ name: it.name, sku: it.sku || "", mfr: it.mfr || "", units: it.units || "", supplier: it.supplier || "" }, supplierSites(), scope, []);
+    let cands = res.candidates || [];
+    if (scope === "mine" && it.link && !cands.some(c => c.url === webHref(it.link))) cands.unshift({ url: webHref(it.link), supplier: it.supplier || "", mine: true, sure: true, title: "Saved reorder link" });
+    if (!cands.length) { status(res.message ? `Nothing found: ${res.message}` : "No matching product pages turned up."); return true; }
+    let offers = Array.isArray(it.offers) ? [...it.offers] : [], done = 0;
+    const one = async c => {
+      try {
+        const r = await TDC.readLink(c.url, { name: it.name });
+        const src = c.mine ? (canonSup(c.supplier) || c.supplier) : (clean(r.supplier) || c.supplier);
+        const o = { src, price: Number(r.price) > 0 ? Number(r.price) : null, pack: clean(r.units), url: c.url, sku: clean(r.sku), kind: Number(r.price) > 0 ? "public" : "signin", at: Date.now(), sure: c.sure !== false && r.skuCheck !== "missing", mine: !!c.mine };
+        offers = upsertOffer(offers, o);
+      } catch {}
+      done++; status(`Read ${done} of ${cands.length} page${cands.length > 1 ? "s" : ""}…`);
+    };
+    for (let i = 0; i < cands.length; i += 3) await Promise.all(cands.slice(i, i + 3).map(one));
+    await write(it.id, { offers }, { quiet: true });
+    it.offers = offers; const live = byId(it.id); if (live) live.offers = offers;
+    logIt("Price checked", it, `${cands.length} page${cands.length > 1 ? "s" : ""}${scope === "web" ? " (whole web)" : ""}`);
+    if (!opt.status) refreshPriceBox(it);
+    const sv = saving(byId(it.id) || it); if (!opt.status) status(sv ? `Cheaper at ${sv.at}: save about ${money(sv.amt)} on this order.` : "Done. Your current supplier is the best price found.");
+    return true;
+  } catch(e) { status(dbErr(e)); return false; }
+  finally { if (priceRun === run) priceRun = null; btns.forEach(b => b.disabled = false); }
+}
+async function checkOrderPrices(list){
+  if (!list.length || priceRun) return;
+  const b = $("#ordPrices"), was = b?.innerHTML;
+  const say = t => { const el = $("#ordPrices"); if (el) el.innerHTML = ic("dollar") + esc(t); };
+  if (b) b.disabled = true;
+  let n = 0, cheaper = 0, total = 0;
+  for (const it of list) {
+    n++; say(`Checking ${n} of ${list.length}…`);
+    await runPriceCheck(byId(it.id) || it, "mine", { quiet: true, status: () => {} });
+    const sv = saving(byId(it.id) || it); if (sv) { cheaper++; total += sv.amt; }
+  }
+  const el = $("#ordPrices"); if (el) { el.disabled = false; el.innerHTML = was || (ic("dollar") + "Check prices"); }
+  render();
+  toast(cheaper ? `${cheaper} item${cheaper > 1 ? "s are" : " is"} cheaper elsewhere: about ${money(total)} in all. Look for the green Save tags.` : "Checked. Your current suppliers have the best prices found.");
+}
+function livePricesHelp(it){
+  const sups = [...new Set(offersFor(it).filter(o => o.mine !== false).map(o => o.src))].join(", ") || it.supplier || "your suppliers";
+  const prompt = `Check my signed-in prices for "${it.name}" in the TDC Supply Room at ${sups}, and record them with record_price.`;
+  openPanel(`<div class="ph"><h2>Signed-in prices</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>Henry Schein, Benco, Brasseler and Ultradent only show your price after you sign in, so this check runs in the <b>Claude desktop app</b>, using its browser where you're signed in to your supplier accounts. Claude only reads the price; it never adds to a cart or orders.</p>
+    <p>In the Claude app, ask:</p><div class="copybox"><code id="lpTxt">${esc(prompt)}</code><button type="button" class="btn sm" id="lpCopy">${ic("copy")}Copy</button></div>
+    <p class="hint">The prices show up here, marked "Signed in", as soon as Claude saves them. For a whole order, ask: "Check my signed-in prices for everything on the Supply Room order list."</p>
+    <div class="actions savebar"><button class="btn pri grow" data-close type="button">OK</button></div>`);
+  $("#lpCopy").onclick = async () => { try { await navigator.clipboard.writeText(prompt); toast("Copied"); } catch { toast("Select the text and copy it"); } };
+}
+function useOffer(it, o){
+  if (!o || !needMe()) return;
+  const packDiff = o.pack && it.units && keyOf(o.pack) !== keyOf(it.units) && unitCount(o.pack) !== unitCount(it.units);
+  openPanel(`<div class="ph"><h2>Switch to ${esc(o.src)}?</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>${esc(it.name)} will be ordered from <b>${esc(o.src)}</b> at <b>${esc(money(Number(o.price)))}</b>${o.pack ? ` per ${esc(o.pack)}` : ""}, using <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener">this product page</a>${o.sku ? ` (item # ${esc(o.sku)})` : ""}.</p>
+    ${it.supplier && keyOf(it.supplier) !== keyOf(o.src) ? `<label class="chkline" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uoKeep" checked> Keep ${esc(it.supplier)} as a backup source (it stays in price checks)</label>` : ""}
+    ${packDiff ? `<p class="notice warn">${ic("alert")} The pack is different: ${esc(o.pack)} here vs ${esc(it.units)} now. Your on-hand count and reserve are in ${esc(it.units)}; update them (and Units in Edit info) if you'll count in the new pack.</p>` : ""}
+    ${o.sure === false ? `<p class="notice warn">${ic("alert")} This page might be a different size, shade or pack. Open it and check before switching.</p>` : ""}
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="uoGo" type="button">Switch supplier</button></div>`);
+  $("#uoGo").onclick = async () => {
+    const keep = $("#uoKeep")?.checked;
+    const alt = Array.isArray(it.altSources) ? [...it.altSources] : [];
+    if (keep && it.supplier && !alt.some(a => keyOf(a.supplier) === keyOf(it.supplier))) alt.push({ supplier: it.supplier, link: it.link || "", sku: it.sku || "", price: it.unitCost || "", units: it.units || "", at: Date.now() });
+    const patch = { supplier: o.src, link: o.url, unitCost: Number(o.price).toFixed(2), altSources: alt.filter(a => keyOf(a.supplier) !== keyOf(o.src)) };
+    if (o.sku) patch.sku = o.sku;
+    try { await write(it.id, patch); logIt("Edited", it, `switched supplier ${it.supplier || "–"} → ${o.src} at ${money(Number(o.price))}`); toast(`Now ordering from ${o.src}`); const fresh = byId(it.id); closePanel(); if (fresh) openItem(fresh); }
+    catch(e) { toast(dbErr(e)); }
+  };
+}
+
 /* ---------- item history: everything the Log has for one item ---------- */
 async function itemHistory(it){
   openPanel(`<div class="ph"><h2>History</h2><button class="iconbtn" type="button" id="ihBack">Back</button></div><p class="hint" style="margin:0 0 8px">${esc(it.name)}</p><div id="ihBody"><p class="hint">Loading…</p></div>`);
@@ -5449,6 +5635,7 @@ async function docApply(rows, D, r, sup){
       const price = pr != null && pr > 0 ? "$" + pr.toFixed(2) : "";
       if (it) {
         const patch = {}, said = [];
+        if (pr != null && pr > 0 && sup) patch.offers = upsertOffer(it.offers, { src: sup, price: pr, pack: l.pack || it.units || "", kind: ["invoice", "packing_slip", "order_confirmation", "order_history"].includes(r.kind) ? "invoice" : "public", at: Date.now(), sure: true, mine: true, url: "", sku: l.sku || "" });
         if (price && num(it.unitCost) !== pr) { patch.unitCost = price; said.push(`price ${it.unitCost || "–"} → ${price}`); }
         if (l.sku && !clean(it.sku)) { patch.sku = l.sku; said.push("SKU " + l.sku); }
         if (mode === "receive" && q > 0) { Object.assign(patch, { qty: (it.qty ?? 0) + q, ordered: "", orderedQty: 0, orderAmt: 0, lastReceived: today() }); }

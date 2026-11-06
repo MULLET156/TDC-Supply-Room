@@ -191,6 +191,15 @@ try {
             out(200, $r);
         }
 
+        case 'pricesearch': {
+            $q = is_array($req['q'] ?? null) ? $req['q'] : [];
+            $sites = is_array($req['sites'] ?? null) ? array_slice($req['sites'], 0, 20) : [];
+            $skip = is_array($req['skip'] ?? null) ? array_map('strval', array_slice($req['skip'], 0, 30)) : [];
+            $r = price_search($q, $sites, ($req['scope'] ?? '') === 'web' ? 'web' : 'mine', $skip);
+            if (!$r['ok']) fail(502, $r['error'] ?? 'no_match', $r['message']);
+            out(200, $r);
+        }
+
         case 'fetchphoto': {
             $r = fetch_photo(trim((string)($req['url'] ?? '')), trim((string)($req['page'] ?? '')));
             if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);
