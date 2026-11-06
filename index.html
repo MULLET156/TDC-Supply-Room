@@ -1808,7 +1808,7 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
         <div class="toolrow2">
           <button class="btn pri addhdr" id="addBtn" type="button" title="Add item (shortcut: N)"><i data-ic="plus"></i>Add item</button>
           <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="toolTabs" aria-label="Menu: Editor, Activity log, Setup"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="mlabel" id="menuLabel">Menu</span></button>
-          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending &amp; prices</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
+          <span class="tooltabs" id="toolTabs" role="tablist" aria-label="Tools"><button class="tab tool" role="tab" data-t="products" aria-selected="false"><i data-ic="table"></i>Editor</button><button class="tab tool" role="tab" data-t="spend" aria-selected="false"><i data-ic="dollar"></i>Spending</button><button class="tab tool" role="tab" data-t="log" aria-selected="false"><i data-ic="history"></i>Log</button><button class="tab tool" role="tab" data-t="setup" aria-selected="false"><i data-ic="gear"></i>Setup</button></span><button class="qlink" id="exportBtn" type="button" hidden>Export</button>
         </div>
       </div>
     </div>
@@ -6707,7 +6707,7 @@ $("#moreBtn")?.addEventListener("click", e => {
     <div class="mmenu">
       <button class="mi pri" type="button" data-m="add">${ic("plus")}Add item</button>
       <button class="mi" type="button" data-m="exp">${ic("hourglass")}Expiring<small id="mExpN"></small></button>
-      <button class="mi" type="button" data-m="spend">${ic("dollar")}Spending &amp; prices</button>
+      <button class="mi" type="button" data-m="spend">${ic("dollar")}Spending<small>and price comparison</small></button>
       <button class="mi" type="button" data-m="log">${ic("history")}Log</button>
       <button class="mi" type="button" data-m="setup">${ic("gear")}Setup</button>
       <label class="mi">${ic("pencil")}Logging as<select id="mWho">${who ? who.innerHTML : ""}</select></label>
