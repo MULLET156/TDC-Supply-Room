@@ -768,6 +768,16 @@ function find_product_page(array $q, array $ctx = []): array {
             return $direct;
         }
     }
+    // Darby: the page address is the 7-digit item number (906742 -> /0906742.html).
+    $dbNum = preg_replace('/\D+/', '', $sku);
+    if (preg_match('/^\d{5,7}$/', $dbNum) && (stripos($sup, 'darby') !== false || str_contains($site, 'darby'))) {
+        $dbNum = str_pad($dbNum, 7, '0', STR_PAD_LEFT);
+        $direct = read_product_link('https://www.darbydental.com/' . $dbNum . '.html', $ctx);
+        if ($direct['ok'] && (str_contains(preg_replace('/\D/', '', (string)($direct['sku'] ?? '')), ltrim($dbNum, '0')) || stripos((string)($direct['pageTitle'] ?? ''), $dbNum) !== false)) {
+            $direct['note'] = trim('Opened Darby\'s page for item ' . $sku . '. ' . ($direct['note'] ?? ''));
+            return $direct;
+        }
+    }
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.

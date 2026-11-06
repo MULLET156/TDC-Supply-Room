@@ -176,6 +176,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
         }
         case 'add_item': {
             $p = clean_fields($a);
+            if (isset($p['supplier'])) $p['supplier'] = canon_supplier($pdo, (string)$p['supplier']);
             if (($p['name'] ?? '') === '') throw new RuntimeException('name is required.');
             $w = who($a);
             $doc = array_merge(['name' => '', 'sku' => '', 'supplier' => '', 'link' => '', 'unitCost' => '', 'units' => '', 'desc' => '', 'cat' => '', 'sub' => '', 'loc' => '', 'qty' => 0, 'desired' => null, 'urgent' => null, 'notes' => '', 'exp' => '', 'ordered' => '', 'orderedQty' => 0], $p);
@@ -189,6 +190,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
         case 'update_item': {
             $id = (string)($a['id'] ?? ''); $it = item_or_fail($pdo, $id); $w = who($a);
             $p = clean_fields($a);
+            if (isset($p['supplier'])) $p['supplier'] = canon_supplier($pdo, (string)$p['supplier']);
             if (!empty($a['photo_url'])) { $old = $it['photo'] ?? ''; $p['photo'] = save_photo($pdo, (string)$a['photo_url']); if ($old) $pdo->prepare('DELETE FROM sr_blobs WHERE id = ?')->execute([$old]); }
             if (!$p) throw new RuntimeException('Nothing to change.');
             $changed = array_keys($p);
@@ -279,4 +281,16 @@ switch ($m) {
     }
     default:
         rpc_out($id, null, ['code' => -32601, 'message' => 'Method not found']);
+}
+
+// One spelling per supplier: "henry schein", "HENRY SCHEIN" and "Henry-Schein" all become the name already in use.
+function canon_supplier(PDO $pdo, string $v): string {
+    $v = trim(preg_replace('/\s+/', ' ', $v)); if ($v === '') return '';
+    $key = fn($x) => preg_replace('/[^a-z0-9]+/', '', mb_strtolower($x));
+    $k = $key($v); $seen = [];
+    foreach (all_docs($pdo, 'items') as $it) { $n = trim((string)($it['supplier'] ?? '')); if ($n !== '' && $key($n) === $k) $seen[$n] = ($seen[$n] ?? 0) + 1; }
+    $st = load($pdo, 'settings', 'suppliers') ?? []; foreach ((array)($st['extra'] ?? []) as $n) if (is_string($n) && $key($n) === $k) $seen[$n] = ($seen[$n] ?? 0) + 1;
+    if ($seen) { uksort($seen, fn($a, $b) => [preg_match('/[A-Z]/', $b), $seen[$b]] <=> [preg_match('/[A-Z]/', $a), $seen[$a]]); $best = array_key_first($seen); }
+    else $best = $v;
+    return preg_match('/[A-Z]/', $best) ? $best : ucwords($best);
 }

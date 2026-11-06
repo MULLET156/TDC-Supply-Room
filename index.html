@@ -1751,7 +1751,20 @@ function needMe(){
 async function logIt(action, it, detail){
   try { await db.collection("log").add({ at: Date.now(), initials: me(), action, itemId: it?.id || "", name: it?.name || "", detail: detail || "" }); } catch {}
 }
+/* One spelling per supplier: "henry schein", "HENRY SCHEIN" or "Henry-Schein" become the name already in use;
+   a brand-new name typed all lowercase gets capitals ("dental city" -> "Dental City"). */
+const supKey = s => clean(s).toLowerCase().replace(/[^a-z0-9]+/g, "");
+function canonSup(v){
+  v = clean(v); if (!v) return v;
+  const k = supKey(v), n = new Map();
+  items.forEach(i => { const s = clean(i.supplier); if (s && supKey(s) === k) n.set(s, (n.get(s) || 0) + 1); });
+  supExtra.forEach(s => { s = clean(s); if (s && supKey(s) === k) n.set(s, (n.get(s) || 0) + 1); });
+  const best = [...n.entries()].sort((a, b) => (/[A-Z]/.test(b[0]) - /[A-Z]/.test(a[0])) || (b[1] - a[1]))[0]?.[0] || v;
+  return /[A-Z]/.test(best) ? best : best.replace(/(^|[\s\-\/&(])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+}
+const addItemDoc = doc => db.collection("items").add({ ...doc, supplier: canonSup(doc.supplier) });
 async function write(id, patch){
+  if ("supplier" in patch && !write.raw) patch = { ...patch, supplier: canonSup(patch.supplier) };
   /* price history: every price change is kept on the item (last 24), for the trend in the item window */
   if ("unitCost" in patch) { const old = byId(id), a = num(old?.unitCost), b = num(patch.unitCost);
     if (b != null && b > 0 && a !== b) { let h = Array.isArray(old?.priceHist) ? old.priceHist.slice() : []; if (!h.length && a != null && a > 0) h.push({ at: old.updatedAt || old.createdAt || Date.now() - 1, p: a }); h.push({ at: Date.now(), p: b, by: me() }); patch = { ...patch, priceHist: h.slice(-24) }; } }
@@ -2128,6 +2141,15 @@ function priceTrend(it){
 
 /* Order online: one supplier's Order list items, ready for that supplier's website.
    Amazon: one link fills the cart. Henry Schein: item numbers to paste into Quick Order. Everyone else: a click-through checklist. */
+/* product page straight from an item number, for suppliers whose page address is the number */
+function skuUrl(sup, sku){
+  const d = String(sku || "").replace(/\D+/g, "");
+  if (!d) return "";
+  if (/schein/i.test(sup) && /^\d{6,8}$/.test(d)) return "https://www.henryschein.com/en-us/p/x/" + d;
+  if (/benco/i.test(sup) && /^\d{6,8}$/.test(d)) return "https://shop.benco.com/Product/" + d.slice(0, -3) + "-" + d.slice(-3);
+  if (/darby/i.test(sup) && /^\d{5,7}$/.test(d)) return "https://www.darbydental.com/" + d.padStart(7, "0") + ".html";
+  return "";
+}
 const asinOf = u => (String(u || "").match(/(?:\/dp\/|\/gp\/product\/|\/gp\/aws\/cart\/add\.html\?ASIN\.1=|[?&]asin=)([A-Z0-9]{10})/i) || [])[1]?.toUpperCase() || "";
 const OO_FMT = { space: ["Item number, space, quantity", (k, q) => `${k} ${q}`], comma: ["Item number, comma, quantity", (k, q) => `${k},${q}`], tab: ["Item number, tab, quantity (from a spreadsheet)", (k, q) => `${k}\t${q}`] };
 function ooFmt(){ try { const v = localStorage.getItem("tdc.ooFmt"); if (OO_FMT[v]) return v; } catch {} return "space"; }
@@ -2135,11 +2157,12 @@ document.addEventListener("click", e => { const b = e.target.closest?.("[data-or
 function orderOnline(sup){
   const rows = items.filter(i => i.need && !i.onOrder && keyOf(i.supplier) === keyOf(sup)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (!rows.length) { toast("Nothing from " + sup + " on the Order list"); return; }
-  const q = i => fmtQ(i.orderQty || 1), web = clean(infoOf(sup).website), isAmz = /amazon/i.test(sup), isHS = /schein/i.test(sup);
+  const q = i => fmtQ(i.orderQty || 1), web = clean(infoOf(sup).website), isAmz = /amazon/i.test(sup), isHS = /schein/i.test(sup), isSafco = /safco/i.test(sup), isBenco = /benco/i.test(sup), isDarby = /darby/i.test(sup);
+  const qn = i => Math.max(1, Math.round(num(i.orderQty) || 1)), skuOf = i => clean(i.sku).replace(/\s+/g, "");
   const head = `<div class="ph"><div><h2>${supLogo(sup)}Order from ${esc(sup)}</h2><div class="lastby">${rows.length} item${rows.length === 1 ? "" : "s"} on the Order list</div></div><button class="iconbtn" data-close type="button">Close</button></div>`;
-  const linkOf = i => /^https?:/i.test(i.link || "") ? i.link : "";
+  const linkOf = i => /^https?:/i.test(i.link || "") ? i.link : skuUrl(sup, i.sku);
   const check = list => `<div class="oolist">${list.map(i => `<label class="ooitem"><input type="checkbox" data-oock><span class="oonm"><b>${q(i)} ×</b> ${esc(i.name)}${i.units ? ` <small>${esc(i.units)}</small>` : ""}${i.sku ? ` <small class="mono">#${esc(i.sku)}</small>` : ""}</span>${linkOf(i) ? `<a class="btn sm" href="${esc(webHref(linkOf(i)))}" target="_blank" rel="noopener">Open ↗</a>` : `<a class="btn sm" href="${esc(isAmz ? "https://www.amazon.com/s?k=" + encodeURIComponent(i.name) : web ? webHref(web) : "https://www.google.com/search?q=" + encodeURIComponent(sup + " " + i.name))}" target="_blank" rel="noopener">Find ↗</a>`}</label>`).join("")}</div>`;
-  const done = `<div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" type="button" id="ooMark">${ic("send")}Mark these ${rows.length} ordered</button></div>`;
+  const done = `<div class="actions savebar"><button class="btn" data-close type="button">Close</button><button class="btn pri grow" type="button" id="ooMark">${ic("send")}${rows.length === 1 ? "Mark it ordered" : `Mark these ${rows.length} ordered`}</button></div>`;
   let body = "";
   if (isAmz) {
     const ok = rows.filter(i => asinOf(i.link)), miss = rows.filter(i => !asinOf(i.link));
@@ -2156,15 +2179,30 @@ function orderOnline(sup){
       <div class="actions"><button class="btn pri grow" type="button" id="ooCopy">${ic("copy")}Copy ${ok.length} item number${ok.length === 1 ? "" : "s"}</button><a class="btn" href="https://www.henryschein.com/us-en/dental/default.aspx" target="_blank" rel="noopener">Open Henry Schein ↗</a></div>
       <label class="hint oofmt">Format <select id="ooFmt">${Object.entries(OO_FMT).map(([k, [l]]) => `<option value="${k}" ${k === f ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
       ${miss.length ? `<p class="hint">${miss.length} item${miss.length === 1 ? " has" : "s have"} no item number, so add ${miss.length === 1 ? "it" : "them"} yourself (Batch Update can fill item numbers in):</p>${check(miss)}` : ""}`;
+  } else if (isSafco) {
+    const ok = rows.filter(i => skuOf(i)), miss = rows.filter(i => !skuOf(i));
+    body = `${ok.length ? `<p class="hint">Step 1: download the order file (${ok.length} item${ok.length === 1 ? "" : "s"} with quantities). Step 2: on Safco's <b>Quick Order</b> page (sign in first), choose <b>Add from File</b>, pick the file, then <b>Add to Cart</b>.</p>
+      <div class="actions"><button class="btn pri grow" type="button" id="ooCsv">${ic("download")}Download Safco order file</button><a class="btn" href="https://www.safcodental.com/quickorder/" target="_blank" rel="noopener">Open Safco Quick Order ↗</a></div>
+      <details class="oomore"><summary>See the ${ok.length} in the file</summary>${check(ok)}</details>` : ""}
+      ${miss.length ? `<p class="hint">${miss.length} item${miss.length === 1 ? " has" : "s have"} no Safco item number, so add ${miss.length === 1 ? "it" : "them"} yourself:</p>${check(miss)}` : ""}`;
+  } else if (isBenco || isDarby) {
+    const ok = rows.filter(i => skuOf(i));
+    body = `<p class="hint">Open each item${ok.length ? " (they go straight to the product page from the item number)" : ""}, add it to the cart, and tick it off.${ok.length ? ` If ${esc(sup)}'s site has a quick-order box when you're signed in, copy the item numbers below and paste them there instead.` : ""}</p>${check(rows)}
+      <div class="actions">${ok.length ? `<button class="btn" type="button" id="ooCopyNums">${ic("copy")}Copy ${ok.length} item number${ok.length === 1 ? "" : "s"}</button>` : ""}<button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
   } else {
     body = `<p class="hint">${esc(sup)}'s website doesn't take a list of items at once, so here's a checklist: open each one, add it to the cart, and tick it off.</p>${check(rows)}
       <div class="actions"><button class="btn" type="button" id="ooCopyList">${ic("copy")}Copy as a list</button>${web ? `<a class="btn" href="${esc(webHref(web))}" target="_blank" rel="noopener">Open ${esc(sup)} ↗</a>` : ""}</div>`;
   }
-  openPanel(head + body + `<p class="hint">Step ${isAmz || isHS ? "3" : "2"}: after you've placed the order, mark them ordered so they move to On order.</p>` + done);
+  openPanel(head + body + `<p class="hint">Step ${isAmz || isHS || isSafco ? "3" : "2"}: after you've placed the order, mark them ordered so they move to On order.</p>` + done);
   $("#ooFmt") && ($("#ooFmt").onchange = e => { try { localStorage.setItem("tdc.ooFmt", e.target.value); } catch {} const t = $("#ooText"); if (t) t.value = rows.filter(i => clean(i.sku)).map(i => OO_FMT[e.target.value][1](clean(i.sku).replace(/[\s-]/g, ""), Math.max(1, Math.round(num(i.orderQty) || 1)))).join("\n"); });
   const copy = (txt, msg) => { try { navigator.clipboard.writeText(txt).then(() => toast(msg), () => toast("Select the text and copy it")); } catch { toast("Select the text and copy it"); } };
   $("#ooCopy") && ($("#ooCopy").onclick = () => { const t = $("#ooText"); t.select(); copy(t.value, "Copied. Paste into Henry Schein Quick Order"); });
   $("#ooCopyList") && ($("#ooCopyList").onclick = () => copy(rows.map(i => `${q(i)} x ${i.name}${i.units ? " (" + i.units + ")" : ""}${i.sku ? " #" + i.sku : ""}`).join("\n"), "List copied"));
+  $("#ooCopyNums") && ($("#ooCopyNums").onclick = () => copy(rows.filter(i => skuOf(i)).map(i => `${skuOf(i)} ${qn(i)}`).join("\n"), "Item numbers copied"));
+  $("#ooCsv") && ($("#ooCsv").onclick = () => {
+    const csv = "SKU,QTY\n" + rows.filter(i => skuOf(i)).map(i => `${csvCell(skuOf(i))},${qn(i)}`).join("\n") + "\n";
+    if (downloads) downloads.save({ filename: `Safco order ${new Date().toLocaleDateString("en-CA")}.csv`, data: csv }); else copy(csv, "Order file copied");
+  });
   $("#ooMark").onclick = () => { closePanel(); markOrdered(rows); };
 }
 function grpTools(label, list){
@@ -4431,7 +4469,7 @@ async function createItem(){
     if (pendingPhoto && assets) { try { btn.textContent = "Uploading photo…"; photo = (await uploadPhoto(pendingPhoto)).id; } catch(pe) { toast(photoErr(pe) + " The item was added without it."); } }
     let skuPhoto = "";
     if (pendingSkuPhoto && assets) { try { btn.textContent = "Uploading SKU photo…"; skuPhoto = (await uploadPhoto(pendingSkuPhoto)).id; } catch(pe) { toast(photoErr(pe) + " The item was added without the SKU photo."); } }
-    const ref = await db.collection("items").add({ ...f, photo, skuPhoto, ordered:"", orderedQty:0, createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() }); pendingPhoto = null; pendingSkuPhoto = null; logIt("Added", { id: ref.id, name: f.name }, `${fmtQ(f.qty)} on hand, desired ${fmtQ(f.desired)}${photo ? ", with photo" : ""}`); sync("ok", "Saved"); closePanel(); toast("Added " + f.name); if (tab === "add") { addBuilt = false; setTab(addReturn && addReturn !== "add" ? addReturn : "all"); } }
+    const ref = await addItemDoc({ ...f, photo, skuPhoto, ordered:"", orderedQty:0, createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() }); pendingPhoto = null; pendingSkuPhoto = null; logIt("Added", { id: ref.id, name: f.name }, `${fmtQ(f.qty)} on hand, desired ${fmtQ(f.desired)}${photo ? ", with photo" : ""}`); sync("ok", "Saved"); closePanel(); toast("Added " + f.name); if (tab === "add") { addBuilt = false; setTab(addReturn && addReturn !== "add" ? addReturn : "all"); } }
   catch(e) { btn.disabled = false; btn.textContent = "Save item"; sync("err", "Not saved"); toast(dbErr(e)); }
 }
 
@@ -4509,7 +4547,7 @@ async function runImport(){
   const b = $("#impGo"); b.disabled = true; sync("busy", "Importing…");
   let done = 0, fail = 0; const total = plan.add.length + plan.upd.length;
   for (const u of plan.upd) { try { await write(u.it.id, u.patch); done++; } catch { fail++; } b.textContent = `Importing… ${done + fail} of ${total}`; }
-  for (const a of plan.add) { try { await db.collection("items").add({ name: a.name, sku: "", units: "", cat: "", sub: "", loc: "", supplier: "", link: "", exp: "", unitCost: "", notes: "", desc: "", qty: 0, desired: 1, urgent: 0, ...a, ordered: "", orderedQty: 0, photo: "", skuPhoto: "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() }); done++; } catch { fail++; } b.textContent = `Importing… ${done + fail} of ${total}`; }
+  for (const a of plan.add) { try { await addItemDoc({ name: a.name, sku: "", units: "", cat: "", sub: "", loc: "", supplier: "", link: "", exp: "", unitCost: "", notes: "", desc: "", qty: 0, desired: 1, urgent: 0, ...a, ordered: "", orderedQty: 0, photo: "", skuPhoto: "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() }); done++; } catch { fail++; } b.textContent = `Importing… ${done + fail} of ${total}`; }
   logIt("Imported", null, `${plan.add.length} new, ${plan.upd.length} updated from a spreadsheet${fail ? `, ${fail} failed` : ""}`);
   importPlan = null; sync(fail ? "err" : "ok", fail ? "Some not saved" : "Saved"); closePanel();
   toast(fail ? `Imported ${done}; ${fail} couldn't be saved. Try importing the file again.` : `Imported: ${plan.add.length} new, ${plan.upd.length} updated`);
@@ -4563,9 +4601,9 @@ function askNewSupplier(fromPage, link){
   host.before(box);
   $("#qaSupNo").onclick = () => box.remove();
   $("#qaSupYes").onclick = async () => {
-    const v = clean($("#qaSupName").value); if (!v) { $("#qaSupName").focus(); return; }
+    const v = canonSup($("#qaSupName").value); if (!v) { $("#qaSupName").focus(); return; }
     if (!needMe()) return;
-    const exist = orderedSuppliers().find(g => keyOf(g.name) === keyOf(v))?.name;
+    const exist = orderedSuppliers().find(g => supKey(g.name) === supKey(v))?.name;
     try {
       if (!exist) { supExtra = [...supExtra, v]; supOrder = [...orderedSuppliers().map(g => keyOf(g.name))]; await saveSup({}); logIt("Setup", null, `Added supplier ${v}`); }
       const id = supSlug(exist || v);
@@ -4779,7 +4817,7 @@ async function docApply(rows, D, r, sup){
           qty: mode === "receive" && q > 0 ? q : 0, desired: null, urgent: null,
           ordered: mode === "ordered" && q > 0 ? ordDate : "", orderedQty: mode === "ordered" && q > 0 ? q : 0,
           lastReceived: mode === "receive" && q > 0 ? today() : "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() };
-        const ref = await db.collection("items").add(doc);
+        const ref = await addItemDoc(doc);
         logIt("Added", { id: ref.id, name }, `From ${src}${sup ? " · " + sup : ""}`);
         if (doc.ordered) orderLines.push({ id: ref.id, name, qty: q, units: doc.units, supplier: sup });
         ok++; added++;
@@ -5272,6 +5310,7 @@ function supDetail(name){
 }
 async function renameAll(field, from, to, label){
   to = clean(to);
+  if (field === "supplier" && to && !/[A-Z]/.test(to)) to = canonSup(to);   /* no all-lowercase supplier names */
   if (!to || to === from) return;
   if (!needMe()) { render(); return; }
   if (field === "cat") { const fk = keyOf(from); catExtra = catExtra.map(x => keyOf(x.c) === fk ? { ...x, c: to } : x); try { await db.doc("settings/cats").set({ extra: catExtra }); } catch {} }
@@ -5280,7 +5319,8 @@ async function renameAll(field, from, to, label){
   const hit = items.filter(i => keyOf(i[field]) === keyOf(from));
   sync("busy", `Updating ${hit.length}…`);
   let ok = 0;
-  for (const it of hit) { try { await write(it.id, { [field]: to }); ok++; } catch(e) { toast(dbErr(e)); break; } }
+  write.raw = field === "supplier";   /* a rename sets exactly the spelling typed in Setup */
+  try { for (const it of hit) { try { await write(it.id, { [field]: to }); ok++; } catch(e) { toast(dbErr(e)); break; } } } finally { write.raw = false; }
   if (field === "supplier" && keyOf(to) === keyOf(from) && supExtra.some(x => x === from)) { supExtra = supExtra.map(x => x === from ? to : x); try { await saveSup({}); } catch {} }
   if (field === "supplier" && keyOf(to) !== keyOf(from)) {
     const k = keyOf(to), f = keyOf(from), seen = new Set();
@@ -5335,8 +5375,9 @@ function wireSetup(){
   document.querySelectorAll("[data-rmsub]").forEach(b => b.onclick = () => { if (armed(b, +b.dataset.n)) renameSub(b.dataset.rmsub, b.dataset.sub, ""); });
   $("#supAdd") && ($("#supAdd").onsubmit = async e => {
     e.preventDefault(); if (!needMe()) return;
-    const v = clean($("#newSup").value); if (!v) return;
-    if (orderedSuppliers().some(g => keyOf(g.name) === keyOf(v))) { toast(v + " is already on the list"); return; }
+    const typed = clean($("#newSup").value); if (!typed) return;
+    const dup = orderedSuppliers().find(g => supKey(g.name) === supKey(typed)); if (dup) { toast(`${dup.name} is already on the list`); $("#newSup").value = ""; return; }
+    const v = canonSup(typed);
     supExtra = [...supExtra, v]; supOrder = [...orderedSuppliers().map(g => keyOf(g.name))];
     try { await saveSup({}); logIt("Setup", null, `Added supplier ${v}`); toast("Added " + v); $("#newSup").value = ""; document.activeElement?.blur(); render(); } catch(err) { toast(dbErr(err)); }
   });
