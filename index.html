@@ -975,6 +975,26 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{display:block;justify-
 body[data-view="products"] .ptools > .actions > .pright{justify-self:end;display:flex;gap:8px;flex-wrap:nowrap}
 @media (max-width:1000px){body[data-view="products"] .ptools > .actions{display:flex;flex-wrap:wrap}body[data-view="products"] .ptools > .actions > .pright{margin-left:auto}}
 body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(--teal)}
+/* ---- shelf labels: DYMO 30252 (1-1/8" x 3-1/2"), black and white ---- */
+.slbl{box-sizing:border-box;width:3.5in;height:1.125in;padding:.07in .08in .07in .12in;display:flex;gap:.08in;align-items:center;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;overflow:hidden}
+.slbl .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:.02in}
+.slbl .sn{font-weight:800;font-size:10.5pt;line-height:1.08;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.slbl .sl{font-size:8pt;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slbl .sr{font-size:8pt;white-space:nowrap}
+.slbl .ss{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slbl .sq{flex:none;width:.95in;height:.95in}
+.slbl .sq svg{display:block;width:100%;height:100%}
+.slprev{display:flex;flex-direction:column;gap:10px;align-items:center;max-height:52vh;overflow:auto;padding:12px;background:var(--sunk);border-radius:12px}
+.slprev .slbl{box-shadow:0 1px 4px rgba(0,0,0,.25);border-radius:6px;flex:none}
+#printLabels{display:none}
+@media print{
+  @page{size:3.5in 1.125in;margin:0}
+  html.printing-labels body > *:not(#printLabels){display:none!important}
+  html.printing-labels, html.printing-labels body{background:#fff!important;margin:0!important;padding:0!important}
+  html.printing-labels #printLabels{display:block!important}
+  #printLabels .slbl{page-break-after:always;break-after:page;border-radius:0;box-shadow:none}
+  #printLabels .slbl:last-child{page-break-after:auto;break-after:auto}
+}
 /* Order list: navy blue; red is kept for 911 / urgent */
 :root{--navy:#1c3466;--navy-soft:#dfe6f4;--navy-fg:#ffffff}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--navy:#9fb8e8;--navy-soft:#18243d;--navy-fg:#0c1626}}
@@ -1673,10 +1693,10 @@ body[data-view="all"] .list .row .rside .step .q{min-width:0!important;padding:0
 </div></main>
 
 <div class="bulkbar ordfloat" id="ordFloat" hidden><div class="in"><b id="ofN">0 ticked</b><button class="btn pri" type="button" id="ofGo">Mark ordered</button><button class="btn ghost" type="button" id="ofClear">Clear</button></div></div>
-<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
+<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn" type="button" id="bulkLabels">Shelf labels</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn" id="scanBtn" type="button"><i data-ic="barcode"></i>Scan to count</button>
-  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled><i data-ic="listplus"></i>Add to order list</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
+  <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled><i data-ic="listplus"></i>Add to order list</button><button class="btn" id="dockAllLabels" type="button" title="Print shelf labels for the ticked items"><i data-ic="tag"></i>Labels</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled><i data-ic="clipcheck"></i>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div><div class="navslot" id="navSlot"></div></div>
@@ -2600,9 +2620,11 @@ $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockOrdGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#dockOrdClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = null; render(); });
+$("#bulkLabels").addEventListener("click", () => { const l = [...selected].map(byId).filter(Boolean); if (l.length) shelfLabels(l); else toast("Tick items first"); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockCntGo")?.addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockCntClear")?.addEventListener("click", () => { selected.clear(); render(); });
+$("#dockAllLabels")?.addEventListener("click", () => { const l = [...selected].map(byId).filter(Boolean); if (l.length) shelfLabels(l); else toast("Tick items first"); });
 $("#dockAllClear").addEventListener("click", () => { selected.clear(); render(); });
 $("#dockAllAdd").addEventListener("click", async () => {
   if (!needMe()) return;
@@ -4448,6 +4470,7 @@ async function openItem(it, prefill){
     ${readOnly ? "" : `<div class="pmenu imenu" id="ptoolsMenu" hidden>
       <button type="button" class="pmi" id="tChgPhoto">${ic("camera")}${it.photo ? "Change photo…" : "Add a photo…"}</button>
       <a class="pmi" data-pfind="shop" href="#" target="_blank" rel="noopener">${ic("dollar")}Compare prices ↗</a>
+      <button type="button" class="pmi" id="tLabel">${ic("tag")}Print shelf label</button>
       <button type="button" class="pmi" id="tDup">${ic("copy")}Copy as a new item (another size or shade)</button>
     </div>`}
     <div class="pmenu imenu" id="toolsMenu" hidden>
@@ -4506,6 +4529,7 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
         const cb = $("#countBtn"); if (cb) { const on = countedToday(it); cb.classList.toggle("on", on); cb.querySelector(".icl > span").textContent = on ? "Counted" : "Mark counted"; }
       } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
     }; }
+  $("#tLabel") && ($("#tLabel").onclick = () => shelfLabels([it]));
   $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true, stay: true }); b.disabled = false;
     if (!ok) return;
     it.countedAt = Date.now(); it.countedBy = me(); b.classList.add("on"); b.title = "Counted. Tap to count again with the number below";
@@ -4548,6 +4572,42 @@ async function saveIfChanged(it){
   const ok = await saveItem(it, { stay: true, quiet: true });
   return ok ? f : false;
 }
+/* ---------- shelf labels (DYMO 30252) ---------- */
+let qrLoad;
+function loadQr(){
+  if (window.qrcode) return Promise.resolve(true);
+  return qrLoad ||= new Promise(res => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"; s.onload = () => res(!!window.qrcode); s.onerror = () => { qrLoad = null; res(false); }; document.head.appendChild(s); });
+}
+const LABEL_SITE = "https://darkorchid-wildcat-385622.hostingersite.com/";
+function labelUrl(it){ return (window.HOSTED ? location.origin + location.pathname : LABEL_SITE) + "#item=" + encodeURIComponent(it.id); }
+function qrSvg(text){
+  try { const q = qrcode(0, "M"); q.addData(text); q.make(); const n = q.getModuleCount(); let d = "";
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + 1} ${r + 1}h1v1h-1z`;
+    return `<svg viewBox="0 0 ${n + 2} ${n + 2}" shape-rendering="crispEdges" aria-hidden="true"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`; }
+  catch { return ""; }
+}
+function labelHtml(it){
+  const loc = [it.loc, it.sub && !it.loc ? it.sub : ""].filter(Boolean)[0] || "";
+  const lv = [num(it.desired) > 0 ? `Order below ${fmtQ(it.desired)}` : "", num(it.urgent) ? `911 at ${fmtQ(it.urgent)}` : ""].filter(Boolean).join(" · ");
+  const sk = [it.supplier, it.sku ? "SKU " + it.sku : ""].filter(Boolean).join(" · ");
+  return `<div class="slbl"><div class="st"><div class="sn">${esc(it.name)}</div>${loc ? `<div class="sl">${esc(loc)}</div>` : ""}${lv ? `<div class="sr">${esc(lv)}</div>` : ""}${sk ? `<div class="ss">${esc(sk)}</div>` : ""}</div><div class="sq">${qrSvg(labelUrl(it))}</div></div>`;
+}
+async function shelfLabels(list){
+  if (!(await loadQr())) { toast("Couldn't load the QR code maker. Check the internet connection and try again"); return; }
+  const n = list.length, body = list.map(labelHtml).join("");
+  openPanel(`<div class="ph"><h2>Shelf label${n > 1 ? "s" : ""} (${n})</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p class="hint">Sized for DYMO 30252 address labels (1⅛″ × 3½″). Scanning the QR code with a phone camera opens the item, and Scan to count jumps straight to it.</p>
+    <div class="slprev">${body}</div>
+    <p class="hint">In the print window: choose your DYMO LabelWriter, paper size <b>30252 Address</b>, scale <b>100%</b> (or "Actual size"), margins <b>None</b>, and turn off headers and footers.</p>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" type="button" id="slPrint">${ic("tag")}Print ${n} label${n > 1 ? "s" : ""}</button></div>`);
+  $("#slPrint").onclick = () => {
+    let box = $("#printLabels"); if (!box) { box = document.createElement("div"); box.id = "printLabels"; document.body.appendChild(box); }
+    box.innerHTML = body; document.documentElement.classList.add("printing-labels");
+    const done = () => { document.documentElement.classList.remove("printing-labels"); box.innerHTML = ""; removeEventListener("afterprint", done); };
+    addEventListener("afterprint", done); setTimeout(() => { try { window.print(); } catch { toast("Printing isn't available here. Open the Supply Room website to print labels"); } setTimeout(done, 60000); }, 60);
+  };
+}
+
 async function saveItem(it, opt = {}){
   const f = readFields();
   if (!f.name) { toast("Give the item a name"); unlockItem(); openSec("det"); $("#e-name")?.focus(); return false; }
@@ -5196,6 +5256,7 @@ async function scanFile(file){
   const img = $("#shotImg"); await img.decode().catch(()=>{});
   const status = t => { const s = $("#scanStatus"); if (s) s.textContent = t; };
   const code = await decodeBarcode(img);
+  if (code && hashItemId(code)) { const lh = byId(hashItemId(code)); if (lh) { if (!$("#scanOut")) return; openItem(lh, { note: "Shelf label scanned. Update the count and save." }); return; } }
   if (code) {
     const hit = items.find(i => (i.sku && normSku(i.sku) === normSku(code)) || (i.barcode && String(i.barcode) === String(code)));
     if (hit) { if (!$("#scanOut")) return; openItem(hit, { note: `Barcode ${code} matched this item. Update the count and save.` }); return; }
@@ -5935,7 +5996,9 @@ function openSection(k){ if (tab !== "setup") setTab("setup"); requestAnimationF
 const HASH_SECTIONS = ["reps", "suppliers"];
 function hashSection(){ const h = location.hash.slice(1); return HASH_SECTIONS.includes(h) ? h : ""; }
 /* Suppliers list and Reps list live in Setup (its "Jump to" bar); #suppliers and #reps links still open them */
-addEventListener("hashchange", () => { const k = hashSection(); if (k && items.length) openSection(k); });
+addEventListener("hashchange", () => { const k = hashSection(); if (k && items.length) openSection(k); openHashItem(); });
+function hashItemId(s){ const m = /[#&?]item=([\w-]+)/.exec(String(s || "")); return m ? m[1] : ""; }
+function openHashItem(){ const id = hashItemId(location.hash); if (!id || !items.length) return; const it = byId(id); try { history.replaceState(null, "", location.pathname + location.search); } catch {} if (it) openItem(it); else toast("That shelf label's item isn't on the list any more"); }
 
 function goItems(kind, v){
   setTab("all");
@@ -6177,6 +6240,7 @@ async function boot(){
     if (!$("#overlay").innerHTML || first) render();
     else render();
     if (first && hashSection()) openSection(hashSection());
+    if (first) openHashItem();
     first = false;
     sync(readOnly ? "" : "ok", readOnly ? "View only" : "Live");
   }, e => { sync("err", "Disconnected"); $("#view").innerHTML = `<div class="notice err"><b>Lost the connection to the supply list</b><span>${esc(dbErr(e))} Reload the page to reconnect.</span></div>`; });
