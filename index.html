@@ -723,6 +723,18 @@ body.on-products .filters{display:none!important}
 .ititle{flex:1 1 auto;min-width:0;display:grid;gap:2px}
 .iloc{font-size:13.5px;font-weight:700;color:var(--fg)}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
+.istatus:has(.icnt){display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:6px;padding-bottom:6px}
+.istatus .cntok.icnt{width:auto!important;min-width:0!important;height:40px!important;min-height:40px!important;padding:0 12px 0 10px!important;display:inline-flex!important;align-items:center;gap:6px;font:inherit;font-size:14px;font-weight:700;flex:none}
+.istatus .cntok.icnt .ic{width:20px;height:20px;margin:0}
+@media (max-width:640px){
+  .counts.three{gap:6px!important}
+  .counts.three .cbox{padding:8px 4px!important;min-width:0}
+  .counts.three .cbox label{font-size:11px!important;letter-spacing:.02em}
+  .counts.three .cbox .step{display:grid!important;grid-template-columns:30px minmax(0,1fr) 30px;min-width:0;overflow:hidden}
+  .counts.three .cbox .step button{width:30px!important;min-width:30px!important;padding:0!important}
+  .counts.three .cbox .step input{min-width:0!important;width:100%!important;padding:0 2px!important;text-align:center}
+  .counts.three .cbox .hint, .counts.three .cbox small{font-size:11px!important}
+}
 .istatus.s-ok{background:var(--st-ok)}
 .istatus.s-low{background:var(--st-low)}
 .istatus.s-911{background:var(--st-911);color:var(--red-text,var(--bad))}
@@ -4336,9 +4348,10 @@ async function openItem(it, prefill){
   else if (tab === "exp" && it.expiring) main = expBtn;
   else if (it.onOrder) side = rcvBtn(false);
   else if (it.need) side = ordBtn(false);
-  /* opened from Order list or On order, the item is about ordering/receiving: no Save count there (a changed count still saves with Save changes) */
-  const countB = (tab === "need" || tab === "ordered") && main ? "" : `<button class="btn${main ? " cntsec" : " pri big"}" id="countBtn" type="button">Save count</button>`;
-  const primary = `<div class="iact main${main ? "" : " countfirst"}">${main ? main + countB : countB + side}</div>
+  /* counting: a green check in the status bar (filled = counted within its schedule); a changed count also saves with Save changes */
+  const countB = `<button type="button" class="cntok icnt${countedToday(it) ? " on" : ""}" id="countBtn" title="${countedToday(it) ? "Counted. Tap to count again with the number below" : "Mark counted with the number below"}" aria-label="Mark ${esc(it.name)} counted">${ic("check")}<span>${countedToday(it) ? "Counted" : "Mark counted"}</span></button>`;
+  const primary = main || side ? `<div class="iact main">${main || side}</div>` : "";
+  const primaryTail = `
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
   openPanel(`<div class="ph ihead">
       <button type="button" class="ithumb" id="thumbBtn" aria-label="${it.photo ? "Product photo" : "Add a photo"}">${photoSrc ? `<img src="${esc(photoSrc)}" alt="" onerror="this.replaceWith('📷')">` : "📷"}</button>
@@ -4347,8 +4360,8 @@ async function openItem(it, prefill){
     </div>
     <div class="pmenu imenu" id="moreMenu" hidden><button type="button" class="pmi danger" id="delBtn">${ic("trash")}Delete this item</button></div>
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
-    <div class="istatus ${st.cls}">${st.html}</div>
-    ${primary}
+    <div class="istatus ${st.cls}"><span>${st.html}</span>${countB}</div>
+    ${primary}${primaryTail}
     ${countBoxes(f.qty, f.desired, f.urgent)}
     ${it.onOrder ? "" : it.manual ? `<div class="manrow"><button class="btn sm" type="button" id="manOff">${ic("minus")}Remove from order list</button></div>` : !it.need ? `<div class="manrow"><button class="btn sm" type="button" data-addorder="${esc(it.id)}">${ic("listplus")}Add to order list</button></div>` : ""}
     <div class="isecs">
@@ -4400,7 +4413,7 @@ async function openItem(it, prefill){
   catch(err) { b.disabled = false; toast(dbErr(err)); } });
 $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it) === false) return; markReceived(it, num($("#rcv")?.value) ?? (num(it.orderedQty) || it.orderQty)); });
   $("#ordBtn") && ($("#ordBtn").onclick = async () => { const nf = await saveIfChanged(it); if (nf === false) return; let q = it.orderQty; if (nf) { localQty.delete(it.id); q = derive({ ...it, ...nf, ordered: "" }).orderQty; } await markOrdered([{ ...it, ...(nf || {}), orderQty: q || it.orderQty }]); closePanel(); });
-  $("#countBtn") && ($("#countBtn").onclick = () => saveItem(it, { count: true }));
+  $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true }); if (!ok) b.disabled = false; });
   $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0, orderAmt: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
   $("#saveBtn").onclick = () => saveItem(it);
   reopen = () => openItem(it, prefill);
@@ -4434,7 +4447,7 @@ async function saveItem(it, opt = {}){
   const f = readFields();
   if (!f.name) { toast("Give the item a name"); unlockItem(); openSec("det"); $("#e-name")?.focus(); return false; }
   if (!needMe()) return false;
-  const btns = ["#saveBtn", "#countBtn"].map(x => $(x)).filter(Boolean), labels = btns.map(b => b.textContent);
+  const btns = ["#saveBtn"].map(x => $(x)).filter(Boolean), labels = btns.map(b => b.textContent);
   btns.forEach(b => { b.disabled = true; }); if (!opt.stay) btns.forEach(b => { b.textContent = "Saving…"; }); sync("busy", "Saving…");
   const base = (curItem?.id === it.id && openVals) || valsOf(it);
   const patch = {}; Object.keys(f).forEach(k => { if (f[k] !== base[k]) patch[k] = f[k]; });
