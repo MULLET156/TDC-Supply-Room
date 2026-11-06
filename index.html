@@ -1360,6 +1360,26 @@ div.altpic{background:var(--sunk)}
 .psub{margin:12px 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .pbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .pnote{margin:8px 0 0}
+.prow .pw .ptitle{flex-basis:100%;margin-top:0}
+.pbadge{font-size:11px;font-weight:700;color:var(--ok,#2e7d32);border:1px solid currentColor;border-radius:999px;padding:0 6px}
+.pbest{font-family:var(--f-mono)}
+.psub small{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px}
+.plist.sim .prow{background:transparent}.plist.sim .pw b{font-weight:600}
+.pnone{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 0;font-size:13px;color:var(--muted)}.pnone .ic{width:15px;height:15px}.pnone a .ic{width:13px;height:13px}
+.phist{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.phhead{display:flex;align-items:center;gap:6px;font-size:14px}.phhead .ic{width:16px;height:16px}.phhead span{margin-left:auto;font-size:12.5px;color:var(--muted)}
+.phsvg{display:block;width:100%;height:auto;margin:8px 0 4px;overflow:visible}
+.phsvg .phgrid{stroke:var(--line);stroke-width:1}.phsvg .phax{fill:var(--muted);font-size:10px;font-family:var(--f-mono)}
+.phwait{margin:6px 0}
+.phtab{display:grid;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:6px}
+.phrow{display:grid;grid-template-columns:minmax(0,1.2fr) auto auto minmax(0,1fr);gap:4px 12px;align-items:center;padding:7px 10px;border-top:1px solid var(--line);font-size:13.5px}.phrow:first-child{border-top:0}
+.phsup{display:flex;align-items:center;gap:7px;min-width:0;font-weight:600}.phsup i{width:10px;height:10px;border-radius:50%;flex:none}
+.phnow{display:flex;flex-direction:column;line-height:1.15}.phnow b{font-family:var(--f-mono)}.phnow small,.phrng small{color:var(--muted);font-size:11.5px}
+.phchg{font-size:12.5px;color:var(--muted);white-space:nowrap}.phchg.up{color:var(--bad,#c62828);font-weight:700}.phchg.down{color:var(--ok,#2e7d32);font-weight:700}
+.phrng{display:flex;flex-direction:column;align-items:flex-end;font-family:var(--f-mono);font-size:12.5px;line-height:1.15}.phrng small{font-family:inherit}
+.phall{margin-top:8px}.phall summary{cursor:pointer;color:var(--muted);font-size:13px}
+.phlist{display:grid;margin-top:6px;font-size:12.5px}.phlist>div{display:grid;grid-template-columns:62px minmax(0,1fr) auto minmax(0,auto);gap:8px;align-items:center;padding:4px 0;border-top:1px solid var(--line)}.phlist b{font-family:var(--f-mono)}.phlist small{color:var(--muted)}
+@media (max-width:640px){ .phrow{grid-template-columns:minmax(0,1fr) auto auto} .phrng{grid-column:1 / -1;flex-direction:row;gap:8px;align-items:center;justify-content:flex-start} .phlist>div{grid-template-columns:54px minmax(0,1fr) auto} .phlist>div small{grid-column:2 / -1} }
 .psave{color:var(--ok,#2e7d32);font-weight:700}
 .row .rside button.xc.psv{font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ok,#2e7d32);border:1px solid currentColor;background:color-mix(in srgb,var(--ok,#2e7d32) 8%,transparent);border-radius:999px;padding:2px 9px}
 .copybox{display:flex;gap:8px;align-items:flex-start;background:var(--sunk);border-radius:10px;padding:10px}
@@ -2032,7 +2052,8 @@ window.TDC = (function(){
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -2596,7 +2617,7 @@ function priceTrend(it){
   const pts = ps.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
   const first = ps[0], last = ps[ps.length - 1], mv = first ? Math.round((last - first) / first * 100) : 0;
   const d = x => new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
-  return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>Price history</b><span class="${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "+" : ""}${mv}% since ${esc(d(h[0]))}</span></div>
+  return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>What you've paid</b><span class="${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "+" : ""}${mv}% since ${esc(d(h[0]))}</span></div>
     <svg viewBox="0 0 ${W} ${H}" class="ptsvg" role="img" aria-label="Price went from $${first.toFixed(2)} to $${last.toFixed(2)}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${ps.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.6" fill="currentColor"><title>${esc(d(h[k]))}: $${v.toFixed(2)}</title></circle>`).join("")}</svg>
     <div class="ptlist">${h.slice(-6).reverse().map(x => `<span>${esc(d(x))} <b>$${num(x.p).toFixed(2)}</b></span>`).join("")}</div></div>`;
 }
@@ -4994,7 +5015,7 @@ const KIND_LBL = { invoice: "Invoice", list: "Price list", live: "Signed in", pu
 function offersFor(it){
   let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
-  if (cur != null && it.supplier && !L.some(o => keyOf(o.src) === keyOf(it.supplier) && Number(o.price) > 0 && Math.abs(Number(o.price) - cur) < .005)) L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: it.updatedAt || 0, sure: true, mine: true, url: it.link || "" });
+  if (cur != null && it.supplier && !L.some(o => keyOf(o.src) === keyOf(it.supplier) && Number(o.price) > 0 && o.sure !== false)) L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: it.updatedAt || 0, sure: true, mine: true, url: it.link || "" });
   return L;
 }
 function bestOffer(it, mineOnly = true){
@@ -5016,33 +5037,118 @@ function saving(it){
   return { at: b.src, amt: per * n, pct: Math.round(per / ((pc ?? cur.price / (unitCount(cur.pack) || 1)) || 1) * 100) };
 }
 function priceSum(it){
-  const b = bestOffer(it), n = offersFor(it).filter(o => Number(o.price) > 0).length;
-  if (!n) return "Not checked yet";
-  const sv = saving(it);
-  return `${n} price${n > 1 ? "s" : ""}${b ? ` · best ${esc(money(Number(b.price)))} at ${esc(b.src)}` : ""}${sv ? ` · <span class="psave">save ${esc(money(sv.amt))}</span>` : ""}`;
+  const L = offersFor(it).filter(o => Number(o.price) > 0 && o.sure !== false && o.mine !== false);
+  if (!L.length) return "Not checked yet";
+  const b = bestOffer(it), sv = saving(it), n = new Set(L.map(o => keyOf(o.src))).size;
+  const last = Math.max(0, ...L.filter(o => o.kind !== "saved").map(o => +o.at || 0));
+  return [b ? `Best <b class="pbest">${esc(money(Number(b.price)))}</b> at ${esc(b.src)}` : "", n > 1 ? `${n} suppliers` : "", last ? `checked ${esc(shortDate(last))}` : "", sv ? `<span class="psave">save ${esc(money(sv.amt))}</span>` : ""].filter(Boolean).join(" · ");
 }
 function priceBox(it){
-  const L = offersFor(it), best = bestOffer(it), bestW = bestOffer(it, false);
+  const L = offersFor(it), best = bestOffer(it), bestW = bestOffer(it, false), priced = o => Number(o.price) > 0;
+  const val = o => perUnit(o) ?? Number(o.price);
+  const byVal = (a, b) => val(a) - val(b);
+  /* the current supplier's row gets the "current" tag once */
+  const curRow = L.find(o => keyOf(o.src) === keyOf(it.supplier) && o.sure !== false && o.mine !== false && priced(o));
   const row = o => {
-    const pu = perUnit(o), isCur = keyOf(o.src) === keyOf(it.supplier) && (o.kind === "saved" || !o.url || o.url === it.link), isBest = best && o === best;
-    const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
-    const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " " + when : "");
-    return `<div class="prow${isBest ? " best" : ""}${o.price > 0 ? "" : " noprice"}">
-      <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${o.sure === false ? `<span class="pflag" title="A similar product, not this exact item. Open it and check before switching.">Similar product</span>` : ""}</div>${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}
-      <div class="pp">${o.price > 0 ? `<b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}${pu != null && unitCount(o.pack) > 1 ? `<small class="ppu">${esc(money(pu))} each</small>` : ""}` : `<span class="hint">${o.kind === "signin" ? "Price shows after signing in" : "No price shown"}</span>`}</div>
-      <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.price > 0 && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
+    const pu = perUnit(o), isCur = o === curRow, isBest = best && o === best;
+    const when = o.at && o.kind !== "saved" ? shortDate(o.at) : "";
+    const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " · " + when : "");
+    return `<div class="prow${isBest ? " best" : ""}">
+      <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${isBest ? `<span class="pbadge">best</span>` : ""}${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}</div>
+      <div class="pp"><b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}${pu != null && unitCount(o.pack) > 1 ? `<small class="ppu">${esc(money(pu))} each</small>` : ""}</div>
+      <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
     </div>`;
   };
-  const mine = L.filter(o => o.mine !== false), web = L.filter(o => o.mine === false);
-  const hosted = !!window.HOSTED;
-  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices saved yet. Check prices looks this item up at your suppliers' websites; invoices you import add your real prices automatically.</p>`}
-    ${web.length ? `<h4 class="psub">Not your suppliers</h4><div class="plist">${web.map(row).join("")}</div>` : ""}
+  const mine = L.filter(o => priced(o) && o.sure !== false && o.mine !== false).sort(byVal);
+  const similar = L.filter(o => priced(o) && o.sure === false).sort(byVal);
+  const web = L.filter(o => priced(o) && o.sure !== false && o.mine === false).sort(byVal);
+  /* stores that had the product but showed no price: one line, not a row each */
+  const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
+  const cheaperWeb = bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best);
+  return `${mine.length ? `<div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices yet. <b>Check prices</b> looks this item up at your suppliers; imported invoices add what you really paid.</p>`}
+    ${noPrice.length ? `<p class="pnone">${ic("alert")}No price shown at ${noPrice.map(o => `${esc(o.src)}${o.url ? ` <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}`).join(", ")}${noPrice.some(o => o.kind === "signin") ? " (needs sign-in)" : ""}</p>` : ""}
+    ${similar.length ? `<h4 class="psub">Similar products <small>not this exact item</small></h4><div class="plist sim">${similar.map(row).join("")}</div>` : ""}
+    ${web.length ? `<h4 class="psub">Other stores</h4><div class="plist">${web.map(row).join("")}</div>` : ""}
     ${backupsHtml(it)}
-    <p class="hint pnote" id="pStatus">${bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best) ? `Cheapest anywhere: ${esc(money(Number(bestW.price)))} at ${esc(bestW.src)}. ` : ""}Prices from websites are list prices unless marked "Signed in"; your invoices show what you really pay.</p>
-    ${readOnly ? "" : `<div class="pbtns"><button type="button" class="btn sm" id="pCheck">${ic("refresh")}Check prices</button><button type="button" class="btn sm" id="pWeb">${ic("globe")}Search the whole web</button><button type="button" class="btn sm" id="pLive">${ic("monitor")}Signed-in prices</button><button type="button" class="btn sm" id="pAlt">${ic("search")}Find alternatives</button></div>`}`;
+    <p class="hint pnote" id="pStatus">${cheaperWeb ? `Cheapest anywhere: ${esc(money(Number(bestW.price)))} at ${esc(bestW.src)}. ` : ""}Website prices are list prices unless marked Signed in.</p>
+    ${readOnly ? "" : `<div class="pbtns"><button type="button" class="btn sm" id="pCheck">${ic("refresh")}Check prices</button><button type="button" class="btn sm" id="pWeb">${ic("globe")}Search the whole web</button><button type="button" class="btn sm" id="pLive">${ic("monitor")}Signed-in prices</button><button type="button" class="btn sm" id="pAlt">${ic("search")}Find alternatives</button></div>`}
+    ${window.TDC?.priceHistory ? `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>` : ""}`;
 }
+
+/* ---------- Prices: price over time ----------
+   Every price check is kept in the "prices" collection (one entry per check, never replaced), so the item window
+   can show how each supplier's price moved. Prices on the item that aren't in it yet (from a check here, an invoice,
+   or from before the history existed) are added the first time the history is opened. */
+const PHIST = new Map();   /* item id -> { rows } | { err } | { loading } */
+const PH_COLORS = ["#2f7dd1", "#d9822b", "#2e9d6a", "#a35bd0", "#c94f6d", "#5f7d8c"];
+const phKey = h => keyOf(h.src) + "|" + (+h.at || 0);
+function phFromOffers(it){
+  return (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src && Number(o.price) > 0 && +o.at > 0)
+    .map(o => ({ at: +o.at, itemId: it.id, src: o.src, price: Number(o.price), pack: clean(o.pack), sku: clean(o.sku), url: clean(o.url), kind: o.kind || "", by: o.by || "",
+      ...(o.sure === false ? { similar: true, title: clean(o.title).slice(0, 120) } : {}) }));
+}
+async function loadPriceHist(it, force){
+  if (!window.TDC?.priceHistory) return;
+  const c = PHIST.get(it.id); if (c && (c.loading || (c.rows && !force))) return;
+  PHIST.set(it.id, { ...(c || {}), loading: true });
+  try {
+    const rows = await TDC.priceHistory(it.id), seen = new Set(rows.map(phKey));
+    const add = phFromOffers(byId(it.id) || it).filter(h => !seen.has(phKey(h)));
+    for (const h of add) { if (!readOnly) { try { await db.collection("prices").add(h); } catch {} } rows.push(h); seen.add(phKey(h)); }
+    rows.sort((a, b) => (a.at || 0) - (b.at || 0));
+    PHIST.set(it.id, { rows });
+  } catch(e) { PHIST.set(it.id, { err: dbErr(e) }); }
+  const box = $("#pHist"); if (box && box.dataset.item === it.id) { box.innerHTML = priceHistInner(byId(it.id) || it); wirePriceHist(); }
+}
+function priceHistInner(it){
+  const head = sub => `<div class="phhead">${ic("trend")}<b>Price over time</b>${sub ? `<span>${sub}</span>` : ""}</div>`;
+  const c = PHIST.get(it.id);
+  if (!c || (c.loading && !c.rows)) return head("") + `<p class="hint">Loading…</p>`;
+  if (c.err) return head("") + `<p class="hint">Couldn't load the price history: ${esc(c.err)}</p>`;
+  const seen = new Set(), rows = (c.rows || []).filter(h => Number(h.price) > 0 && !seen.has(phKey(h)) && seen.add(phKey(h)));
+  const exact = rows.filter(h => !h.similar);
+  if (!exact.length) return head("") + `<p class="hint">Every price check is kept here, so you can watch each supplier's price over time.</p>`;
+  /* the same pack everywhere: compare the price; packs differ: compare the price per piece */
+  const packs = new Set(exact.map(h => unitCount(h.pack) || 0));
+  const usePU = packs.size > 1 && exact.every(h => perUnit(h) != null);
+  const v = h => usePU ? perUnit(h) : Number(h.price);
+  const by = new Map(); exact.forEach(h => { const k = keyOf(h.src); if (!by.has(k)) by.set(k, { src: h.src, pts: [] }); by.get(k).pts.push(h); });
+  const S = [...by.values()].map(s => ({ ...s, last: s.pts[s.pts.length - 1], prev: s.pts.length > 1 ? s.pts[s.pts.length - 2] : null, lo: Math.min(...s.pts.map(v)), hi: Math.max(...s.pts.map(v)) }))
+    .sort((a, b) => v(a.last) - v(b.last));
+  S.forEach((s, i) => s.color = PH_COLORS[i % PH_COLORS.length]);
+  const t0 = exact[0].at, t1 = Math.max(Date.now(), exact[exact.length - 1].at), span = t1 - t0;
+  /* chart (step lines: a price holds until the next check), once checks cover more than a day */
+  let chart = `<p class="hint phwait">The chart starts once prices have been checked on more than one day.</p>`;
+  if (span > 864e5) {
+    const W = 340, H = 132, L = 46, R = 10, T = 10, B = 20, all = exact.map(v);
+    let lo = Math.min(...all), hi = Math.max(...all); if (hi - lo < hi * .02) { lo = lo * .95; hi = hi * 1.05; } else { const pd = (hi - lo) * .12; lo = Math.max(0, lo - pd); hi += pd; }
+    const X = t => L + (t - t0) / span * (W - L - R), Y = p => T + (hi - p) / (hi - lo) * (H - T - B);
+    const grid = [hi, (hi + lo) / 2, lo].map(g => `<line x1="${L}" x2="${W - R}" y1="${Y(g).toFixed(1)}" y2="${Y(g).toFixed(1)}" class="phgrid"/><text x="${L - 6}" y="${(Y(g) + 3.5).toFixed(1)}" text-anchor="end" class="phax">${esc(money(g))}</text>`).join("");
+    const fd = t => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" });
+    const xl = `<text x="${L}" y="${H - 5}" class="phax">${esc(fd(t0))}</text><text x="${W - R}" y="${H - 5}" text-anchor="end" class="phax">Today</text>`;
+    const lines = S.map(s => {
+      let d = ""; s.pts.forEach((h, k) => { const x = X(h.at).toFixed(1), y = Y(v(h)).toFixed(1); d += k ? `H${x}V${y}` : `M${x},${y}`; });
+      d += `H${X(t1).toFixed(1)}`;
+      return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>` + s.pts.map(h => `<circle cx="${X(h.at).toFixed(1)}" cy="${Y(v(h)).toFixed(1)}" r="3" fill="${s.color}"><title>${esc(s.src)}, ${esc(shortDate(h.at))}: ${esc(money(Number(h.price)))}${h.pack ? " / " + esc(h.pack) : ""}</title></circle>`).join("");
+    }).join("");
+    chart = `<svg class="phsvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price over time for ${esc(S.map(s => s.src).join(", "))}">${grid}${xl}${lines}</svg>`;
+  }
+  const chg = s => {
+    if (!s.prev) return `<span class="phchg">first check</span>`;
+    const d = v(s.last) - v(s.prev);
+    if (Math.abs(d) < .005) return `<span class="phchg">no change</span>`;
+    return `<span class="phchg ${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${esc(money(Math.abs(d)))}</span>`;
+  };
+  const tbl = `<div class="phtab">${S.map(s => `<div class="phrow"><span class="phsup"><i style="background:${s.color}"></i>${esc(s.src)}</span>
+      <span class="phnow"><b>${esc(money(v(s.last)))}</b><small>${esc(shortDate(s.last.at))}</small></span>${chg(s)}
+      <span class="phrng">${s.pts.length > 1 ? `${esc(money(s.lo))}–${esc(money(s.hi))}` : ""}<small>${s.pts.length} check${s.pts.length > 1 ? "s" : ""}</small></span></div>`).join("")}</div>`;
+  const all = `<details class="phall"><summary>All ${rows.length} check${rows.length > 1 ? "s" : ""}</summary><div class="phlist">${rows.slice().reverse().map(h => `<div><span>${esc(shortDate(h.at))}</span><span>${esc(h.src)}${h.similar ? ` <span class="pflag" title="${esc(h.title || "")}">Similar product</span>` : ""}</span><b>${esc(money(Number(h.price)))}</b><small>${[h.pack, KIND_LBL[h.kind] || (h.kind === "saved" ? "Saved" : "Website"), h.by].filter(Boolean).map(esc).join(" · ")}</small></div>`).join("")}</div></details>`;
+  return head(`since ${esc(shortDate(t0))}${usePU ? " · per piece" : ""}`) + chart + tbl + all;
+}
+function wirePriceHist(){ /* nothing to wire yet: the chart and lists are plain HTML */ }
 function wirePriceBox(it){
   const box = $("#priceBox"); if (!box) return;
+  const sec = $("#sec-price"); if (sec) { sec.ontoggle = () => { if (sec.open) loadPriceHist(it); }; if (sec.open) loadPriceHist(it); }
   $("#pCheck") && ($("#pCheck").onclick = () => runPriceCheck(it, "mine"));
   $("#pWeb") && ($("#pWeb").onclick = () => runPriceCheck(it, "web"));
   $("#pLive") && ($("#pLive").onclick = () => livePricesHelp(it));
@@ -5090,6 +5196,7 @@ async function runPriceCheck(it, scope, opt = {}){
     it.offers = offers; const live = byId(it.id); if (live) live.offers = offers;
     logIt("Price checked", it, `${cands.length} page${cands.length > 1 ? "s" : ""}${scope === "web" ? " (whole web)" : ""}`);
     if (!opt.status) refreshPriceBox(it);
+    loadPriceHist(byId(it.id) || it, true);
     const sv = saving(byId(it.id) || it); if (!opt.status) status(sv ? `Cheaper at ${sv.at}: save about ${money(sv.amt)} on this order.` : "Done. Your current supplier is the best price found.");
     return true;
   } catch(e) { status(dbErr(e)); return false; }
@@ -6915,7 +7022,7 @@ function syncFToggle(){ const n = ["#fLoc","#fSup","#fCat"].filter(k => $(k).val
 $("#fToggle").addEventListener("click", () => { $(".filters").classList.toggle("open"); syncFToggle(); });
 
 /* ---------- hosted: full backup and restore ---------- */
-const BACKUP_COLS = ["items", "log", "orders", "reps", "counts", "supinfo", "settings"];
+const BACKUP_COLS = ["items", "log", "orders", "reps", "counts", "supinfo", "settings", "prices"];
 async function fullBackup(btn){
   const label = btn.textContent; btn.disabled = true;
   try {
@@ -6936,7 +7043,7 @@ async function restoreBackup(file){
   if (!j || j.app !== "tdc-supply-room" || !j.collections) { toast("That file isn't a Supply Room backup."); return; }
   const n = Object.fromEntries(BACKUP_COLS.map(c => [c, Object.keys(j.collections[c] || {}).length])), nb = Object.keys(j.blobs || {}).length;
   openPanel(`<div class="ph"><h2>Restore backup</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p>${n.items} items, ${n.reps} reps, ${n.supinfo} supplier accounts, ${n.settings} settings, ${n.log} activity entries, ${n.orders} orders and ${nb} photos.</p>
+    <p>${n.items} items, ${n.reps} reps, ${n.supinfo} supplier accounts, ${n.settings} settings, ${n.log} activity entries, ${n.orders} orders, ${n.prices} price checks and ${nb} photos.</p>
     <p class="hint">Anything with the same id here is replaced by the copy in the file. Nothing is deleted.</p>
     <div class="bprog" hidden><span style="width:0%"></span></div><p class="hint" id="rsStat"></p>
     <div class="actions"><button class="btn pri" id="rsGo" type="button">Restore</button><button class="btn" data-close type="button">Cancel</button></div>`);

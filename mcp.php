@@ -92,7 +92,7 @@ function tools(): array {
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'scope' => ['type' => 'string', 'enum' => ['mine', 'web'], 'description' => 'mine = the office\'s suppliers (default); web = other stores']], 'required' => ['id']], 'annotations' => ['readOnlyHint' => true]],
         ['name' => 'record_price', 'description' => 'Save a price found for an item at a supplier (for example one you read from a supplier page you are signed in to). It becomes that supplier\'s current price in the item\'s Prices table and is added to the item\'s price history, so prices can be compared over time. Returns the previous price from the same supplier and the change.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Store name (use list_options names for the office\'s suppliers)'), 'price' => $n('Price for one unit as sold'), 'pack' => $s('What one unit is, e.g. Box of 100'), 'url' => $s('Product page address'), 'sku' => $s('The store\'s item number'), 'signed_in' => ['type' => 'boolean', 'description' => 'true if read from a signed-in (account) page'], 'similar' => ['type' => 'boolean', 'description' => 'true if the supplier doesn\'t sell this exact product and this is a similar substitute (different brand, size or version)'], 'product' => $s('The product name on the supplier page (always give it for a similar product)')] + $who, 'required' => ['id', 'supplier', 'price']]],
-        ['name' => 'price_history', 'description' => 'An item\'s price history: for each supplier the latest, previous, lowest and highest price and when it was checked, plus every recorded price check, newest first.',
+        ['name' => 'price_history', 'description' => 'An item\'s price history: for each supplier the latest, previous, lowest and highest price and when it was checked, plus every recorded price check, newest first. Prices for similar substitutes are kept apart (similarProduct names the product), since they are not this exact item.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Only this supplier'), 'limit' => $n('Most price checks to list (default 100)')], 'required' => ['id']]],
         ['name' => 'read_product_page', 'description' => 'Have the Supply Room server read a supplier product page and suggest name, SKU, price, units, description and photo. Pages that need sign-in may not show prices; if you can open the page yourself (signed in), prefer what you see there.',
          'inputSchema' => ['type' => 'object', 'properties' => ['url' => $s('Product page address')], 'required' => ['url']], 'annotations' => ['readOnlyHint' => true]],
@@ -140,32 +140,46 @@ function save_photo(PDO $pdo, string $url): string {
 
 /* ---------- price history ----------
  * Collection "prices": one document per price check, never replaced, so prices can be followed over time.
- * Fields: at (ms), itemId, src (supplier), price, pack, sku, url, kind (live = signed in, public, invoice), by.
+ * Fields: at (ms), itemId, src (supplier), price, pack, sku, url, kind (live = signed in, public, invoice), by;
+ * similar = true (and title) when the price is for a similar substitute, not this exact product.
  * The item's "offers" list still holds only the latest price per supplier (that is what the page's Prices table shows).
  */
 function hist_day($ms): string { return date('n/j/Y', intdiv((int)$ms, 1000)); }
 function hist_sort(array $rows): array { usort($rows, fn($a, $b) => [(int)($a['at'] ?? 0), (string)($a['src'] ?? '')] <=> [(int)($b['at'] ?? 0), (string)($b['src'] ?? '')]); return $rows; }
 function hist_rows(PDO $pdo, string $itemId): array {
     $rows = [];
-    foreach (all_docs($pdo, 'prices') as $h) if (($h['itemId'] ?? '') === $itemId) $rows[] = $h;
+    foreach (all_docs($pdo, 'prices') as $hid => $h) if (($h['itemId'] ?? '') === $itemId) $rows[] = $h + ['_id' => (string)$hid];
     return hist_sort($rows);
 }
+function hist_similar(array $h): bool { return !empty($h['similar']); }
+/* a history row as stored (without the helper id) */
+function hist_doc(array $h): array { unset($h['_id']); return $h; }
 // Prices saved on the item before the history existed, or entered in the page's Prices table, are copied in once,
 // so a price is not lost when a newer one from the same supplier replaces it.
 function sync_history(PDO $pdo, string $itemId, array $it): array {
     $rows = hist_rows($pdo, $itemId);
     $seen = [];
-    foreach ($rows as $h) $seen[mb_strtolower((string)($h['src'] ?? '')) . '|' . (int)($h['at'] ?? 0)] = true;
+    foreach ($rows as $n => $h) $seen[mb_strtolower((string)($h['src'] ?? '')) . '|' . (int)($h['at'] ?? 0)] = $n;
     foreach ((array)($it['offers'] ?? []) as $o) {
         if (!is_array($o)) continue;
         $pr = numv($o['price'] ?? null); $at = (int)($o['at'] ?? 0); $src = trim((string)($o['src'] ?? ''));
         if (!$pr || $pr <= 0 || $at <= 0 || $src === '') continue;
+        $sim = ($o['sure'] ?? true) === false; $title = mb_substr(trim((string)($o['title'] ?? '')), 0, 120);
         $k = mb_strtolower($src) . '|' . $at;
-        if (isset($seen[$k])) continue;
+        if (isset($seen[$k])) {
+            // saved before similar products were marked: mark it now
+            $n = $seen[$k];
+            if ($sim && !hist_similar($rows[$n]) && !empty($rows[$n]['_id'])) {
+                $rows[$n]['similar'] = true; if ($title !== '') $rows[$n]['title'] = $title;
+                save($pdo, 'prices', $rows[$n]['_id'], hist_doc($rows[$n]));
+            }
+            continue;
+        }
         $h = ['at' => $at, 'itemId' => $itemId, 'src' => $src, 'price' => (float)$pr, 'pack' => trim((string)($o['pack'] ?? '')), 'sku' => trim((string)($o['sku'] ?? '')),
               'url' => trim((string)($o['url'] ?? '')), 'kind' => (string)($o['kind'] ?? ''), 'by' => (string)($o['by'] ?? '')];
-        save($pdo, 'prices', new_id(), $h);
-        $rows[] = $h; $seen[$k] = true;
+        if ($sim) { $h['similar'] = true; if ($title !== '') $h['title'] = $title; }
+        $hid = new_id(); save($pdo, 'prices', $hid, $h);
+        $rows[] = $h + ['_id' => $hid]; $seen[$k] = count($rows) - 1;
     }
     return hist_sort($rows);
 }
@@ -303,7 +317,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $sup = canon_supplier($pdo, (string)($a['supplier'] ?? '')); if ($sup === '') throw new RuntimeException('supplier is required.');
             // Copy any price already on the item into the history first, so the one about to be replaced is kept.
             $hist = sync_history($pdo, $id, $it);
-            $prev = null; foreach ($hist as $h) if (strcasecmp((string)($h['src'] ?? ''), $sup) === 0) $prev = $h;
+            $prev = null; foreach ($hist as $h) if (strcasecmp((string)($h['src'] ?? ''), $sup) === 0 && hist_similar($h) === !empty($a['similar'])) $prev = $h;
             $offer = ['src' => $sup, 'price' => $pr, 'pack' => trim((string)($a['pack'] ?? '')), 'url' => trim((string)($a['url'] ?? '')), 'sku' => trim((string)($a['sku'] ?? '')),
                       'kind' => !empty($a['signed_in']) ? 'live' : 'public', 'at' => (int)round(microtime(true) * 1000), 'sure' => empty($a['similar']), 'by' => $w];
             if (trim((string)($a['product'] ?? '')) !== '') $offer['title'] = mb_substr(trim((string)$a['product']), 0, 120);
@@ -312,7 +326,8 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $offers[] = $offer;
             $it['offers'] = array_slice($offers, -20);
             save($pdo, 'items', $id, $it);
-            save($pdo, 'prices', new_id(), ['at' => $offer['at'], 'itemId' => $id, 'src' => $sup, 'price' => (float)$pr, 'pack' => $offer['pack'], 'sku' => $offer['sku'], 'url' => $offer['url'], 'kind' => $offer['kind'], 'by' => $w]);
+            save($pdo, 'prices', new_id(), ['at' => $offer['at'], 'itemId' => $id, 'src' => $sup, 'price' => (float)$pr, 'pack' => $offer['pack'], 'sku' => $offer['sku'], 'url' => $offer['url'], 'kind' => $offer['kind'], 'by' => $w]
+                + (!empty($a['similar']) ? ['similar' => true] + (isset($offer['title']) ? ['title' => $offer['title']] : []) : []));
             $res = ['saved' => true, 'id' => $id, 'offer' => $offer, 'previous' => null];
             $chg = '';
             if ($prev) {
@@ -332,23 +347,25 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             $sf = trim((string)($a['supplier'] ?? ''));
             if ($sf !== '') { $sf = canon_supplier($pdo, $sf); $rows = array_values(array_filter($rows, fn($h) => strcasecmp((string)($h['src'] ?? ''), $sf) === 0)); }
             $by = [];
-            foreach ($rows as $h) $by[(string)($h['src'] ?? '')][] = $h;
+            foreach ($rows as $h) $by[(string)($h['src'] ?? '') . (hist_similar($h) ? '|similar' : '')][] = $h;
             $sum = [];
             foreach ($by as $s => $hs) {
+                $sim = str_ends_with($s, '|similar'); $s = $sim ? substr($s, 0, -8) : $s;
                 $ps = array_map(fn($h) => (float)($h['price'] ?? 0), $hs);
                 $last = $hs[count($hs) - 1]; $prev = count($hs) > 1 ? $hs[count($hs) - 2] : null;
                 $sum[] = array_filter([
-                    'supplier' => $s, 'latest' => (float)$last['price'], 'pack' => (string)($last['pack'] ?? ''), 'checked' => hist_day($last['at'] ?? 0),
+                    'supplier' => $s, 'similarProduct' => $sim ? ((string)($last['title'] ?? '') ?: 'yes, not this exact item') : null, 'latest' => (float)$last['price'], 'pack' => (string)($last['pack'] ?? ''), 'checked' => hist_day($last['at'] ?? 0),
                     'signedIn' => ($last['kind'] ?? '') === 'live',
                     'previous' => $prev ? (float)$prev['price'] : null, 'previousChecked' => $prev ? hist_day($prev['at'] ?? 0) : null,
                     'change' => $prev ? round((float)$last['price'] - (float)$prev['price'], 2) : null,
                     'lowest' => min($ps), 'highest' => max($ps), 'checks' => count($hs), 'firstChecked' => hist_day($hs[0]['at'] ?? 0),
                 ], fn($v) => $v !== '' && $v !== null);
             }
-            usort($sum, fn($x, $y) => $x['latest'] <=> $y['latest']);
+            usort($sum, fn($x, $y) => [isset($x['similarProduct']), $x['latest']] <=> [isset($y['similarProduct']), $y['latest']]);
             $lim = max(1, min(500, (int)($a['limit'] ?? 100)));
             $list = array_map(fn($h) => array_filter([
                 'date' => hist_day($h['at'] ?? 0), 'supplier' => (string)($h['src'] ?? ''), 'price' => (float)($h['price'] ?? 0), 'pack' => (string)($h['pack'] ?? ''),
+                'similarProduct' => hist_similar($h) ? ((string)($h['title'] ?? '') ?: 'yes, not this exact item') : null,
                 'sku' => (string)($h['sku'] ?? ''), 'signedIn' => ($h['kind'] ?? '') === 'live', 'by' => (string)($h['by'] ?? ''), 'url' => (string)($h['url'] ?? ''),
             ], fn($v) => $v !== '' && $v !== null), array_reverse($rows));
             return text_result(['item' => ['id' => $id, 'name' => $it['name'] ?? '', 'units' => $it['units'] ?? '', 'unitCost' => $it['unitCost'] ?? '', 'supplier' => $it['supplier'] ?? ''],

@@ -218,6 +218,15 @@ try {
             out(200, $r);
         }
 
+        case 'prices': {
+            // One item's price history (the "prices" collection: one entry per price check), oldest first.
+            $itemId = id_ok($req['itemId'] ?? null);
+            $docs = [];
+            foreach (all_docs($pdo, 'prices') as $id => $d) if (($d['itemId'] ?? '') === $itemId) $docs[] = ['id' => (string)$id, 'data' => (object)$d];
+            usort($docs, fn($a, $b) => ((int)($a['data']->at ?? 0)) <=> ((int)($b['data']->at ?? 0)));
+            out(200, ['ok' => true, 'docs' => $docs]);
+        }
+
         case 'dump': {
             // Every document in one collection (full backup, export and clean-up; the normal reads stop at 2,000).
             $col = col_ok($req['col'] ?? null);
