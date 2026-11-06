@@ -3298,7 +3298,7 @@ function histHtml(){
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
 const cmpSel = new Set(); let cmpQ = "";
 let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = "spend", spendKeep = false, cmpShow = "need";
-const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare suppliers</button></div>`;
+const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare prices</button></div>`;
 async function loadSpend(){
   if (spendLoading) return; spendLoading = true;
   try { const s = await db.collection("orders").orderBy("at", "desc").limit(3000).get(); spendOrders = s.docs.map(d => ({ id: d.id, ...d.data() })); }
@@ -3347,7 +3347,7 @@ function offerAt(it, sup){
   const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
   return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 }
-/* open Spending › Compare suppliers with this product showing and ticked */
+/* open Spending › Compare prices with this product showing and ticked */
 function goCompare(it){
   closePanel(); spendMode = "compare"; spendKeep = true;
   cmpShow = "all"; cmpSel.clear(); cmpSel.add(it.id); cmpQ = it.name;
