@@ -4506,7 +4506,11 @@ $("#rcvBtn") && ($("#rcvBtn").onclick = async () => { if (await saveIfChanged(it
         const cb = $("#countBtn"); if (cb) { const on = countedToday(it); cb.classList.toggle("on", on); cb.querySelector(".icl > span").textContent = on ? "Counted" : "Mark counted"; }
       } catch(e) { toast(dbErr(e)); if (openVals) openVals.countEvery = was; cs.value = clean(it.countEvery ?? ""); try { syncDirty(); } catch {} }
     }; }
-  $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true }); if (!ok) b.disabled = false; });
+  $("#countBtn") && ($("#countBtn").onclick = async e => { const b = e.currentTarget; b.disabled = true; const ok = await saveItem(it, { count: true, stay: true }); b.disabled = false;
+    if (!ok) return;
+    it.countedAt = Date.now(); it.countedBy = me(); b.classList.add("on"); b.title = "Counted. Tap to count again with the number below";
+    b.querySelector(".icl > span").textContent = "Counted"; const w = b.querySelector(".icw"); if (w) w.textContent = shortDate(it.countedAt) + (it.countedBy ? " · " + it.countedBy : "");
+    $("#saveBtn") && ($("#saveBtn").disabled = false); try { syncDirty(); } catch {} toast("Counted " + it.name); });
   $("#manOff") && ($("#manOff").onclick = async () => { if (!needMe()) return; try { await write(it.id, { orderReq: 0, orderAmt: 0 }); logIt("Removed from order list", it, ""); toast("Removed from the order list"); closePanel(); } catch(e) { toast(dbErr(e)); } });
   $("#saveBtn").onclick = () => saveItem(it);
   reopen = () => openItem(it, prefill);
