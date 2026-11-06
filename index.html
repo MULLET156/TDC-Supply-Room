@@ -1391,7 +1391,7 @@ div.altpic{background:var(--sunk)}
 .psub small{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px}
 .plist.sim .prow{background:transparent}.plist.sim .pw b{font-weight:600}
 .pnone{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 0;font-size:13px;color:var(--muted)}.pnone .ic{width:15px;height:15px}.pnone a .ic{width:13px;height:13px}
-.phist{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.phist{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}.phist:empty{display:none}
 .phhead{display:flex;align-items:center;gap:6px;font-size:14px}.phhead .ic{width:16px;height:16px}.phhead span{margin-left:auto;font-size:12.5px;color:var(--muted)}
 .phsvg{display:block;width:100%;height:auto;margin:8px 0 4px;overflow:visible}
 .phsvg .phgrid{stroke:var(--line);stroke-width:1}.phsvg .phax{fill:var(--muted);font-size:10px;font-family:var(--f-mono)}
@@ -5212,7 +5212,7 @@ function priceHistInner(it){
   /* only what you've actually paid: prices that came from your invoices (not other suppliers' or website prices) */
   const seen = new Set(), rows = (c.rows || []).filter(h => h.kind === "invoice" && !h.similar && Number(h.price) > 0 && !seen.has(phKey(h)) && seen.add(phKey(h)));
   const exact = rows.filter(h => !h.similar);
-  if (!exact.length) return head("") + `<p class="hint">What you've paid for this product, from your invoices. It fills in each time you use Receive from invoice on the On the way page, so you can see the price you pay change over time.</p>`;
+  if (!exact.length) return "";   /* nothing paid yet: the section stays hidden until the first invoice */
   /* the same pack everywhere: compare the price; packs differ: compare the price per piece */
   const packs = new Set(exact.map(h => unitCount(h.pack) || 0));
   const usePU = packs.size > 1 && exact.every(h => perUnit(h) != null);
@@ -5223,7 +5223,7 @@ function priceHistInner(it){
   S.forEach((s, i) => s.color = PH_COLORS[i % PH_COLORS.length]);
   const t0 = exact[0].at, t1 = Math.max(Date.now(), exact[exact.length - 1].at), span = t1 - t0;
   /* chart (step lines: a price holds until the next check), once checks cover more than a day */
-  let chart = `<p class="hint phwait">The chart starts once there are invoices from more than one day.</p>`;
+  let chart = "";
   if (span > 864e5) {
     const W = 340, H = 132, L = 46, R = 10, T = 10, B = 20, all = exact.map(v);
     let lo = Math.min(...all), hi = Math.max(...all); if (hi - lo < hi * .02) { lo = lo * .95; hi = hi * 1.05; } else { const pd = (hi - lo) * .12; lo = Math.max(0, lo - pd); hi += pd; }
