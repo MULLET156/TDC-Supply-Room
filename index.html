@@ -1632,6 +1632,8 @@ body[data-view="sups"] #view, body[data-view="cats"] #view, body[data-view="locs
   .dock:not(:has(.wrap > :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
   .dock{background:transparent!important;border-top:0!important;box-shadow:none!important;pointer-events:none}
   .dock .wrap{pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px!important;margin-bottom:12px!important;max-width:620px}
+  .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]){width:max-content}
+  .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]) > #scanBtn{flex:none;padding:0 22px}
 }
 /* All items: one slim "select all" line instead of the color key; denser rows on computers */
 .selbar.slim{display:flex;align-items:center;justify-content:flex-start;padding:2px 19px!important;margin:-4px 0 -6px!important;min-height:0;background:none!important;border:0!important;box-shadow:none!important}
@@ -2757,7 +2759,7 @@ function updateOrdFloat(){
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
   if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").innerHTML = ic("listplus") + (n ? `Add ${n} to order list` : "Tick items, then Add to order list"); $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
-  if (dc) { dc.hidden = !cn || (isPhone() && !selected.size); const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick items, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
+  if (dc) { dc.hidden = !cn || !selected.size; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick items, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
   if (!on) return;
