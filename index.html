@@ -1424,6 +1424,23 @@ header .toolrow2{grid-area:tools2;align-self:center;justify-self:end}
   .bulkbar{bottom:var(--dockh,70px)!important}
   body:has(#overlay .panel.item) .dock, body:has(#overlay .panel) .dock{z-index:6}
 }
+/* All items: one slim "select all" line instead of the color key; denser rows on computers */
+.selbar.slim{display:flex;align-items:center;justify-content:flex-start;padding:2px 19px!important;margin:-4px 0 -6px!important;min-height:0;background:none!important;border:0!important;box-shadow:none!important}
+.selbar.slim .selall{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;min-height:32px}
+.selbar.slim .selall .chk{margin:0;width:22px;height:22px;flex:none}
+@media (max-width:640px){.selbar.slim{padding:0 10px!important}.selbar.slim .selall .chk{width:20px;height:20px}}
+@media (min-width:641px){
+  .list .row{padding-top:4px!important;padding-bottom:4px!important;min-height:0!important;gap:10px!important}
+  .list .row .thumb{width:34px!important;height:34px!important}
+  .list .row .info{gap:10px!important}
+  .list .row .info .nm{font-size:14.5px!important;line-height:1.25!important}
+  .list .row .info .meta{font-size:12.5px!important;margin-top:1px!important;row-gap:0!important;flex-wrap:nowrap!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .list .row .info .meta > *{flex:none}
+  .list .row .rside .golink{min-height:30px!important;height:30px!important;padding:0 10px!important;font-size:13px!important}
+  .list .row .rside .golink .ic{width:15px!important;height:15px!important}
+  header .pagehead{padding-top:6px!important;padding-bottom:6px!important}
+  header .pagehead p{display:none!important}
+}
 /* All items is for browsing: on hand shows read-only; counting happens on the Count page */
 body[data-view="all"] .list .row .rside .cntok{display:none!important}
 body[data-view="all"] .list .row .rside .step{border:0!important;background:none!important;box-shadow:none!important;min-height:0!important}
@@ -2482,6 +2499,22 @@ $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = nu
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockCntGo")?.addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockCntClear")?.addEventListener("click", () => { selected.clear(); render(); });
+$("#dockAllClear").addEventListener("click", () => { selected.clear(); render(); });
+$("#dockAllAdd").addEventListener("click", async () => {
+  if (!needMe()) return;
+  const list = [...selected].map(byId).filter(Boolean);
+  const add = list.filter(i => !i.need && !i.onOrder), skip = list.length - add.length;
+  if (!add.length) { toast(skip ? "Those are already on the Order list or On order" : "Tick items first"); return; }
+  sync("busy", "Saving…"); let ok = 0;
+  for (const it of add) {
+    const q = Math.max(1, Math.ceil((num(it.desired) || 0) - (num(it.qty) || 0)) || 1);
+    try { await write(it.id, { orderReq: q, orderAmt: 0 }); logIt("Added to order list", it, `order ${fmtQ(q)}${it.units ? " × " + it.units : ""}`); ok++; }
+    catch(e) { toast(dbErr(e)); break; }
+  }
+  sync(ok === add.length ? "ok" : "err", ok === add.length ? "Saved" : "Not all saved");
+  selected.clear(); render();
+  toast(`Added ${ok} to the order list${skip ? ` (${skip} already on the Order list or On order)` : ""}.`);
+});
 $("#bulkForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (!needMe()) return;
@@ -2589,8 +2622,9 @@ function renderInner(){
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar"><p class="intro">Tick items, then use the button at the bottom to add them to the order list.</p>${LEGEND}<span class="actions"><button type="button" class="btn" id="selShown">${allSel ? "Clear selection" : `Select all ${list.length} shown`}</button></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
-    $("#selShown") && ($("#selShown").onclick = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
+    v.innerHTML = banner + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No items match these filters.</div></div>`);
+    $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
+    { const s = $("#selShown"); if (s && !allSel && selected.size) s.indeterminate = true; }
 
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   }
@@ -2632,7 +2666,7 @@ function productsHtml(all){
   const list = all.slice().sort((a, b) => { const k = pSort.k, x = a[k] ?? "", y = b[k] ?? ""; return (typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * pSort.dir; });
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
-  return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${LEGEND}</div>
+  return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${""}</div>
     <div class="actions"><button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked item${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="findPhotos" ${sample && items.some(i => !i.photo) ? "" : "disabled"} title="${sample ? "Look up a photo for every product that has none, one at a time" : "Needs Claude"}">${ic("images")}Find missing photos (${items.filter(i => !i.photo).length})</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this item (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open item">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${t === "cnt" ? `<select data-cf="countEvery" class="gcnt" aria-label="Count schedule for ${esc(i.name)}" ${readOnly ? "disabled" : ""}>${cntOptsHtml(i.countEvery, `Default (${cntName(cntDefault())})`)}</select>` : `${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
