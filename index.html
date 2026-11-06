@@ -1358,6 +1358,9 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .pcur{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:0 6px}
 .pflag{font-size:11px;font-weight:700;color:var(--warn,#b45309);border:1px solid currentColor;border-radius:999px;padding:0 6px}
 .altlist{display:grid;gap:10px}
+/* What you've paid: the invoice history when there is one, else the simple trend from price changes */
+.phist:not(:empty) + .ptrend{display:none}
+#priceBox .ptrend{border-bottom:1px solid var(--line);margin-bottom:12px;padding-bottom:10px}
 .linkbtn{all:unset;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 #sec-ord .usehint{margin-top:8px}
 table.cmp th.ce, table.cmp td.ce{border-left:2px dashed var(--line)}
@@ -4991,7 +4994,6 @@ async function openItem(it, prefill){
         ${repCompact(repOf(it.supplier), it.supplier)}
         ${ordFields(f)}
         ${it.id && window.TDC?.usage ? `<div class="usehint" id="useHint" hidden></div>` : ""}
-        ${priceTrend(it)}
       </details>
       <details class="isec" id="sec-price" ${isOpen("sec-price", false) ? "open" : ""}><summary><b>Prices</b><span class="sum">${priceSum(it)}</span></summary><div id="priceBox">${priceBox(it)}</div></details>
       <details class="isec" id="sec-det" ${isOpen("sec-det", false) ? "open" : ""}><summary><b>Details</b><span class="sum">${detSum}</span></summary>
@@ -5178,7 +5180,7 @@ function priceBox(it){
   /* stores that had the product but showed no price: one line, not a row each */
   const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && o.mine !== false && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
   const cheaperWeb = bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best);
-  return `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>${mine.length ? `<h4 class="psub">Supplier prices</h4><div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
+  return `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>${priceTrend(it)}${mine.length ? `<h4 class="psub">Supplier prices</h4><div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
     ${noPrice.length ? `<p class="pnone">${ic("alert")}No price shown at ${noPrice.map(o => `${esc(o.src)}${o.url ? ` <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}`).join(", ")}${noPrice.some(o => o.kind === "signin") ? " (needs sign-in)" : ""}</p>` : ""}
     ${similar.length ? `<h4 class="psub">Similar products <small>not this exact product</small></h4><div class="plist sim">${similar.map(row).join("")}</div>` : ""}
     ${backupsHtml(it)}
