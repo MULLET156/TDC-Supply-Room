@@ -2988,7 +2988,12 @@ function bySupplier(list){
   return [...g.entries()].map(([k, v]) => [nm.get(k), v]).sort((a,b) => (supRank(a[0]) - supRank(b[0])) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
 }
 let lastRendered = "";   /* a refresh of the same page keeps the list where you were (after saving a product, live updates) */
-function render(){ const y = scrollY, same = lastRendered === tab; renderInner(); try { const slot = $("#jumpSlot"), jr = $("#view .jumprow"); if (slot) { slot.innerHTML = ""; if (jr && CNT_MODES.includes(tab)) slot.append(jr); } } catch {} lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
+function render(){ const y = scrollY, same = lastRendered === tab;
+  /* boxes that scroll on their own (the Editor grid, compare tables) keep their spot when the page is redrawn */
+  const IN = "#view .gridwrap, #view .cmpwrap, #view .mcomp", inner = same ? [...document.querySelectorAll(IN)].map(el => [el.className, el.scrollTop, el.scrollLeft]) : [];
+  renderInner();
+  if (inner.length) [...document.querySelectorAll(IN)].forEach((el, i) => { const k = inner[i]; if (k && k[0] === el.className && (el.scrollTop !== k[1] || el.scrollLeft !== k[2])) { el.scrollTop = k[1]; el.scrollLeft = k[2]; } });
+  try { const slot = $("#jumpSlot"), jr = $("#view .jumprow"); if (slot) { slot.innerHTML = ""; if (jr && CNT_MODES.includes(tab)) slot.append(jr); } } catch {} lastRendered = tab; updateBulk(); try { syncFToggle(); } catch {} try { pageHead(); } catch {} if (same && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }
 /* Which page you're on: a title in the page's color under the tiles (the page also takes on that color) */
 function pageHead(){
   document.body.dataset.view = tab;
