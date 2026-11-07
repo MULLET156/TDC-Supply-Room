@@ -169,7 +169,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .setrow.dangerrow{background:var(--bad-soft)}
 .logfilt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
 .logfilt label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--muted)}
-.logfilt select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;font:inherit;font-size:14.5px;color:var(--fg);max-width:260px}
+.logfilt select,.logfilt input[type=search]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;font:inherit;font-size:14.5px;color:var(--fg);max-width:260px}
 .logfilt #logExport{margin-left:auto}
 @media (max-width:520px){.logfilt label{flex:1 1 100%}.logfilt select{flex:1;max-width:none}.logfilt #logExport{margin-left:0;flex:1}}
 .hord{border-top:1px solid var(--line)}
@@ -1878,6 +1878,10 @@ header .topright .tooltabs .tab[data-t="spend"]:hover{border-color:var(--money)}
 header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background:var(--money);border-color:var(--money);color:var(--money-fg)}
 .cpfix{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px}
 .cpfix label{font-weight:600}
+/* main column never grows to fit a wide table (the compare table scrolls inside its own box) */
+main .wrap{grid-template-columns:minmax(0,1fr)}
+/* phone: the order-list line in the product window wraps its buttons under the text instead of squeezing it */
+@media (max-width:520px){.istatus:has(> .btn){flex-wrap:wrap}.istatus:has(> .btn) > span:first-child{flex:1 1 100%}}
 </style>
 <header>
   <div class="wrap">
@@ -3408,9 +3412,9 @@ function compareHtml(){
   };
   const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
   return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by MPN (manufacturer part number). Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
-    ${noMpn && !readOnly ? `<div class="notice spest"><span>${noMpn} product${noMpn > 1 ? "s have" : " has"} no MPN (manufacturer part number) yet, so ${noMpn > 1 ? "they" : "it"} can't be matched at other suppliers.</span>${window.TDC?.readLink ? `<button type="button" class="btn" id="cmpMpn">${ic("search")}Fill in MPNs</button>` : ""}</div>` : ""}
+    ${noMpn && !readOnly ? `<div class="notice spest"><span>${noMpn} product${noMpn > 1 ? "s have" : " has"} no MPN (manufacturer part number) yet, so ${noMpn > 1 ? "they" : "it"} can't be matched at other suppliers. Editor › Batch Update fills them in.</span></div>` : ""}
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
-    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:200px"></label></div>
+    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:0;width:100%"></label></div>
     ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
@@ -7330,7 +7334,7 @@ $("#moreBtn")?.addEventListener("click", e => {
 });
 $("#navSlot")?.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) { tabClick(b); window.scrollTo(0, 0); } });
 /* reopen on the last page used on this device */
-try { if (isPhone()) { const cb = $(".tab.cntbtn"); if (cb) tabClick(cb); } else { const v = localStorage.getItem("tdc.tab"); if (v && v !== tab && ["all", "need", "ordered", "exp", "sups", "cats", "locs", "products", "spend", "log", "setup"].includes(v)) setTab(v); } } catch {}
+/* the app always opens on the Order list (phone and desktop) */
 function tabClick(b){ closeToolMenu(); setTab(b.dataset.t === "count" ? cntMode() : b.dataset.t); }
 /* Inventory counter: one button in the header; Supplier / Category / Location is picked inside it and remembered on this device */
 const CNT_MODES = ["sups", "cats", "locs"];
