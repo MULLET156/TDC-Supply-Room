@@ -3359,7 +3359,7 @@ function goCompare(it){
   setTab("spend"); window.scrollTo(0, 0);
 }
 /* cheapest price found at a store that isn't one of your suppliers */
-function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false && o.mpn === true && Number(o.price) > 0 && o.sure !== false); const pu = L.some(o => perUnit(o) != null); return L.sort((a, b) => (pu ? (perUnit(a) ?? Infinity) - (perUnit(b) ?? Infinity) : a.price - b.price))[0] || null; }
+function elsewhereAt(it){ const L = offersFor(it).filter(o => o.mine === false && o.mpn === true && Number(o.price) > 0 && o.sure !== false); return L.sort((a, b) => a.price - b.price)[0] || null; }
 function similarAt(it, sup){ const k = keyOf(sup); return offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure === false).sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null; }
 function cmpRows(){
   const sups = compareSups();
@@ -3367,17 +3367,15 @@ function cmpRows(){
   const q = keyOf(cmpQ || ""); if (q) list = list.filter(i => keyOf([i.name, i.sku, i.mfr, i.supplier].join(" ")).includes(q));
   return list.sort((a, b) => a.name.localeCompare(b.name)).map(it => {
     const cells = sups.map(s => ({ s, o: offerAt(it, s) }));
-    const vals = cells.filter(c => c.o).map(c => ({ ...c, pu: perUnit(c.o), p: Number(c.o.price) }));
-    const counts = vals.map(v => unitCount(v.o.pack));
-    const samePack = vals.length > 1 && (vals.every(v => keyOf(v.o.pack) === keyOf(vals[0].o.pack)) || (counts.every(c => c != null) && counts.every(c => c === counts[0])));
-    const usePU = !samePack && vals.length > 1 && vals.every(v => v.pu != null);
-    const comparable = usePU || samePack;
-    const val = v => usePU ? v.pu : v.p;
-    const best = comparable ? vals.reduce((a, b) => (val(b) < val(a) ? b : a), vals[0]) : null;
+    /* every price here is for the same part number (MPN), so the same package: compare the prices as listed.
+       (Guessing "per unit" from pack wording went wrong, e.g. "3 syringes with 36 mixing tips" read as 36.) */
+    const vals = cells.filter(c => c.o).map(c => ({ ...c, p: Number(c.o.price) }));
+    const comparable = vals.length > 1;
+    const best = comparable ? vals.reduce((a, b) => (b.p < a.p ? b : a), vals[0]) : null;
     const cur = vals.find(v => keyOf(v.s) === keyOf(it.supplier));
     let save = 0;
-    if (best && cur && best !== cur) { const per = val(cur) - val(best); const units = usePU ? (unitCount(it.units) || unitCount(cur.o.pack) || 1) : 1; save = per * units * (Number(it.orderQty) || 1); }
-    return { it, cells, best, cur, comparable, save, usePU };
+    if (best && cur && best !== cur) save = (cur.p - best.p) * Math.max(1, Number(it.orderQty) || 1);
+    return { it, cells, best, cur, comparable, save, usePU: false };
   });
 }
 /* ---------- Compare prices ----------
@@ -3400,10 +3398,10 @@ function compareHtml(){
       if (readOnly || !clean(it.mfr) || !window.TDC?.mpnSearch) return `<td class="cc none"><span>—</span></td>`;
       return `<td class="cc none"><button type="button" class="cfind" data-cfind="${esc(it.id)}" data-sup="${esc(c.s)}" title="Search ${esc(c.s)} for part # ${esc(it.mfr)}">${miss ? "not found · retry" : "Find"}</button></td>`;
     }
-    const pu = perUnit(o), isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(it.supplier);
+    const isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(it.supplier);
     const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
     const src = o.kind === "saved" ? "Saved" : (KIND_LBL[o.kind] || "Website");
-    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(r.usePU && pu != null && unitCount(o.pack) > 1 ? money(pu) : money(Number(o.price)))}</b><small>${r.usePU && pu != null && unitCount(o.pack) > 1 ? "each · " + esc(money(Number(o.price))) + "/" + esc(o.pack) : esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
+    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(money(Number(o.price)))}</b><small>${esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
   };
   const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
   return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by MPN (manufacturer part number). Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
@@ -5227,9 +5225,8 @@ function offersFor(it){
 }
 function bestOffer(it, mineOnly = true){
   const L = offersFor(it).filter(o => Number(o.price) > 0 && o.sure !== false && (!mineOnly || o.mine !== false));
-  const anyPU = L.some(o => perUnit(o) != null);
-  const val = o => anyPU ? (perUnit(o) ?? Infinity) : Number(o.price);
-  return L.sort((a, b) => val(a) - val(b))[0] || null;
+  /* matched by part number, so prices are for the same package: compare them as listed */
+  return L.sort((a, b) => Number(a.price) - Number(b.price))[0] || null;
 }
 /* "Save $X at Benco": the cheapest of your suppliers vs what this item is ordered at now */
 function saving(it){
@@ -5237,12 +5234,9 @@ function saving(it){
   const b = bestOffer(it); if (!b || keyOf(b.src) === keyOf(it.supplier)) return null;
   const cur = { price: ordPrice(it), pack: it.units };
   if (!(cur.price > 0)) return null;
-  const pb = perUnit(b), pc = perUnit(cur);
-  let per = null;
-  if (pb != null && pc != null) per = pc - pb; else if (keyOf(b.pack) === keyOf(cur.pack) || !b.pack) per = (cur.price - b.price) / (unitCount(cur.pack) || 1);
-  if (per == null || per <= 0.0049) return null;
-  const n = (unitCount(cur.pack) || 1) * (Number(it.orderQty) || 1);
-  return { at: b.src, amt: per * n, pct: Math.round(per / ((pc ?? cur.price / (unitCount(cur.pack) || 1)) || 1) * 100) };
+  const per = cur.price - Number(b.price);
+  if (!(per > 0.0049)) return null;
+  return { at: b.src, amt: per * Math.max(1, Number(it.orderQty) || 1), pct: Math.round(per / cur.price * 100) };
 }
 function priceSum(it){
   const L = offersFor(it).filter(o => Number(o.price) > 0 && o.sure !== false && o.mine !== false);
@@ -5253,17 +5247,17 @@ function priceSum(it){
 }
 function priceBox(it){
   const L = offersFor(it), best = bestOffer(it), bestW = bestOffer(it, false), priced = o => Number(o.price) > 0;
-  const val = o => perUnit(o) ?? Number(o.price);
+  const val = o => Number(o.price);
   const byVal = (a, b) => val(a) - val(b);
   /* the current supplier's row gets the "current" tag once */
   const curRow = L.find(o => keyOf(o.src) === keyOf(it.supplier) && o.sure !== false && o.mine !== false && priced(o));
   const row = o => {
-    const pu = perUnit(o), isCur = o === curRow, isBest = best && o === best;
+    const isCur = o === curRow, isBest = best && o === best;
     const when = o.at && o.kind !== "saved" ? shortDate(o.at) : "";
     const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " · " + when : "");
     return `<div class="prow${isBest ? " best" : ""}">
       <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${isBest ? `<span class="pbadge">best</span>` : ""}${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}</div>
-      <div class="pp"><b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}${pu != null && unitCount(o.pack) > 1 ? `<small class="ppu">${esc(money(pu))} each</small>` : ""}</div>
+      <div class="pp"><b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}</div>
       <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
     </div>`;
   };
@@ -5272,7 +5266,7 @@ function priceBox(it){
   const web = L.filter(o => priced(o) && o.sure !== false && o.mine === false).sort(byVal);
   /* stores that had the product but showed no price: one line, not a row each */
   const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && o.mine !== false && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
-  const cheaperWeb = bestW && best && bestW !== best && perUnit(bestW) != null && perUnit(best) != null && perUnit(bestW) < perUnit(best);
+  const cheaperWeb = bestW && best && bestW !== best && Number(bestW.price) < Number(best.price);
   return `<div class="phist" id="pHist" data-item="${esc(it.id)}">${priceHistInner(it)}</div>${priceTrend(it)}${mine.length ? `<h4 class="psub">Supplier prices</h4><div class="plist">${mine.map(row).join("")}</div>` : `<p class="hint">No prices from your suppliers yet. Imported invoices add what you really paid.</p>`}
     ${noPrice.length ? `<p class="pnone">${ic("alert")}No price shown at ${noPrice.map(o => `${esc(o.src)}${o.url ? ` <a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}`).join(", ")}${noPrice.some(o => o.kind === "signin") ? " (needs sign-in)" : ""}</p>` : ""}
     ${similar.length ? `<h4 class="psub">Similar products <small>not this exact product</small></h4><div class="plist sim">${similar.map(row).join("")}</div>` : ""}
