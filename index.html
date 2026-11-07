@@ -4492,12 +4492,12 @@ function startBatch(list, preset = {}){
   /* the two speed-up toggles are remembered on this device */
   let auto = {}; try { auto = JSON.parse(localStorage.getItem("tdc.batchAuto") || "{}") || {}; } catch {}
   const po = !preset.photoOnly;
-  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, name: po, price: po, units: po, sku: po, supplier: po, desc: po, link: po, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
+  B = { list: list.slice(), i: 0, full, tabId: null, done: 0, skipped: 0, hist: {}, opts: { history: !window.HOSTED, name: po, price: po, units: po, sku: po, mfr: po, supplier: po, desc: po, link: po, photo: "missing", autoName: !!auto.autoName, autoSave: !!auto.autoSave } };
   openPanel(`<div class="ph"><div><h2>Update ${list.length} product${list.length === 1 ? "" : "s"} from supplier pages</h2><div class="lastby">One at a time — you approve each</div></div><button class="iconbtn" data-close type="button">Close</button></div>
     ${full ? `<p class="hint">${window.HOSTED ? "For each product, the server opens its reorder link (or searches the web for it by SKU and name when there's no link) and Claude reads the page and suggests a proper name." : "For each product, Claude opens its reorder link (or searches the supplier's site) in the Claude app's browser, reads the page, and suggests a proper name."} Pick the name, check the filled-in details, then save and move to the next one.${window.HOSTED ? " Prices that only show when signed in to a supplier account won't come through." : " The app may ask you to allow each supplier's website the first time."}</p>`
       : `<div class="notice"><b>Names only in this browser</b><span class="hint">Reading supplier pages (price, package size, photo, description, SKU) only works when this page is open in the Claude desktop app. Here, Claude can still suggest a proper name for each item.</span></div>`}
     ${full ? `<div class="bopts"><b>Fill in</b>
-      ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" ${po ? "checked" : ""}> ${l}</label>`).join("")}
+      ${[["name","Name"],["price","Price"],["units","Package size"],["sku","SKU"],["mfr","MPN (if empty)"],["supplier","Supplier (if empty)"],["desc","Description"],["link","Reorder link (if found)"]].map(([k, l]) => `<label><input type="checkbox" data-bo="${k}" ${po ? "checked" : ""}> ${l}</label>`).join("")}
       <div class="bphotoopt"><label><input type="checkbox" id="bPhotoOn" checked> Photo</label>
         <div class="bpchoice" id="bPhotoMode" role="radiogroup" aria-label="Which photos"><label><input type="radio" name="bpm" value="missing" checked> Only products missing a photo</label><label><input type="radio" name="bpm" value="always"> Replace existing photos</label></div></div>
       <p class="hint">Untick everything except Photo to update photos only.</p></div>` : ""}
@@ -4582,7 +4582,7 @@ function autoCountdown(btn, label, what){
 function priceMove(a, b){ const x = num(a), y = num(b); if (x == null || y == null || !x) return null; return (y - x) / x * 100; }
 function batchSummary(ch){
   if (!ch.length) return "";
-  const lab = { unitCost: "Price", units: "Package size", sku: "SKU", supplier: "Supplier", desc: "Description", link: "Reorder link", name: "Name" };
+  const lab = { unitCost: "Price", units: "Package size", sku: "SKU", mfr: "MPN", supplier: "Supplier", desc: "Description", link: "Reorder link", name: "Name" };
   const big = ch.filter(c => c.ch.some(([k, a, b]) => k === "unitCost" && Math.abs(priceMove(a, b) ?? 0) >= 20)).length;
   return `${big ? `<div class="notice dupwarn"><span class="hint">${ic("alert")}<b>${big} price${big === 1 ? "" : "s"} moved 20% or more.</b> They're marked below; open the product to check or undo.</span></div>` : ""}
   <div class="bsum"><table><thead><tr><th>Product</th><th>Change</th><th>Before</th><th>After</th></tr></thead><tbody>${ch.map(c => (c.ch.length ? c.ch : [["photo", "", ""]]).map(([k, a, b], j) => { const mv = k === "unitCost" ? priceMove(a, b) : null; const flag = mv != null && Math.abs(mv) >= 20;
@@ -4594,12 +4594,12 @@ function batchReview(it, r, name, head){
     name, unitCost: o.price && pr != null ? "$" + pr.toFixed(2) : it.unitCost || "",
     units: o.units && clean(r.units) ? clean(r.units) : it.units || "",
     sku: o.sku && (clean(r.sku) || clean(r.mfrNumber)) ? (clean(r.sku) || clean(r.mfrNumber)) : it.sku || "",
-    mfr: clean(it.mfr) || (sku_ok(r.mfrNumber || "") ? clean(r.mfrNumber) : ""),
+    mfr: clean(it.mfr) || (o.mfr && sku_ok(r.mfrNumber || "") ? clean(r.mfrNumber) : ""),
     supplier: o.supplier && !clean(it.supplier) && clean(r.supplier) ? clean(r.supplier) : it.supplier || "",
     desc: o.desc && clean(r.description) ? clean(r.description) : it.desc || "",
     link: o.link && r.url && (!clean(it.link) || r.cand?.i > 0) ? r.url : it.link || "" };
   const usePhoto = r.photo && (o.photo === "always" || (o.photo === "missing" && !it.photo));
-  const photoOnly = !o.name && !["price", "units", "sku", "supplier", "desc", "link"].some(k => o[k]);
+  const photoOnly = !o.name && !["price", "units", "sku", "mfr", "supplier", "desc", "link"].some(k => o[k]);
   if (photoOnly) { ["unitCost", "units", "sku", "mfr", "supplier", "desc", "link"].forEach(k => { f[k] = it[k] || ""; }); }
   if (photoOnly && !usePhoto) { B.skipped++; B.i++; toast(`No photo found for ${it.name}. Skipped.`); batchStep(); return; }
   const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}${k === "unitCost" && Math.abs(priceMove(cur, f[k]) ?? 0) >= 20 ? ` <span class="chg big">${priceMove(cur, f[k]) > 0 ? "+" : ""}${Math.round(priceMove(cur, f[k]))}% — check</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
@@ -5747,7 +5747,7 @@ async function quickAdd({ link = "", sku = "", hint = "" }){
   if (B) { toast("A batch update is running. Finish it first."); return; }
   const sup = g("e-sup") || (link ? supplierFromLink(link) : "");
   const it = { id: "__add", name: g("e-name") || hint, sku: sku || g("e-sku"), supplier: sup, link, units: g("e-units"), unitCost: g("e-cost") };
-  const mine = B = { quick: true, list: [], i: 0, full: true, tabId: null, done: 0, skipped: 0, hist: {}, run: 1, cand: null, opts: { history: !!sup, price: true, units: true, sku: true, supplier: true, desc: true, link: true, photo: "always" } };
+  const mine = B = { quick: true, list: [], i: 0, full: true, tabId: null, done: 0, skipped: 0, hist: {}, run: 1, cand: null, opts: { history: !!sup, price: true, units: true, sku: true, mfr: true, supplier: true, desc: true, link: true, photo: "always" } };
   const btns = ["#qaGo", "#createBtn"].map(x => $(x)).filter(Boolean); btns.forEach(b => b.disabled = true);
   const status = t => qaStat(`<span class="spin"></span> ${esc(t)}`);
   try {
