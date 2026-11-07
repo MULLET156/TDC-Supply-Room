@@ -211,6 +211,11 @@ try {
             out(200, $r);
         }
 
+        case 'storesearch': {   // check a store's own search from the server (troubleshooting)
+            $host = (string)($req['host'] ?? ''); $q = (string)($req['q'] ?? '');
+            $r = store_search($host, $q);
+            out(200, ['ok' => true, 'supported' => $r !== null, 'results' => $r ?? [], 'probe' => $GLOBALS['tdc_store_probe'] ?? null]);
+        }
         case 'subplan': {
             $r = sub_plan(is_array($req['p'] ?? null) ? $req['p'] : []);
             if (!$r['ok']) fail(502, $r['error'], $r['message']);

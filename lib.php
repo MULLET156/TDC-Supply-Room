@@ -1526,6 +1526,7 @@ function store_search(string $host, string $q): ?array {
     $k = null; foreach ($S as $h => $u) if ($host === $h || str_ends_with($host, '.' . $h)) { $k = $h; break; }
     if ($k === null) return null;
     $g = http_get(sprintf($S[$k], rawurlencode($q)), 6291456, 25);
+    $GLOBALS['tdc_store_probe'] = ['ok' => $g['ok'], 'code' => $g['code'] ?? null, 'len' => strlen((string)($g['body'] ?? '')), 'wall' => $g['ok'] ? bot_wall($g['body']) : null, 'head' => mb_substr(strip_tags((string)($g['body'] ?? '')), 0, 200)];
     if (!$g['ok'] || bot_wall($g['body'])) return [];
     $html = $g['body']; $out = [];
     $put = function ($url, $title) use (&$out) { $title = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($title), ENT_QUOTES))); if ($title === '' || preg_match('/^(learn more|select options|add to cart|view|details)$/i', $title)) return; if (!isset($out[$url])) $out[$url] = ['url' => $url, 'title' => mb_substr($title, 0, 160), 'description' => '']; };
