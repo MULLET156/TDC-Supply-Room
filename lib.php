@@ -1516,6 +1516,34 @@ function sub_plan(array $p): array {
         'specs' => array_slice(array_map(fn($s) => mb_substr((string)$s, 0, 60), (array)($v['specs'] ?? [])), 0, 6),
         'strict' => !empty($v['strict']), 'unit' => mb_substr(trim((string)($v['unit'] ?? 'each')), 0, 20) ?: 'each'];
 }
+// A store's own search page, read on the server: product names and links (Darby, Net32, Benco build theirs on the server).
+function store_search(string $host, string $q): ?array {
+    $S = [
+        'darbydental.com' => 'https://www.darbydental.com/catalogsearch/result/?q=%s',
+        'net32.com'       => 'https://www.net32.com/search?q=%s',
+        'shop.benco.com'  => 'https://shop.benco.com/Search/Search?Terms=%s',
+    ];
+    $k = null; foreach ($S as $h => $u) if ($host === $h || str_ends_with($host, '.' . $h)) { $k = $h; break; }
+    if ($k === null) return null;
+    $g = http_get(sprintf($S[$k], rawurlencode($q)), 6291456, 25);
+    if (!$g['ok'] || bot_wall($g['body'])) return [];
+    $html = $g['body']; $out = [];
+    $put = function ($url, $title) use (&$out) { $title = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($title), ENT_QUOTES))); if ($title === '' || preg_match('/^(learn more|select options|add to cart|view|details)$/i', $title)) return; if (!isset($out[$url])) $out[$url] = ['url' => $url, 'title' => mb_substr($title, 0, 160), 'description' => '']; };
+    if ($k === 'darbydental.com') {
+        if (preg_match_all('#<a[^>]+href="((?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html)"[^>]*>([\s\S]{0,400}?)</a>#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) $put(str_starts_with($x[1], 'http') ? $x[1] : 'https://www.darbydental.com' . $x[1], $x[2]);
+    } elseif ($k === 'net32.com') {
+        // the results list is in the page's product data: {"name": "...", "url": "https://www.net32.com/ec/...-d-123"}
+        if (preg_match_all('#"name"\s*:\s*"((?:[^"\\\\]|\\\\.){3,300})"\s*,\s*"url"\s*:\s*"(https://www\.net32\.com/ec/[a-z0-9\-]+-d-\d+)"#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) $put($x[2], json_decode('"' . $x[1] . '"') ?? $x[1]);
+        if (preg_match_all('#href="((?:https://www\.net32\.com)?/ec/[a-z0-9\-]+-d-\d+)[^"]*"[^>]*>([^<]{6,200})</a>#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) $put(str_starts_with($x[1], 'http') ? $x[1] : 'https://www.net32.com' . $x[1], $x[2]);
+    } else {
+        if (preg_match_all('#href="((?:https://shop\.benco\.com)?/Product/\d+-\d+/([a-z0-9\-]+))"[^>]*>([\s\S]{0,300}?)</a>#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) { $t = trim(strip_tags($x[3])); $put(str_starts_with($x[1], 'http') ? $x[1] : 'https://shop.benco.com' . $x[1], strlen($t) > 5 ? $t : str_replace('-', ' ', $x[2])); }
+    }
+    return array_slice(array_values($out), 0, 24);
+}
 // $s: ['sup' => name, 'site' => host, 'brand' => house brand]; returns up to 2 product pages at that supplier
 function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip = []): array {
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
@@ -1536,8 +1564,12 @@ function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip
     $queries = $brand !== '' ? [$brand . ' ' . $phrase, $brand . ' ' . $broad] : [$phrase, $broad];
     if ($nameBrands && $brand !== '') $queries[] = $broad;
     $err = '';
+    // stores whose own search works on the server: use it (it's consistent), web search only if it finds nothing
+    $own = null;
+    foreach (array_unique(array_merge($queries, [$broad])) as $q) { $r = store_search($host, $q); if ($r === null) break; $own = $own ?? []; foreach ($r as $c) $add($c['url'], $c['title'], ''); if (count($cands) >= 12) break; }
+    if ($own !== null && $cands) $queries = [];
     foreach (array_unique($queries) as $q) { if (count($cands) >= 8) break; $r = apify_search($q . ' site:' . $host, 10); if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
-    if (count($cands) < 3) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
+    if (count($cands) < 3 && $own === null) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'Nothing turned up.'];
     $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));

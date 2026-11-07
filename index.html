@@ -5652,7 +5652,7 @@ async function suggestReserves(){
   });
 }
 /* ---------- substitutes: cheaper products that do the same job, mostly suppliers' house brands ---------- */
-const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco" };
+const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco", "net32": "House Brand" };
 const houseBrand = sup => { const v = infoOf(sup).houseBrand; return v != null ? v : (HOUSE_DEFAULT[keyOf(sup)] || ""); };
 const SUB_CATS_DEFAULT = /ppe|glove|mask|infection|paper|dispos|consum|clean|steril|suction|evac|cup|bib|barrier|hygiene|gauze|cotton/i;
 const subCats = () => Array.isArray(rules.subCats) ? rules.subCats : [...new Set(items.map(i => clean(i.cat)).filter(c => c && SUB_CATS_DEFAULT.test(c)))];
