@@ -1442,8 +1442,8 @@ body[data-view="need"] .ordbar .actions{display:flex;width:100%}
   #scanHd:not([hidden]){display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:10px;flex:none}
   .cmrow:has(#scanHd:not([hidden])) #jumpSlot{flex:1 1 0!important;min-width:0}
   .cmrow > #countModes{flex-basis:100%}
-  .dock .wrap > #scanBtn{display:none!important}
-  .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]){display:none!important}
+  #scanHd{display:none!important}
+  .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]):not(:has(> #scanBtn:not([hidden]))){display:none!important}
   html body .dock .navslot .tabs-main > .tab.t-exp{display:none!important}
   html body.on-products #bulkBar{display:none!important}
 }
@@ -1707,11 +1707,11 @@ body[data-view="sups"] #view, body[data-view="cats"] #view, body[data-view="locs
   body:has(#overlay .panel.item) .dock, body:has(#overlay .panel) .dock{z-index:6}
 }
 /* the bottom action bar only appears once something is ticked (all screen sizes); the Count page keeps Scan + Mark counted */
-.dock .dockord:not(#dockCnt):has(> .btn.pri:disabled){display:none!important}
-.dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
+.dock .dockord:not(#dockCnt):not(.hasinv):has(> .btn.pri:disabled){display:none!important}
+.dock .wrap:not(:has(> :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):not(.hasinv):has(> .btn.pri:disabled)))){display:none!important}
 @media (min-width:641px){
   .dock.dkempty{display:none!important}
-  .dock:not(:has(.wrap > :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)))){display:none!important}
+  .dock:not(:has(.wrap > :not([hidden]):not(.navslot):not(.dockord:not(#dockCnt):has(> .btn.pri:disabled)):not(#dockOrd):not(#dockCnt))){display:none!important}
   .dock{background:transparent!important;border-top:0!important;box-shadow:none!important;pointer-events:none}
   .dock .wrap{pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px!important;margin-bottom:12px!important;max-width:620px}
   .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]){width:max-content}
@@ -1997,6 +1997,34 @@ body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 .ordbar .pacts .selall + .btn.pri.pbtn{margin-left:auto}
 .ordbar .pacts .selall + .btn.pri.pbtn + .act{margin-left:0}
 @media (max-width:640px){.ordbar .pacts{gap:8px}.ordbar .pacts .btn.pbtn{flex:1 1 auto;justify-content:center}.ordbar .pacts .btn.pbtn.act{flex-basis:100%}.ordbar .pacts .selall{padding-left:10px;flex-basis:100%}}
+/* Mark ordered / received / counted: in the frozen bar at the top on computers, in the bottom bar (thumb reach) on phones */
+@media (min-width:641px){
+  #dockOrd,#dockCnt{display:none!important}
+  body[data-view="need"] .ordbar,body[data-view="ordered"] .ordbar,.ordbar.cntbar,body[data-view="all"] .selbar.slim{position:sticky;top:var(--hdrh,0px);z-index:4;background:color-mix(in srgb,var(--pg-soft) 55%,var(--bg))!important;margin-block:-14px -6px!important;padding-block:12px 8px!important;box-shadow:0 6px 8px -8px rgba(0,0,0,.25)!important}
+  body[data-view="all"] .selbar.slim{margin-inline:0!important}
+}
+@media (max-width:640px){
+  #markOrd,#markRcv,#markCnt,.ordbar .pacts [data-docimp]{display:none!important}
+  .ordbar.cntbar{display:none}
+  #dockOrdGo{background:var(--pg,var(--accent));border-color:var(--pg,var(--accent));color:#fff}
+  #dockOrd.hasinv #dockInv,#dockOrd.hasinv #dockOrdGo{flex:1 1 0;min-width:0;padding-inline:6px;font-size:14px;white-space:nowrap;letter-spacing:-.01em}#dockOrd.hasinv .ic{margin-right:4px}
+  #dockOrd.hasinv #dockOrdGo:disabled{opacity:.5}
+}
+.grp .grpchk{display:inline-flex;align-items:center;gap:8px;margin-right:12px;font-size:12.5px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0;cursor:pointer;vertical-align:middle}
+.grp .grpchk .chk{margin:0;width:22px;height:22px;flex:none}
+.grp.cathead > span:first-child,.grp.subhead > span:first-child{display:inline-flex;align-items:center;flex-wrap:wrap}
+.grptools .btn.pbtn.qc{min-height:34px;padding:0 12px;font-size:13.5px}
+.cntbar .pacts .selall{padding-left:19px}
+/* phones: Scan to count + Quick count sit in the bottom bar; once products are ticked it switches to Mark counted */
+#dockQc{display:none}
+@media (max-width:640px){
+  .dock .wrap > #dockQc:not([hidden]){display:inline-flex;flex:1 1 0;justify-content:center;background:var(--surface);border:2px solid var(--pg,var(--accent));color:var(--pg-ink,var(--fg));font-weight:700}
+  .dock .wrap > #scanBtn:not([hidden]){flex:1 1 0!important;background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:700}
+  body.cnt-sel .dock .wrap > #scanBtn,body.cnt-sel .dock .wrap > #dockQc{display:none!important}
+  #dockCntGo{background:var(--pg,var(--accent));border-color:var(--pg,var(--accent));color:#fff}
+}
+.grp .grptools .btn.pbtn.qc{display:inline-flex!important;flex-direction:row!important;align-items:center;white-space:nowrap;gap:0}
+.grp .grptools .btn.pbtn.qc .ic{margin:0 5px 0 0!important}
 </style>
 <header>
   <div class="wrap">
@@ -2049,9 +2077,10 @@ body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 <div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn" type="button" id="bulkLabels">Shelf labels</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn" id="scanBtn" type="button"><i data-ic="barcode"></i>Scan to count</button>
+  <button class="btn" id="dockQc" type="button" hidden><i data-ic="zap"></i>Quick count</button>
   <div class="dockord" id="dockAll" hidden><button class="btn pri" id="dockAllAdd" type="button" disabled><i data-ic="listplus"></i>Add to order list</button><button class="btn" id="dockAllLabels" type="button" title="Print shelf labels for the ticked products"><i data-ic="tag"></i>Labels</button><button class="btn" id="dockAllClear" type="button" hidden>Clear</button></div>
   <div class="dockord" id="dockCnt" hidden><button class="btn pri" id="dockCntGo" type="button" disabled><i data-ic="clipcheck"></i>Mark counted</button><button class="btn" id="dockCntClear" type="button" hidden>Clear</button></div>
-  <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
+  <div class="dockord" id="dockOrd" hidden><button class="btn pri" id="dockInv" type="button" data-docimp hidden><i data-ic="receipt"></i>Receive from invoice</button><button class="btn pri" id="dockOrdGo" type="button" disabled>Mark ordered</button><button class="btn" id="dockOrdClear" type="button" hidden>Clear</button></div>
 </div><div class="navslot" id="navSlot"></div></div>
 
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
@@ -2314,7 +2343,13 @@ function derive(it){
   return it;
 }
 const byId = id => items.find(i => i.id === id);
-const markLbl = verb => ic(verb === "ordered" ? "send" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Mark ${verb}`);
+/* Inventory counter's top bar: select everything shown, Mark counted (on phones Mark counted lives in the bottom bar) */
+function cntBar(list){
+  if (readOnly) return "";
+  const all = list.length && list.every(i => selected.has(i.id));
+  return `<div class="ordbar cntbar"><div class="actions pacts"><label class="selall"><input type="checkbox" class="chk" id="selAllCnt" data-grpsel="${esc(list.map(i => i.id).join(","))}" data-grplabel="all ${list.length} shown" ${all ? "checked" : ""}>${all ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><button class="btn pbtn act" id="markCnt" type="button" ${selected.size ? "" : "disabled"} title="Tick the products you've counted first">${markLbl("counted")}</button></div></div>`;
+}
+const markLbl = verb => ic(verb === "ordered" ? "send" : verb === "counted" ? "clipcheck" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Mark ${verb}`);
 /* includes archived products: they stay on the Expiring tab while any are still on the shelf */
 const anyId = id => byId(id) || archived.find(i => i.id === id);
 const archExp = () => archived.filter(i => i.expiring && i.qty !== 0);
@@ -2960,11 +2995,17 @@ function orderOnline(sup){
   syncMark();
   $("#ooMark").onclick = () => { const t = ticked(); closePanel(); markOrdered(t.length ? t : rows); };
 }
+/* the group's Select all: a checkbox in the same column as the products' checkboxes, left of the group name */
+function grpChk(label, list){
+  if (readOnly || !list.length) return "";
+  const ids = list.map(i => i.id), all = ids.every(id => selected.has(id));
+  return `<label class="grpchk" title="Select all ${list.length} in ${esc(label.replace(/^(Supplier|Category|Location) /, ""))}"><input type="checkbox" class="chk" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" ${all ? "checked" : ""} aria-label="Select all in ${esc(label)}"><span>${all ? "All" : "Select all"}</span></label>`;
+}
 function grpTools(label, list){
   const ids = list.map(i => i.id), all = ids.length && ids.every(id => selected.has(id));
   const cnt = list.filter(countedToday).length, oldest = cnt === list.length && cnt ? Math.min(...list.map(i => i.countedAt)) : 0;
   const note = oldest ? `All counted ✓` : cnt ? `${cnt} of ${list.length} counted` : "Nothing counted yet";
-  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `<button type="button" class="grpsel" data-grpsel="${esc(ids.join(","))}" data-grplabel="${esc(label)}" aria-pressed="${all}">${all ? ic("boxcheck") + "All selected" : ic("box") + "Select all"}</button>${CNT_MODES.includes(tab) && list.length ? `<button type="button" class="grpsel qc" data-qcount="${esc(ids.join(","))}" data-qlabel="${esc(label.replace(/^(Supplier|Category|Location) /, ""))}">${ic("zap")}Quick count</button>` : ""}`}</span>`;
+  return `<span class="grptools"><small class="grpcnt${oldest ? " ok" : ""}">${note}</small>${readOnly ? "" : `${CNT_MODES.includes(tab) && list.length ? `<button type="button" class="btn pbtn out qc" data-qcount="${esc(ids.join(","))}" data-qlabel="${esc(label.replace(/^(Supplier|Category|Location) /, ""))}">${ic("zap")}Quick count</button>` : ""}`}</span>`;
 }
 async function markCounted(list){
   if (!list.length || !needMe()) return;
@@ -3038,14 +3079,16 @@ function pageHead(){
   $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1]; $("#phSub").textContent = P[2];
 }
 /* On Order list / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
+try { const hd = document.querySelector("header"); if (hd && window.ResizeObserver) { const setH = () => document.documentElement.style.setProperty("--hdrh", (/sticky|fixed/.test(getComputedStyle(hd).position) ? hd.offsetHeight : 0) + "px"); new ResizeObserver(setH).observe(hd); addEventListener("resize", setH); } } catch {}
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
   /* Order list and On order keep their Mark ordered / Mark received button in the bottom bar all the time */
   const dk = $("#dockOrd"), show = (tab === "need" || tab === "ordered") && !readOnly, verb = tab === "need" ? "ordered" : "received";
-  if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; g.innerHTML = ic(tab === "need" ? "send" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Tick products, then Mark ${verb}`); $("#dockOrdClear").hidden = !selected.size; }
+  if (dk) { dk.hidden = !show; const g = $("#dockOrdGo"); g.disabled = !selected.size; const inv = tab === "ordered" && !!sample && (window.HOSTED || canImages); $("#dockInv").hidden = !inv; dk.classList.toggle("hasinv", inv); g.innerHTML = ic(tab === "need" ? "send" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : inv ? `Mark ${verb}` : `Tick products, then Mark ${verb}`); $("#dockOrdClear").hidden = !selected.size || inv; }
   const da = $("#dockAll"), al = tab === "all" && !readOnly;
   if (da) { da.hidden = !al; const n = selected.size; $("#dockAllAdd").disabled = !n; $("#dockAllAdd").innerHTML = ic("listplus") + (n ? `Add ${n} to order list` : "Tick products, then Add to order list"); $("#dockAllClear").hidden = !n; }
   const dc = $("#dockCnt"), cn = CNT_MODES.includes(tab) && !readOnly;
+  const dq = $("#dockQc"); if (dq) dq.hidden = !cn; document.body.classList.toggle("cnt-sel", cn && selected.size > 0);
   if (dc) { dc.hidden = !cn || !selected.size; const g = $("#dockCntGo"); g.disabled = !selected.size; g.innerHTML = ic("clipcheck") + (selected.size ? `Mark ${selected.size} counted` : `<span class="dh">Tick products, then </span>Mark counted`); $("#dockCntClear").hidden = !selected.size; }
   const on = false;
   fb.hidden = !on; document.body.classList.toggle("has-ordfloat", on);
@@ -3085,6 +3128,9 @@ $("#bulkClear").addEventListener("click", () => { selected.clear(); grpPick = nu
 $("#bulkLabels").addEventListener("click", () => { const l = [...selected].map(byId).filter(Boolean); if (l.length) shelfLabels(l); else toast("Tick products first"); });
 $("#bulkCounted").addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
 $("#dockCntGo")?.addEventListener("click", () => markCounted([...selected].map(byId).filter(Boolean)));
+/* phone bottom bar: Quick count everything shown on the page, starting at the first one not counted yet */
+$("#dockQc")?.addEventListener("click", () => { const ids = [...new Set([...document.querySelectorAll("#view .row[data-id]")].map(r => r.dataset.id))]; if (!ids.length) { toast("Nothing to count here"); return; } const lbl = ({ locs: "By location", sups: "By supplier", cats: "By category" })[tab] || "Count"; quickCount(ids, filterBar() ? lbl + " (filtered)" : lbl); });
+document.addEventListener("click", e => { if (e.target.closest?.("#markCnt")) markCounted([...selected].map(byId).filter(Boolean)); });
 $("#dockCntClear")?.addEventListener("click", () => { selected.clear(); render(); });
 $("#dockAllLabels")?.addEventListener("click", () => { const l = [...selected].map(byId).filter(Boolean); if (l.length) shelfLabels(l); else toast("Tick products first"); });
 $("#dockAllClear").addEventListener("click", () => { selected.clear(); render(); });
@@ -3190,8 +3236,8 @@ function renderInner(){
     const ordered = [...groups.values()].filter(g => g.items.length).sort((a, b) => (a.name === none) - (b.name === none));
     const slug = n => tab + "-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
     const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${supLogo(g.name)}${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
-    v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
-      <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
+    v.innerHTML = banner + filterBar() + (list.length ? `${cntBar(list)}${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
+      <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${grpChk((isLoc ? "Location " : "Supplier ") + g.name, g.items)}${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "cats") {
@@ -3201,10 +3247,10 @@ function renderInner(){
     list.forEach(i => { const c = clean(i.cat) || "Uncategorized", k = keyOf(c); if (!groups.has(k)) groups.set(k, { name: c, subs: new Map(), n: 0 }); const g = groups.get(k); g.n++; const sb = clean(i.sub) || ""; const sk = keyOf(sb); if (!g.subs.has(sk)) g.subs.set(sk, { name: sb, items: [] }); g.subs.get(sk).items.push(i); });
     const ordered = [...groups.values()].sort((a, b) => (a.name === "Uncategorized") - (b.name === "Uncategorized") || a.name.localeCompare(b.name, undefined, { numeric: true }));
     const slug = n => "cat-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
-    v.innerHTML = banner + filterBar() + (list.length ? `${jumpSel("category", ordered.map(g => [slug(g.name), g.name, g.n]))}
+    v.innerHTML = banner + filterBar() + (list.length ? `${cntBar(list)}${jumpSel("category", ordered.map(g => [slug(g.name), g.name, g.n]))}
       <div class="list">${ordered.map(g => {
         const subs = [...g.subs.values()].sort((a, b) => (a.name === "") - (b.name === "") || a.name.localeCompare(b.name, undefined, { numeric: true }));
-        return `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead"><span>↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("");
+        return `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${grpChk("Category " + g.name, subs.flatMap(x => x.items))}${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead"><span>${grpChk(`Category ${g.name} › ${sb.name}`, sb.items)}↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("");
       }).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
@@ -3828,7 +3874,7 @@ $("#view").addEventListener("click", e => {
   if (ob) { bumpOrd(it, +ob.dataset.od); return; }
   const b = e.target.closest(".step button");
   if (b) { bumpQty(it, +b.dataset.d); return; }
-  if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.innerHTML = markLbl("ordered"); } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.innerHTML = markLbl("received"); } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
+  if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.innerHTML = markLbl("ordered"); } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.innerHTML = markLbl("received"); } const mc = $("#markCnt"); if (mc) { mc.disabled = !selected.size || readOnly; mc.innerHTML = markLbl("counted"); } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
   if (e.target.closest(".info")) openItem(it);
 });
 $("#view").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("info")) { const it = anyId(e.target.closest(".row").dataset.id); if (it) openItem(it); } });
