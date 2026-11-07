@@ -4591,19 +4591,20 @@ function batchReview(it, r, name, head){
     name, unitCost: o.price && pr != null ? "$" + pr.toFixed(2) : it.unitCost || "",
     units: o.units && clean(r.units) ? clean(r.units) : it.units || "",
     sku: o.sku && (clean(r.sku) || clean(r.mfrNumber)) ? (clean(r.sku) || clean(r.mfrNumber)) : it.sku || "",
+    mfr: clean(it.mfr) || (sku_ok(r.mfrNumber || "") ? clean(r.mfrNumber) : ""),
     supplier: o.supplier && !clean(it.supplier) && clean(r.supplier) ? clean(r.supplier) : it.supplier || "",
     desc: o.desc && clean(r.description) ? clean(r.description) : it.desc || "",
     link: o.link && r.url && (!clean(it.link) || r.cand?.i > 0) ? r.url : it.link || "" };
   const usePhoto = r.photo && (o.photo === "always" || (o.photo === "missing" && !it.photo));
   const photoOnly = !o.name && !["price", "units", "sku", "supplier", "desc", "link"].some(k => o[k]);
-  if (photoOnly) { ["unitCost", "units", "sku", "supplier", "desc", "link"].forEach(k => { f[k] = it[k] || ""; }); }
+  if (photoOnly) { ["unitCost", "units", "sku", "mfr", "supplier", "desc", "link"].forEach(k => { f[k] = it[k] || ""; }); }
   if (photoOnly && !usePhoto) { B.skipped++; B.i++; toast(`No photo found for ${it.name}. Skipped.`); batchStep(); return; }
   const row = (k, label, cur) => `<div class="f${k === "desc" || k === "link" || k === "name" ? " full" : ""}"><label for="bf-${k}">${label}${clean(cur) !== clean(f[k]) ? ` <span class="chg">changed</span>` : ""}${k === "unitCost" && Math.abs(priceMove(cur, f[k]) ?? 0) >= 20 ? ` <span class="chg big">${priceMove(cur, f[k]) > 0 ? "+" : ""}${Math.round(priceMove(cur, f[k]))}% — check</span>` : ""}</label>${k === "desc" ? `<textarea id="bf-${k}" rows="2">${esc(f[k])}</textarea>` : `<input id="bf-${k}" value="${esc(f[k])}">`}${clean(cur) !== clean(f[k]) && clean(cur) ? `<span class="was">was: ${esc(cur)}</span>` : ""}</div>`;
   const purl = usePhoto ? URL.createObjectURL(r.photo) : "";
   openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">${ic("receipt")}<b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
     ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div>${hasMorePhotos(r) ? `<div class="pstrip" aria-label="Other photos on the page">${r.morePhotos.slice(0, 8).map(u => `<button type="button" data-pstrip="${esc(u)}" title="Use this photo"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></button>`).join("")}</div>` : ""}</div>` : ""}
-    <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Item name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
+    <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Product name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("mfr", "Manufacturer part #", it.mfr)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
     ${r.url ? `<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page Claude read ↗</a>` : ""}
     <div class="actions savebar"><button class="btn" type="button" id="bBack"${o.name ? "" : " hidden"}>← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">${photoOnly ? "Save photo &amp; next" : "Save &amp; next"}</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
@@ -4620,11 +4621,11 @@ function batchReview(it, r, name, head){
     b.disabled = false; b.textContent = "Show another photo"; b.hidden = !hasMorePhotos(r); });
   $("#bSave").onclick = async e => {
     const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Saving…";
-    const patch = {}; ["name","unitCost","units","sku","supplier","desc","link"].forEach(k => { const v = clean(document.getElementById("bf-" + k)?.value); if (v !== clean(it[k])) patch[k] = v; });
+    const patch = {}; ["name","unitCost","units","sku","mfr","supplier","desc","link"].forEach(k => { const v = clean(document.getElementById("bf-" + k)?.value); if (v !== clean(it[k])) patch[k] = v; });
     if (!patch.name) delete patch.name;
     try {
       if (usePhoto && $("#bf-photo")?.checked && assets) { const up = await uploadPhoto(r.photo); const old = it.photo; patch.photo = up.id; if (old) assets.delete(old).catch(() => {}); }
-      if (Object.keys(patch).length) { (B.changes = B.changes || []).push({ id: it.id, name: patch.name || it.name, ch: Object.keys(patch).filter(k => k !== "photo").map(k => [k, it[k] || "", patch[k]]), photo: !!patch.photo }); await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU" })[k] || k).join(", ")); B.done++; }
+      if (Object.keys(patch).length) { (B.changes = B.changes || []).push({ id: it.id, name: patch.name || it.name, ch: Object.keys(patch).filter(k => k !== "photo").map(k => [k, it[k] || "", patch[k]]), photo: !!patch.photo }); await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU", mfr: "part #" })[k] || k).join(", ")); B.done++; }
       B.i++; batchStep();
     } catch(err) { btn.disabled = false; btn.textContent = "Save & next"; toast(err?.code ? dbErr(err) : photoErr(err)); }
   };
