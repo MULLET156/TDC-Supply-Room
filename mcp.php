@@ -94,6 +94,8 @@ function tools(): array {
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Store name (use list_options names for the office\'s suppliers)'), 'price' => $n('Price for one unit as sold'), 'pack' => $s('What one unit is, e.g. Box of 100'), 'url' => $s('Product page address'), 'sku' => $s('The store\'s item number'), 'signed_in' => ['type' => 'boolean', 'description' => 'true if read from a signed-in (account) page'], 'similar' => ['type' => 'boolean', 'description' => 'true if the supplier doesn\'t sell this exact product and this is a similar substitute (different brand, size or version)'], 'product' => $s('The product name on the supplier page (always give it for a similar product)')] + $who, 'required' => ['id', 'supplier', 'price']]],
         ['name' => 'price_history', 'description' => 'An item\'s price history: for each supplier the latest, previous, lowest and highest price and when it was checked, plus every recorded price check, newest first. Prices for similar substitutes are kept apart (similarProduct names the product), since they are not this exact item.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Only this supplier'), 'limit' => $n('Most price checks to list (default 100)')], 'required' => ['id']]],
+        ['name' => 'find_by_part_number', 'description' => 'Find a supplier\'s product page for an exact manufacturer part number (the same product): searches that supplier\'s site, reads the candidate pages, and returns only pages that show the part number, with the price read. Leave host empty to search the whole web.',
+         'inputSchema' => ['type' => 'object', 'properties' => ['mpn' => $s('Manufacturer part number'), 'host' => $s('Supplier website host, e.g. net32.com; empty for the whole web')], 'required' => ['mpn']], 'annotations' => ['readOnlyHint' => true]],
         ['name' => 'read_product_page', 'description' => 'Have the Supply Room server read a supplier product page and suggest name, SKU, price, units, description and photo. Pages that need sign-in may not show prices; if you can open the page yourself (signed in), prefer what you see there.',
          'inputSchema' => ['type' => 'object', 'properties' => ['url' => $s('Product page address')], 'required' => ['url']], 'annotations' => ['readOnlyHint' => true]],
     ];
@@ -370,6 +372,18 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             ], fn($v) => $v !== '' && $v !== null), array_reverse($rows));
             return text_result(['item' => ['id' => $id, 'name' => $it['name'] ?? '', 'units' => $it['units'] ?? '', 'unitCost' => $it['unitCost'] ?? '', 'supplier' => $it['supplier'] ?? ''],
                                 'suppliers' => $sum, 'checks' => count($list), 'shown' => min(count($list), $lim), 'history' => array_slice($list, 0, $lim)]);
+        }
+        case 'find_by_part_number': {
+            @set_time_limit(240);
+            $mpn = trim((string)($a['mpn'] ?? '')); $r = mpn_search($mpn, (string)($a['host'] ?? ''));
+            if (!$r['ok']) throw new RuntimeException($r['message']);
+            $out = [];
+            foreach (array_slice($r['candidates'], 0, 4) as $c) {
+                $p = read_product_link($c['url'], ['mpn' => $mpn]);
+                $out[] = ['url' => $c['url'], 'title' => $c['title'], 'read' => $p['ok'] ?? false, 'mpnCheck' => $p['mpnCheck'] ?? '', 'price' => $p['price'] ?? null, 'units' => $p['units'] ?? '', 'sku' => $p['sku'] ?? '', 'mfrNumber' => $p['mfrNumber'] ?? '', 'error' => $p['message'] ?? ''];
+                if (($p['mpnCheck'] ?? '') === 'found') break;
+            }
+            return text_result(['candidates' => $out]);
         }
         case 'read_product_page': {
             $r = read_product_link((string)($a['url'] ?? ''), [], true);  // the connector has to answer quickly: skip Apify's slow full browser
