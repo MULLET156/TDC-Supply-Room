@@ -1973,6 +1973,8 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .catpick{display:grid;gap:6px;max-height:55vh;overflow:auto;margin:8px 0}
 @media (max-width:640px){.subhead{flex-wrap:wrap}.subact{flex-direction:row;align-items:center;max-width:none;width:100%;justify-content:space-between}.subgrid{grid-template-columns:1fr}}
 @media (max-width:640px){.sptabs{gap:4px}.sptabs button{padding:7px 9px;font-size:13.5px;gap:4px;white-space:nowrap;flex:1 1 auto;justify-content:center}.sptabs button .ic{display:none}}
+.spb{display:inline-block!important;width:auto!important;vertical-align:2px;margin-left:5px;font:700 10px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.04em;padding:3px 5px;border-radius:5px;background:color-mix(in srgb,var(--info) 16%,transparent);color:var(--info);border:1px solid color-mix(in srgb,var(--info) 45%,transparent)}
+.spb.promo{background:color-mix(in srgb,var(--warn,#b8860b) 18%,transparent);color:var(--warn,#8a6100);border-color:color-mix(in srgb,var(--warn,#b8860b) 50%,transparent)}
 </style>
 <header>
   <div class="wrap">
@@ -3519,7 +3521,7 @@ function compareHtml(){
     const isBest = r.best && r.best.s === c.s, isCur = keyOf(c.s) === keyOf(it.supplier);
     const when = o.at ? new Date(o.at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
     const src = o.kind === "saved" ? "Saved" : (KIND_LBL[o.kind] || "Website");
-    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(money(Number(o.price)))}</b><small>${esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
+    return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(money(Number(o.price)))}${spBadge(o)}</b><small>${esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
   };
   const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
   return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by MPN (manufacturer part number). Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
@@ -5428,7 +5430,7 @@ function priceBox(it){
     const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " · " + when : "");
     return `<div class="prow${isBest ? " best" : ""}">
       <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${isBest ? `<span class="pbadge">best</span>` : ""}${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}</div>
-      <div class="pp"><b>${esc(money(Number(o.price)))}</b>${o.pack ? `<small>/ ${esc(o.pack)}</small>` : ""}</div>
+      <div class="pp"><b>${esc(money(Number(o.price)))}${spBadge(o)}</b>${o.pack || (offerTag(o) && offerList(o)) ? `<small>${o.pack ? "/ " + esc(o.pack) : ""}${offerTag(o) && offerList(o) ? `${o.pack ? " · " : ""}list <s>${esc(money(offerList(o)))}</s>` : ""}</small>` : ""}</div>
       <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
     </div>`;
   };
@@ -5650,6 +5652,15 @@ async function suggestReserves(){
     for (const r of pick) { try { await write(r.it.id, { desired: r.s.des, urgent: r.s.e911 }); logIt("Edited", r.it, `reserve ${fmtQ(r.it.desired ?? 1)} → ${r.s.des}, 911 ${fmtQ(r.it.urgent ?? 0)} → ${r.s.e911} (from usage)`); ok++; } catch {} }
     closePanel(); toast(`Updated ${ok} reserve${ok === 1 ? "" : "s"}`);
   });
+}
+/* special pricing: "SP" = a price set for your account (shown with the list price struck through), "Promo" = a temporary sale */
+const offerTag = o => { if (!o) return null; if (o.tag) return o.tag; const lp = o.listPrice ?? (/list \$([\d.]+)/.exec(o.note || "")?.[1]); return lp && Number(lp) > Number(o.price) + 0.004 ? "sp" : null; };
+const offerList = o => Number(o?.listPrice ?? (/list \$([\d.]+)/.exec(o?.note || "")?.[1])) || null;
+function spBadge(o){
+  const t = offerTag(o); if (!t || t === "list") return "";
+  const lp = offerList(o), off = lp ? Math.round((1 - Number(o.price) / lp) * 100) : null;
+  const tip = (t === "promo" ? `Promotion${o.promo ? ": " + o.promo : ""} (temporary)` : "Special price for your account") + (lp ? ` · list ${money(lp)}${off > 0 ? ` (${off}% off)` : ""}` : "");
+  return `<span class="spb ${t === "promo" ? "promo" : ""}" title="${esc(tip)}">${t === "promo" ? "Promo" : "SP"}</span>`;
 }
 /* ---------- substitutes: cheaper products that do the same job, mostly suppliers' house brands ---------- */
 const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco", "net32": "House Brand" };
