@@ -1982,6 +1982,11 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .archrow{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 14px;opacity:.75;border-top:1px solid var(--line)}
 .archrow .rmain{min-width:0}.archrow small{display:block}
 .pill.p-arch{background:var(--surface2,#eee);color:var(--muted,#666);border:1px solid var(--line);font-weight:600}
+.selbar.slim{flex-wrap:wrap;column-gap:22px;row-gap:4px}
+.selbar.slim .archtog{margin-right:0;font-size:13.5px;color:var(--muted)}
+.selbar.slim .newprod{margin-left:auto;min-height:36px;padding:0 14px}
+body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
+@media (max-width:640px){.selbar.slim{column-gap:16px}.selbar.slim .archlong{display:none}.selbar.slim .newprod{min-height:34px}}
 </style>
 <header>
   <div class="wrap">
@@ -3205,8 +3210,9 @@ function renderInner(){
     const aq = keyOf($("#q")?.value || "");
     const arch = showArch ? archived.filter(i => !aq || keyOf([i.name, i.sku, i.mfr, i.supplier].join(" ")).includes(aq)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })) : [];
     const archHtml = showArch ? `<div class="grp cathead archhead"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span></div>${arch.length ? arch.map(i => `<div class="row archrow"><div class="rmain"><b>${esc(i.name)}</b><small class="hint">${i.archivedAt ? "Archived " + esc(new Date(i.archivedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "Archived"}${i.replacedBy ? ` · replaced by ${esc(byId(i.replacedBy)?.name || "another product")}` : ""}${i.supplier ? " · " + esc(i.supplier) : ""}${i.sku ? " · #" + esc(clean(i.sku)) : ""}</small></div>${readOnly ? "" : `<button type="button" class="btn sm" data-unarch="${esc(i.id)}">Restore</button>`}</div>`).join("") : `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}` : "";
-    const archToggle = archived.length ? `<label class="archtog"><input type="checkbox" id="showArch" ${showArch ? "checked" : ""}> Show archived products (${archived.length})</label>` : "";
-    v.innerHTML = banner + `<div class="newprodrow">${archToggle}${readOnly ? "" : `<button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button>`}</div>` + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
+    const archToggle = archived.length ? `<label class="archtog"><input type="checkbox" id="showArch" ${showArch ? "checked" : ""}> Show archived<span class="archlong"> products</span> (${archived.length})</label>` : "";
+    const newBtn = readOnly ? "" : `<button type="button" class="btn pri newprod" data-newprod>${ic("plus")}New product</button>`;
+    v.innerHTML = banner + (list.length ? "" : `<div class="newprodrow">${archToggle}${newBtn}</div>`) + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label>${archToggle}${newBtn}<span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
     $("#showArch") && ($("#showArch").onchange = e => { showArch = e.target.checked; try { localStorage.setItem("tdc.showArch", showArch ? "1" : ""); } catch {} render(); });
     v.querySelectorAll("[data-unarch]").forEach(b => b.onclick = async () => { const it = archived.find(i => i.id === b.dataset.unarch); if (!it || !needMe()) return; try { await write(it.id, { archived: false }); logIt("Restored", it, "restored from the archive"); toast("Restored " + it.name); } catch(e) { toast(dbErr(e)); } });
     $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
