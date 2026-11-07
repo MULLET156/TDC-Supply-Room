@@ -521,7 +521,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v7|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v8|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -561,7 +561,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             'units' => '', 'description' => $f['description'], 'supplier' => '', 'note' => '', 'photo' => null, 'photoNote' => '', 'skuCheck' => ''];
     // Does the page actually show the SKU we're after? ('' when we weren't given one, or for Amazon)
     $wantSku = trim((string)($ctx['sku'] ?? ''));
-    if ($wantSku !== '' && $am === null) $res['skuCheck'] = sku_in($f['skus'] ?? [], $wantSku) ? 'found' : 'missing';
+    if ($wantSku !== '' && $am === null) $res['skuCheck'] = (sku_in($f['skus'] ?? [], $wantSku) || sku_in(sku_tokens(json_encode($f['jsonld'] ?? [])), $wantSku)) ? 'found' : 'missing';
     // Without Claude: use what the page states in its product data.
     foreach ($f['jsonld'] as $p) {
         if (!empty($p['name']) && !$res['names']) $res['names'][] = is_string($p['name']) ? $p['name'] : '';
@@ -1042,6 +1042,18 @@ function find_product_page(array $q, array $ctx = []): array {
         if ($direct['ok'] && (str_contains(preg_replace('/\D/', '', (string)($direct['sku'] ?? '')), ltrim($dbNum, '0')) || stripos((string)($direct['pageTitle'] ?? ''), $dbNum) !== false)) {
             $direct['note'] = trim('Opened Darby\'s page for item ' . $sku . '. ' . ($direct['note'] ?? ''));
             return $direct;
+        }
+    }
+    // Safco: its own search is built in the browser, so search the web for the item number on safcodental.com
+    // and keep the first page that shows it (crawling the whole store first is too slow).
+    if ($sku !== '' && (stripos($sup, 'safco') !== false || str_contains($site, 'safcodental'))) {
+        $sf = mpn_search($sku, 'safcodental.com');
+        foreach (array_slice($sf['candidates'] ?? [], 0, 3) as $c) {
+            $direct = read_product_link($c['url'], array_merge($ctx, ['sku' => $sku]));
+            if ($direct['ok'] && ($direct['skuCheck'] ?? '') === 'found') {
+                $direct['note'] = trim('Found Safco\'s page for item ' . $sku . '. ' . ($direct['note'] ?? ''));
+                return $direct;
+            }
         }
     }
     // Any other supplier with a known website: look for the SKU on the store's own pages (see catalog_find).
