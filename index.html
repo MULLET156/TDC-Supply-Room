@@ -1433,7 +1433,6 @@ body[data-view="spend"] .filters, body[data-view="spend"] #pageHead{display:none
 .row .rside .xc.xcost{margin-right:6px}
 @media (max-width:640px){ .spcards{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px} .spcard b{font-size:17px} .spcard{padding:9px 10px} .spgrid{grid-template-columns:1fr} }
 body[data-view="need"] .ordbar .actions{display:flex;width:100%}
-body[data-view="need"] .ordbar #copyList{margin-left:auto}
 .pmenu .pmi.pmsep{border-top:1px solid var(--line);margin-top:4px;padding-top:10px}
 #scanHd{display:none}
 .tabs-main .cntbtn .sh{display:none}
@@ -1651,7 +1650,6 @@ body[data-view="sups"] #view, body[data-view="cats"] #view, body[data-view="locs
 .oomore summary{cursor:pointer;color:var(--muted);font-size:13.5px;margin-top:6px}
 .ph h2:has(.suplogo){display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ph h2 .suplogo{height:28px;margin:0}
 .oofmt select{width:auto!important;max-width:100%;min-width:0;flex:1 1 auto}
-#markOrd,#markRcv{display:none!important}
 .expwrap{display:flex;gap:6px;align-items:stretch}.expwrap > input{flex:1 1 auto;min-width:0}
 .exppick{position:relative;flex:none;width:44px;min-height:40px;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--fg);cursor:pointer;margin:0!important}
 .exppick .ic{width:20px;height:20px;margin:0}
@@ -1987,6 +1985,18 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .selbar.slim .newprod{margin-left:auto;min-height:36px;padding:0 14px}
 body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 @media (max-width:640px){.selbar.slim{column-gap:16px}.selbar.slim .archlong{display:none}.selbar.slim .newprod{min-height:34px}}
+/* page action buttons: same shape as New product; outlined in the page color, the main action filled */
+.ordbar .actions.pacts{display:flex;flex-wrap:wrap;align-items:center;gap:10px;width:100%}
+.btn.pbtn{min-height:38px;padding:0 15px;font-weight:700;border-radius:10px}
+.btn.pbtn.out{background:var(--surface);border:2px solid var(--pg,var(--accent));color:var(--pg-ink,var(--fg))}
+.btn.pbtn.out:hover{background:var(--pg-soft,var(--sunk))}
+.btn.pbtn.act{background:var(--pg,var(--accent));border:2px solid var(--pg,var(--accent));color:#fff;margin-left:auto}
+.btn.pbtn.act:disabled{opacity:.45;cursor:not-allowed}
+.ordbar .pacts .selall{display:inline-flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;min-height:38px;padding-left:19px}
+.ordbar .pacts .selall .chk{margin:0;width:22px;height:22px;flex:none}
+.ordbar .pacts .selall + .btn.pri.pbtn{margin-left:auto}
+.ordbar .pacts .selall + .btn.pri.pbtn + .act{margin-left:0}
+@media (max-width:640px){.ordbar .pacts{gap:8px}.ordbar .pacts .btn.pbtn{flex:1 1 auto;justify-content:center}.ordbar .pacts .btn.pbtn.act{flex-basis:100%}.ordbar .pacts .selall{padding-left:10px;flex-basis:100%}}
 </style>
 <header>
   <div class="wrap">
@@ -2304,6 +2314,7 @@ function derive(it){
   return it;
 }
 const byId = id => items.find(i => i.id === id);
+const markLbl = verb => ic(verb === "ordered" ? "send" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Mark ${verb}`);
 /* includes archived products: they stay on the Expiring tab while any are still on the shelf */
 const anyId = id => byId(id) || archived.find(i => i.id === id);
 const archExp = () => archived.filter(i => i.expiring && i.qty !== 0);
@@ -3143,7 +3154,7 @@ function renderInner(){
     if (slot911) slot911.innerHTML = "";
     const allT = grpTotal(list, true);
     v.innerHTML = banner + `<div class="ordbar"><p class="intro">${list.length} product${list.length>1?"s":""} to order${allT}, grouped by supplier. Tick what you've ordered. Use Add to list for anything you want to order that isn't low yet.</p>
-      <div class="actions"><button class="btn" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn" id="copyList" type="button">${ic("copy")}Copy order list</button><button class="btn pri" id="markOrd" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} ordered</button></div></div>
+      <div class="actions pacts"><button class="btn pbtn out" type="button" data-addorder>${ic("listplus")}Add to list</button><button class="btn pbtn out" id="copyList" type="button">${ic("copy")}Copy order list</button>${readOnly ? "" : `<button class="btn pbtn act" id="markOrd" type="button" ${selected.size ? "" : "disabled"} title="Tick the products you've ordered first">${markLbl("ordered")}</button>`}</div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
@@ -3158,15 +3169,15 @@ function renderInner(){
     document.querySelectorAll("[data-sendrep]").forEach(b => b.onclick = () => { const grp = list.filter(i => (i.supplier || "No supplier listed") === b.dataset.sendrep); const tick = grp.filter(i => selected.has(i.id)); sendToRep(b.dataset.sendrep, tick.length ? tick : grp); });
   } else if (tab === "ordered") {
     const list = all.filter(i=>i.onOrder);
-    const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn" type="button" data-docimp>${ic("receipt")}Receive from invoice</button>` : "";
+    const docBtn = sample && (window.HOSTED || canImages) && !readOnly ? `<button class="btn pri pbtn" type="button" data-docimp>${ic("receipt")}Receive from invoice</button>` : "";
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} product${list.length>1?"s":""} on the way. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open a product to receive a different amount.</p>
-      <div class="actions"><button class="btn" id="selAllRcv" type="button">${selected.size === list.length ? "Clear all" : "Select all"}</button><button class="btn pri" id="markRcv" type="button" ${selected.size && !readOnly ? "" : "disabled"}>Mark ${selected.size || ""} received</button>${docBtn}</div></div>
+      <div class="actions pacts"><label class="selall"><input type="checkbox" class="chk" id="selAllRcv" ${selected.size && selected.size === list.length ? "checked" : ""}>${selected.size && selected.size === list.length ? `All ${list.length} selected` : `Select all ${list.length}`}</label>${docBtn}${readOnly ? "" : `<button class="btn pbtn act" id="markRcv" type="button" ${selected.size ? "" : "disabled"} title="Tick the products that arrived first">${markLbl("received")}</button>`}</div></div>
       <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp"><span class="grpname">${supLogo(s)}${esc(s)}</span><span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
       : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
     if (list.length) {
       $("#markRcv").onclick = () => markReceivedMany(list.filter(i=>selected.has(i.id)));
-      $("#selAllRcv").onclick = () => { if (selected.size === list.length) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); };
+      $("#selAllRcv").onchange = e => { if (!e.target.checked) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); };
     }
   } else if (tab === "locs" || tab === "sups") {
     /* items grouped by storage location or by supplier, in the order set in Setup */
@@ -3817,7 +3828,7 @@ $("#view").addEventListener("click", e => {
   if (ob) { bumpOrd(it, +ob.dataset.od); return; }
   const b = e.target.closest(".step button");
   if (b) { bumpQty(it, +b.dataset.d); return; }
-  if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.textContent = `Mark ${selected.size || ""} ordered`; } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.textContent = `Mark ${selected.size || ""} received`; } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
+  if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.innerHTML = markLbl("ordered"); } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.innerHTML = markLbl("received"); } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
   if (e.target.closest(".info")) openItem(it);
 });
 $("#view").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("info")) { const it = anyId(e.target.closest(".row").dataset.id); if (it) openItem(it); } });
