@@ -1355,7 +1355,6 @@ table.cmp td.cs b{color:var(--ok);font-family:var(--f-mono)}
 .nompn{color:var(--warn)}
 .sugcap{color:var(--muted)}.sugcap b{color:var(--fg);font-family:var(--f-mono)}
 /* What you've paid: the invoice history when there is one, else the simple trend from price changes */
-.phist:not(:empty) + .ptrend{display:none}
 #priceBox .ptrend{border-bottom:1px solid var(--line);margin-bottom:12px;padding-bottom:10px}
 .linkbtn{all:unset;cursor:pointer;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
 #sec-ord .usehint{margin-top:8px}
@@ -2247,6 +2246,7 @@ async function write(id, patch){
   if ("unitCost" in patch) { const old = byId(id), a = num(old?.unitCost), b = num(patch.unitCost);
     if (b != null && b > 0 && a !== b) { let h = Array.isArray(old?.priceHist) ? old.priceHist.slice() : []; if (!h.length && a != null && a > 0) h.push({ at: old.updatedAt || old.createdAt || Date.now() - 1, p: a }); h.push({ at: Date.now(), p: b, by: me() }); patch = { ...patch, priceHist: h.slice(-24) }; } }
   await db.doc("items/" + id).update({ ...patch, updatedAt: Date.now(), updatedBy: me() });
+  return patch;
 }
 function openTeam(){
   openPanel(`<div class="ph"><div><h2>Team initials</h2><div class="lastby">Everyone who counts, orders or receives supplies</div></div><button class="iconbtn" data-close type="button">Close</button></div>
@@ -2702,13 +2702,14 @@ function qcShow(){
 /* price trend in the item window (built from price changes: invoices, supplier updates, edits) */
 function priceTrend(it){
   const h = (Array.isArray(it.priceHist) ? it.priceHist : []).filter(x => num(x.p) != null);
-  if (h.length < 2) return "";
+  if (!h.length) return "";
+  if (h.length === 1) return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>Your price over time</b><span>since ${esc(new Date(h[0].at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" }))}</span></div><div class="ptlist"><span>${esc(new Date(h[0].at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" }))} <b>$${num(h[0].p).toFixed(2)}</b></span></div></div>`;
   const ps = h.map(x => num(x.p)), lo = Math.min(...ps), hi = Math.max(...ps), W = 220, H = 44, pad = 4;
   const X = k => pad + k * (W - 2 * pad) / (h.length - 1), Y = v => hi === lo ? H / 2 : H - pad - (v - lo) * (H - 2 * pad) / (hi - lo);
   const pts = ps.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
   const first = ps[0], last = ps[ps.length - 1], mv = first ? Math.round((last - first) / first * 100) : 0;
   const d = x => new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
-  return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>What you've paid</b><span class="${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "+" : ""}${mv}% since ${esc(d(h[0]))}</span></div>
+  return `<div class="ptrend"><div class="pthead">${ic("trend")}<b>Your price over time</b><span class="${mv > 0 ? "up" : mv < 0 ? "down" : ""}">${mv > 0 ? "+" : ""}${mv}% since ${esc(d(h[0]))}</span></div>
     <svg viewBox="0 0 ${W} ${H}" class="ptsvg" role="img" aria-label="Price went from $${first.toFixed(2)} to $${last.toFixed(2)}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${ps.map((v, k) => `<circle cx="${X(k).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="2.6" fill="currentColor"><title>${esc(d(h[k]))}: $${v.toFixed(2)}</title></circle>`).join("")}</svg>
     <div class="ptlist">${h.slice(-6).reverse().map(x => `<span>${esc(d(x))} <b>$${num(x.p).toFixed(2)}</b></span>`).join("")}</div></div>`;
 }
@@ -5303,7 +5304,7 @@ function priceBox(it){
   const val = o => Number(o.price);
   const byVal = (a, b) => val(a) - val(b);
   /* the current supplier's row gets the "current" tag once */
-  const curRow = L.find(o => keyOf(o.src) === keyOf(it.supplier) && o.sure !== false && o.mine !== false && priced(o));
+  let curRow = null;   /* set below, once there's one row per supplier */
   const row = o => {
     const isCur = o === curRow, isBest = best && o === best;
     const when = o.at && o.kind !== "saved" ? shortDate(o.at) : "";
@@ -5314,9 +5315,15 @@ function priceBox(it){
       <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
     </div>`;
   };
-  const mine = L.filter(o => priced(o) && o.sure !== false && o.mine !== false).sort(byVal);
-  const similar = L.filter(o => priced(o) && o.sure === false).sort(byVal);
-  const web = L.filter(o => priced(o) && o.sure !== false && o.mine === false).sort(byVal);
+  /* one row per supplier: a price you typed or a price list first, then your saved price, then the newest reading
+     (signed-in or website); an invoice only when there's nothing newer (invoices show under What you've paid) */
+  const rank = o => o.kind === "typed" || o.kind === "list" ? 3 : o.kind === "saved" ? 2 : o.kind === "invoice" ? 0 : 1;
+  const onePer = list => { const by = new Map(); for (const o of list) { const k = keyOf(o.src), b = by.get(k);
+      if (!b || rank(o) > rank(b) || (rank(o) === rank(b) && (+o.at || 0) > (+b.at || 0))) by.set(k, o); } return [...by.values()]; };
+  const mine = onePer(L.filter(o => priced(o) && o.sure !== false && o.mine !== false)).sort(byVal);
+  curRow = mine.find(o => keyOf(o.src) === keyOf(it.supplier)) || null;
+  const similar = onePer(L.filter(o => priced(o) && o.sure === false && !mine.some(m => keyOf(m.src) === keyOf(o.src)))).sort(byVal);
+  const web = onePer(L.filter(o => priced(o) && o.sure !== false && o.mine === false)).sort(byVal);
   /* stores that had the product but showed no price: one line, not a row each */
   const seenNo = new Set(), noPrice = L.filter(o => !priced(o) && o.mine !== false && !mine.some(m => keyOf(m.src) === keyOf(o.src)) && !seenNo.has(keyOf(o.src)) && seenNo.add(keyOf(o.src)));
   const cheaperWeb = bestW && best && bestW !== best && Number(bestW.price) < Number(best.price);
@@ -5652,7 +5659,8 @@ function useOffer(it, o){
     if (keep && it.supplier && !alt.some(a => keyOf(a.supplier) === keyOf(it.supplier))) alt.push({ supplier: it.supplier, link: it.link || "", sku: it.sku || "", price: it.unitCost || "", units: it.units || "", at: Date.now() });
     const patch = { supplier: o.src, link: o.url, unitCost: Number(o.price).toFixed(2), altSources: alt.filter(a => keyOf(a.supplier) !== keyOf(o.src)) };
     if (o.sku) patch.sku = o.sku;
-    try { await write(it.id, patch); logIt("Edited", it, `switched supplier ${it.supplier || "–"} → ${o.src} at ${money(Number(o.price))}`); toast(`Now ordering from ${o.src}`); const fresh = byId(it.id); closePanel(); if (fresh) openItem(fresh); }
+    try { const done = await write(it.id, patch); const fresh = byId(it.id) || it; Object.assign(fresh, done);   /* show the new supplier and price now, not when the sync catches up */
+      logIt("Edited", it, `switched supplier ${it.supplier || "–"} → ${o.src} at ${money(Number(o.price))}`); toast(`Now ordering from ${o.src}`); closePanel(); openItem(fresh); render(); }
     catch(e) { toast(dbErr(e)); }
   };
 }
