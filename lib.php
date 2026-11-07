@@ -1516,11 +1516,11 @@ function sub_plan(array $p): array {
         'specs' => array_slice(array_map(fn($s) => mb_substr((string)$s, 0, 60), (array)($v['specs'] ?? [])), 0, 6),
         'strict' => !empty($v['strict']), 'unit' => mb_substr(trim((string)($v['unit'] ?? 'each')), 0, 20) ?: 'each'];
 }
-// A store's own search page, read on the server: product names and links (Darby, Net32, Benco build theirs on the server).
+// A store's own search page, read on the server: product names and links (Darby and Benco build theirs on the server;
+// Net32's search page is behind bot protection for servers, so Net32 goes through the web search).
 function store_search(string $host, string $q): ?array {
     $S = [
         'darbydental.com' => 'https://www.darbydental.com/catalogsearch/result/?q=%s',
-        'net32.com'       => 'https://www.net32.com/search?q=%s',
         'shop.benco.com'  => 'https://shop.benco.com/Search/Search?Terms=%s',
     ];
     $k = null; foreach ($S as $h => $u) if ($host === $h || str_ends_with($host, '.' . $h)) { $k = $h; break; }
@@ -1540,8 +1540,11 @@ function store_search(string $host, string $q): ?array {
         if (preg_match_all('#href="((?:https://www\.net32\.com)?/ec/[a-z0-9\-]+-d-\d+)[^"]*"[^>]*>([^<]{6,200})</a>#i', $html, $m, PREG_SET_ORDER))
             foreach ($m as $x) $put(str_starts_with($x[1], 'http') ? $x[1] : 'https://www.net32.com' . $x[1], $x[2]);
     } else {
-        if (preg_match_all('#href="((?:https://shop\.benco\.com)?/Product/\d+-\d+/([a-z0-9\-]+))"[^>]*>([\s\S]{0,300}?)</a>#i', $html, $m, PREG_SET_ORDER))
-            foreach ($m as $x) { $t = trim(strip_tags($x[3])); $put(str_starts_with($x[1], 'http') ? $x[1] : 'https://shop.benco.com' . $x[1], strlen($t) > 5 ? $t : str_replace('-', ' ', $x[2])); }
+        // each result tile: data-click-href="/Product/5962-961/..." data-ga4-item="{&quot;item_id&quot;:...,&quot;item_name&quot;:&quot;Name&quot;..."
+        if (preg_match_all('#data-click-href="(/Product/\d+-\d+/[a-z0-9\-]+)"\s+data-ga4-item="([^"]{0,800})"#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) { $j = json_decode(html_entity_decode($x[2], ENT_QUOTES), true); $put('https://shop.benco.com' . $x[1], is_array($j) ? (string)($j['item_name'] ?? '') : ''); }
+        if (!$out && preg_match_all('#href="(/Product/\d+-\d+/([a-z0-9\-]+))"#i', $html, $m, PREG_SET_ORDER))
+            foreach ($m as $x) $put('https://shop.benco.com' . $x[1], str_replace('-', ' ', $x[2]));
     }
     return array_slice(array_values($out), 0, 24);
 }
