@@ -1152,6 +1152,7 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
         $h = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
         if ($host !== '' && !($h === $host || $h === 'www.' . $host)) continue;
         // Henry Schein: any link that carries the 7-digit item number becomes its product page
+        $c['url'] = rtrim(preg_replace('#([?&])(srsltid|utm_[a-z]+|gclid)=[^&]*&?#i', '$1', $c['url']), '?&');   // Google's tracking tags
         if (str_contains($host, 'henryschein') && preg_match('#(?:productid(?:%3D|=)|/p/(?:[^/]+/)*)(\d{7})(?!\d)#i', $c['url'], $hm)) $c['url'] = 'https://www.henryschein.com/en-us/p/x/' . $hm[1];
         if ($host === '' && array_filter($skip, fn($s) => $s !== '' && ($h === $s || str_ends_with($h, '.' . $s)))) continue;
         if (preg_match('#/(search|s|cart|account|login|blog|category|categories|c)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) continue;
