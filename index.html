@@ -2330,7 +2330,8 @@ function canonSup(v){
 }
 /* categories, subcategories and locations: reuse the existing spelling whatever case is typed;
    a brand-new one gets "First letter capital, rest lowercase" (mixed case like "CEREC lab" is kept as typed, first letter capitalised) */
-function sentenceCase(v){ v = clean(v); if (!v) return v; const allSame = v === v.toLowerCase() || v === v.toUpperCase(); const s = allSame ? v.toLowerCase() : v; return s.charAt(0).toUpperCase() + s.slice(1); }
+function sentenceCase(v){ v = clean(v); if (!v) return v; if (v === v.toUpperCase() && (/\//.test(v) || v.replace(/[^A-Z]/g, '').length <= 4)) return v;   /* acronyms: CAD/CAM, PPE, IV */
+  const allSame = v === v.toLowerCase() || v === v.toUpperCase(); const s = allSame ? v.toLowerCase() : v; return s.charAt(0).toUpperCase() + s.slice(1); }
 function canonName(field, v){
   v = clean(v); if (!v) return v;
   const k = keyOf(v), n = new Map();
