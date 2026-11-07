@@ -5773,16 +5773,18 @@ async function subRun(list){
       const p = { name: it.name, units: it.units || "", price: priceNum(it.unitCost) || "", supplier: it.supplier || "", cat: it.cat || "", sub: it.sub || "" };
       let plan; try { say(`${it.name}: working out what to match…`, it); plan = await TDC.subPlan(p); } catch(e) { toast(`${it.name}: ${e.message || e}`); continue; }
       const picks = []; const skip = [...(it.subNo || []), ...(it.link ? [it.link] : [])];
-      for (const s of sups) {
-        if (subBusy.stop) break;
-        if (keyOf(s.sup) === keyOf(it.supplier) && !s.brand) continue;
-        say(`${it.name}: searching ${s.sup}…`, it);
-        let r; try { r = await TDC.subFind(p, plan, s, subNameBrands, skip); } catch { continue; }
-        for (const c of r.candidates || []) { if (picks.some(x => urlKey(x.url) === urlKey(c.url))) continue;
-          say(`${it.name}: reading ${s.sup}…`, it);
-          let f = {}; try { f = await TDC.readLink(webHref(c.url), { name: c.title }); } catch {}
+      /* two suppliers at a time (more at once hits the search service's limit) */
+      const queue = sups.filter(s => !(keyOf(s.sup) === keyOf(it.supplier) && !s.brand)); const total = queue.length; let left = total;
+      const one = async s => {
+        let r; try { r = await TDC.subFind(p, plan, s, subNameBrands, skip); } catch { r = {}; }
+        for (const c of r.candidates || []) { if (subBusy.stop || picks.some(x => urlKey(x.url) === urlKey(c.url))) continue;
+          let f = {}; try { f = await TDC.readLink(webHref(c.url), { name: c.title, listPrice: true }); } catch {}
           picks.push({ sup: s.sup, url: c.url, title: clean(f.name) || c.title, price: Number(f.price) > 0 ? Number(f.price) : null, pack: clean(f.units), sku: clean(f.sku), photoUrl: f.photoUrl || "", desc: clean(f.description || "").slice(0, 300), at: Date.now() }); }
-      }
+        left--; say(`${it.name}: searching suppliers (${total - left} of ${total} done)…`, it);
+      };
+      say(`${it.name}: searching suppliers…`, it);
+      const lane = async () => { while (queue.length && !subBusy.stop) await one(queue.shift()); };
+      await Promise.all([lane(), lane()]);
       if (subBusy.stop && !picks.length) break;
       let cmp = null;
       if (picks.length) { say(`${it.name}: comparing ${picks.length} product${picks.length > 1 ? "s" : ""}…`, it);

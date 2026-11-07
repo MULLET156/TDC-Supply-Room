@@ -590,7 +590,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             . "Page text:\n" . $f['text'] . "\n\n"
             . (!empty($ctx['nameRule']) ? $ctx['nameRule'] . "\n\n" : '')
             . "Reply with one JSON object: {\"names\": [up to 3 short inventory names, best first], \"sku\": \"the supplier's item / catalog number\", "
-            . "\"mfrNumber\": \"manufacturer part number if shown\", \"price\": number or null (the price for one unit as sold; " . (!empty($ctx['mpn']) ? "if the page shows a list or regular price and says your own price needs sign-in, give the list price; null only if no price is shown at all" : "null if no price is shown or it needs sign-in") . "), "
+            . "\"mfrNumber\": \"manufacturer part number if shown\", \"price\": number or null (the price for one unit as sold; " . ((!empty($ctx['mpn']) || !empty($ctx['listPrice'])) ? "if the page shows a list or regular price and says your own price needs sign-in, give the list price; null only if no price is shown at all" : "null if no price is shown or it needs sign-in") . "), "
             . "\"units\": \"what one unit is, e.g. Box of 100, Each, 5 mL vial\", \"description\": \"one or two plain sentences on what it is and what it's used for\", "
             . "\"supplier\": \"the store's name\", \"photo\": index of the main product photo from the list, or -1, \"note\": \"anything the office should double-check, or empty\"}";
         $a = ai_json($prompt);
@@ -1505,14 +1505,14 @@ function sub_plan(array $p): array {
     if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs Claude (ANTHROPIC_API_KEY in config.php).'];
     if (trim((string)($p['name'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The product needs a name.'];
     $a = ai_json("A dental office buys " . sub_desc($p) . " and wants cheaper substitutes from other brands, mostly suppliers' house brands.\n"
-        . "1. phrase: a short generic search phrase for this kind of product, without brand or part numbers (e.g. \"nitrile exam gloves powder free medium\").\n"
+        . "1. phrase: a short generic search phrase for this kind of product, without brand or part numbers (e.g. \"nitrile exam gloves powder free medium\"); broad: the same in 2-3 words (e.g. \"nitrile exam gloves\").\n"
         . "2. specs: the 2-5 things a substitute must match to do the same job (e.g. material nitrile, powder-free, size M; ASTM level 3; 2-ply; 5 oz). Use the product's own size/shade/level.\n"
         . "3. strict: true when those specs are about safety or fit and must match exactly (gloves, masks, gowns, sterilization, sizes); false when a close product is fine (paper, cups, bibs, cleaners, tips).\n"
         . "4. unit: the single item counted for a price-per-unit (glove, mask, cup, bib, tip, wipe, sheet, roll, oz, mL, each).\n"
-        . "Reply with JSON: {\"phrase\": \"...\", \"specs\": [\"...\"], \"strict\": true, \"unit\": \"glove\"}", [], 'quick');
+        . "Reply with JSON: {\"phrase\": \"...\", \"broad\": \"...\", \"specs\": [\"...\"], \"strict\": true, \"unit\": \"glove\"}", [], 'quick');
     if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'Claude didn\'t answer.'];
     $v = $a['value'];
-    return ['ok' => true, 'phrase' => mb_substr(trim((string)($v['phrase'] ?? '')), 0, 80) ?: (string)$p['name'],
+    return ['ok' => true, 'phrase' => mb_substr(trim((string)($v['phrase'] ?? '')), 0, 80) ?: (string)$p['name'], 'broad' => mb_substr(trim((string)($v['broad'] ?? '')), 0, 40),
         'specs' => array_slice(array_map(fn($s) => mb_substr((string)$s, 0, 60), (array)($v['specs'] ?? [])), 0, 6),
         'strict' => !empty($v['strict']), 'unit' => mb_substr(trim((string)($v['unit'] ?? 'each')), 0, 20) ?: 'each'];
 }
@@ -1531,12 +1531,13 @@ function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip
         if (in_array(strtolower(preg_replace('#[?\#].*$#', '', rtrim($url, '/'))), $skipK, true)) return;
         $cands[$url] = ['url' => $url, 'title' => $title, 'description' => $desc];
     };
-    $queries = [];
-    if ($brand !== '') $queries[] = $brand . ' ' . $phrase . ' site:' . $host;
-    if ($nameBrands || $brand === '') $queries[] = $phrase . ' site:' . $host;
+    $broad = trim((string)($plan['broad'] ?? '')) ?: $phrase;
+    // the specific search first, then a broader one (web search results vary, and size words often miss)
+    $queries = $brand !== '' ? [$brand . ' ' . $phrase, $brand . ' ' . $broad] : [$phrase, $broad];
+    if ($nameBrands && $brand !== '') $queries[] = $broad;
     $err = '';
-    foreach ($queries as $q) { $r = apify_search($q, 10); if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
-    if (!$cands) foreach (supplier_site_search($host, trim($brand . ' ' . $phrase)) as $c) $add($c['url'], basename(parse_url($c['url'], PHP_URL_PATH)), '');
+    foreach (array_unique($queries) as $q) { if (count($cands) >= 8) break; $r = apify_search($q . ' site:' . $host, 10); if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
+    if (count($cands) < 3) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'Nothing turned up.'];
     $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
