@@ -1877,6 +1877,8 @@ header .tooltabs .tab.t-exptool[aria-selected="true"] .xn{background:var(--surfa
 header .topright .tooltabs .tab[data-t="spend"]{border-color:var(--money);background:var(--money-soft);color:var(--money)}
 header .topright .tooltabs .tab[data-t="spend"]:hover{border-color:var(--money)}
 header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background:var(--money);border-color:var(--money);color:var(--money-fg)}
+.cpfix{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 2px}
+.cpfix label{font-weight:600}
 </style>
 <header>
   <div class="wrap">
@@ -3394,7 +3396,7 @@ function compareHtml(){
     const o = c.o, it = r.it;
     if (!o) {
       const url = linkFor(it, c.s), miss = it.links?.[keyOf(c.s)]?.none;
-      if (url) return `<td class="cc none"><a class="cfind" href="${esc(url)}" target="_blank" rel="noopener" title="Saved ${esc(c.s)} page: no price read yet. Refresh prices reads it.">${ic("ext")}page</a></td>`;
+      if (url) return `<td class="cc none"><button type="button" class="cfind" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="Saved ${esc(c.s)} page: no price read yet. Tap to open it, fix the price or remove it.">${ic("ext")}page</button></td>`;
       if (readOnly || !clean(it.mfr) || !window.TDC?.mpnSearch) return `<td class="cc none"><span>—</span></td>`;
       return `<td class="cc none"><button type="button" class="cfind" data-cfind="${esc(it.id)}" data-sup="${esc(c.s)}" title="Search ${esc(c.s)} for part # ${esc(it.mfr)}">${miss ? "not found · retry" : "Find"}</button></td>`;
     }
@@ -3412,7 +3414,7 @@ function compareHtml(){
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
     ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="ce">Elsewhere</th><th class="cs">Save</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${clean(r.it.mfr) ? `Part # ${esc(r.it.mfr)}` : `<span class="nompn">No part #</span>`}${r.it.units ? " · " + esc(r.it.units) : ""}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><a class="ccb" href="${esc(webHref(w.url || ""))}" target="_blank" rel="noopener" title="${esc(w.src)} · website price"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></a></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
+      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${clean(r.it.mfr) ? `MPN ${esc(r.it.mfr)}` : `<span class="nompn">No MPN</span>`}${r.it.units ? " · " + esc(r.it.units) : ""}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><button type="button" class="ccb" data-cmp="${esc(r.it.id)}" data-sup="${esc(w.src)}" data-ew="1" title="${esc(w.src)} · website price · tap for options"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></button></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="list"><div class="empty">${cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
 function wireCompare(){
@@ -3430,7 +3432,7 @@ function wireCompare(){
   $("#cmpMpn") && ($("#cmpMpn").onclick = () => cmpRun("mpn", items.filter(i => compareable(i) && !clean(i.mfr))));
   document.querySelectorAll("[data-cfind]").forEach(b => b.onclick = async () => { const it = byId(b.dataset.cfind); if (!it || cmpBusy) return; b.disabled = true; b.textContent = "Searching…"; await findAt(it, b.dataset.sup); render(); });
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) openItem(it); });
-  document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp), o = it && offerAt(it, b.dataset.sup); if (!it || !o) return; if (keyOf(b.dataset.sup) === keyOf(it.supplier)) { openItem(it); return; } if (!o.url) { toast(`No ${b.dataset.sup} page saved for this product`); return; } useOffer(it, o); });
+  document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp); if (it) cmpCellPanel(it, b.dataset.sup, !!b.dataset.ew); });
 }
 /* read one saved page and keep its price only when the page shows the part number */
 async function readAt(it, sup, url){
@@ -3446,18 +3448,69 @@ async function saveResults(it, res){
   const fresh = byId(it.id) || it; let links = { ...(fresh.links || {}) }, offers = fresh.offers;
   for (const x of res) {
     const k = keyOf(x.sup);
-    if (x.none) { if (!links[k]?.url) links[k] = { sup: x.sup, none: true, at: Date.now() }; continue; }
+    if (x.none) { if (!links[k]?.url) links[k] = { ...(links[k] || {}), sup: x.sup, none: true, at: Date.now() }; continue; }
+    if (isBadUrl(fresh, x.f.url)) continue;
     if (x.mine) links[k] = { sup: x.sup, url: x.f.url, sku: x.f.sku || "", at: Date.now() };
-    if (x.f.price) offers = upsertOffer(offers, { src: x.sup, price: x.f.price, pack: x.f.pack || "", url: x.f.url, sku: x.f.sku || "", kind: "public", at: Date.now(), sure: true, mine: x.mine, mpn: true, title: clean(x.f.title).slice(0, 120) });
+    /* a price you typed for this supplier stays until you change or remove it */
+    if (x.f.price && !(offers || []).some(o => o && o.kind === "typed" && keyOf(o.src) === k)) offers = upsertOffer(offers, { src: x.sup, price: x.f.price, pack: x.f.pack || "", url: x.f.url, sku: x.f.sku || "", kind: "public", at: Date.now(), sure: true, mine: x.mine, mpn: true, title: clean(x.f.title).slice(0, 120) });
   }
   const patch = { links, ...(offers !== fresh.offers ? { offers } : {}) };
   await write(it.id, patch); Object.assign(fresh, patch);
+}
+/* pages you marked as the wrong product: never found or read for this product again */
+const urlKey = u => { try { const x = new URL(webHref(u)); return (x.hostname.replace(/^www\./, "") + x.pathname.replace(/\/+$/, "")).toLowerCase(); } catch { return clean(u).toLowerCase(); } };
+const isBadUrl = (it, u) => !!u && (byId(it.id) || it).badUrls?.some(b => urlKey(b) === urlKey(u));
+/* tap a price on the compare page: open the page, fix the price, mark it the wrong product, or switch supplier */
+function cmpCellPanel(it, sup, ew){
+  const k = keyOf(sup), cur = keyOf(it.supplier) === k;
+  const o = ew ? offersFor(it).filter(x => keyOf(x.src) === k && x.mine === false && Number(x.price) > 0).sort((a, b) => a.price - b.price)[0] : offerAt(it, sup);
+  const url = o?.url || linkFor(it, sup) || "";
+  const acct = o && (ACCT_KINDS.includes(o.kind) || o.kind === "saved");
+  const src = o ? (o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website")) + (o.at && o.kind !== "saved" ? " · " + shortDate(o.at) : "") : "No price read yet";
+  openPanel(`<div class="ph"><div><div class="lastby">${esc(it.name)}${clean(it.mfr) ? " · MPN " + esc(it.mfr) : ""}</div><h2>${esc(sup)}</h2></div><button class="iconbtn" data-close type="button">Close</button></div>
+    <p>${o ? `<b>${esc(money(Number(o.price)))}</b>${o.pack ? ` / ${esc(o.pack)}` : ""} · ${esc(src)}` : esc(src)}${cur ? ` · <b>your current supplier</b>` : ""}</p>
+    ${o?.title && keyOf(o.title) !== keyOf(it.name) ? `<p class="hint">Page title: ${esc(o.title)}</p>` : ""}
+    ${url ? `<p><a href="${esc(webHref(url))}" target="_blank" rel="noopener">${ic("ext")}Open the page</a> <span class="hint">check it's the same product and price</span></p>` : ""}
+    ${readOnly ? "" : `<div class="cpfix"><label for="cpPrice">Fix the price</label><input id="cpPrice" inputmode="decimal" value="${o ? esc(Number(o.price).toFixed(2)) : ""}" placeholder="0.00" style="max-width:110px"><button type="button" class="btn" id="cpSave">Save price</button></div>
+    <p class="hint">A price you type here stays until you change it; Update prices won't overwrite it.</p>
+    <div class="actions savebar">
+      ${!acct && (o || url) ? `<button type="button" class="btn danger" id="cpBad">${ic("trash")}Wrong product — remove</button>` : ""}
+      ${!cur && o?.url && !ew ? `<button type="button" class="btn pri grow" id="cpUse">Switch to ${esc(sup)}…</button>` : ""}
+      ${cur ? `<button type="button" class="btn grow" id="cpOpen">Open product</button>` : ""}
+    </div>`}`);
+  $("#cpOpen") && ($("#cpOpen").onclick = () => { closePanel(); openItem(it); });
+  $("#cpUse") && ($("#cpUse").onclick = () => useOffer(it, o));
+  $("#cpSave") && ($("#cpSave").onclick = async () => {
+    const p = priceNum($("#cpPrice").value); if (!(p > 0)) { toast("Type a price"); return; }
+    if (!needMe()) return;
+    const fresh = byId(it.id) || it;
+    try {
+      if (cur) { await write(it.id, { unitCost: "$" + p.toFixed(2) }); }
+      else {
+        const offers = [...(fresh.offers || []).filter(x => x && !(keyOf(x.src) === k && !ACCT_KINDS.includes(x.kind) && (ew ? x.mine === false : x.mine !== false)))];
+        offers.push({ src: sup, price: p, pack: o?.pack || it.units || "", url, sku: o?.sku || "", kind: "typed", at: Date.now(), sure: true, mine: !ew, mpn: true });
+        await write(it.id, { offers }); fresh.offers = offers;
+      }
+      logIt(`Price fixed at ${sup}: ${money(p)}`, it); closePanel(); render(); toast(`${sup} price saved`);
+    } catch (err) { toast(dbErr(err)); }
+  });
+  $("#cpBad") && ($("#cpBad").onclick = async () => {
+    if (!needMe()) return;
+    const fresh = byId(it.id) || it;
+    const urls = [url, ...(fresh.offers || []).filter(x => x && keyOf(x.src) === k && !ACCT_KINDS.includes(x.kind)).map(x => x.url)].filter(Boolean);
+    const badUrls = [...new Set([...(fresh.badUrls || []), ...urls])].slice(-40);
+    const offers = (fresh.offers || []).filter(x => x && !(keyOf(x.src) === k && !ACCT_KINDS.includes(x.kind)));
+    const links = { ...(fresh.links || {}) }; if (!ew) links[k] = { sup, none: true, at: Date.now() };
+    try { await write(it.id, { offers, links, badUrls }); Object.assign(fresh, { offers, links, badUrls });
+      logIt(`Removed ${sup} price (wrong product)`, it); closePanel(); render(); toast(`Removed. That page won't be used for this product again.`); }
+    catch (err) { toast(dbErr(err)); }
+  });
 }
 /* find this product's page at one supplier: search its site for the part number, keep the first page that shows it */
 async function probeFind(it, sup){
   const mpn = clean(it.mfr), host = siteHost(sup); if (!mpn || !host) return null;
   let res; try { res = await TDC.mpnSearch(mpn, host); } catch { return null; }
-  for (const c of (res.candidates || []).slice(0, 4)) { try { const f = await readAt(it, sup, c.url); if (f.ok) return { sup, f, mine: true }; } catch {} }
+  for (const c of (res.candidates || []).filter(c => !isBadUrl(it, c.url)).slice(0, 4)) { try { const f = await readAt(it, sup, c.url); if (f.ok) return { sup, f, mine: true }; } catch {} }
   return { sup, none: true };
 }
 async function findAt(it, sup){ const x = await probeFind(it, sup); if (!x) return false; try { await saveResults(it, [x]); } catch(e) { toast(dbErr(e)); } return !x.none; }
@@ -3483,7 +3536,7 @@ async function cmpRun(kind, list){
       const skip = [...sups.map(siteHost), ...orderedSuppliers().map(g => siteHost(g.name))].filter(Boolean);
       const got = [];
       try { const res = await TDC.mpnSearch(clean(it.mfr), "", skip);
-        for (const c of (res.candidates || []).slice(0, 4)) { try { const f = await readAt(it, c.host, c.url); if (f.ok && f.price) { got.push({ sup: c.host.replace(/\.(com|net|org|co|us)$/, "").replace(/^./, x => x.toUpperCase()), f, mine: false }); priced++; } } catch {} }
+        for (const c of (res.candidates || []).filter(c => !isBadUrl(it, c.url)).slice(0, 4)) { try { const f = await readAt(it, c.host, c.url); if (f.ok && f.price) { got.push({ sup: c.host.replace(/\.(com|net|org|co|us)$/, "").replace(/^./, x => x.toUpperCase()), f, mine: false }); priced++; } } catch {} }
       } catch {}
       try { await saveResults(it, got.map(x => ({ ...x, mine: false })).map(x => ({ ...x, none: false }))); } catch {}
       continue;
@@ -5207,7 +5260,7 @@ function upsertOffer(list, o, sameRun){
   if (old && sameRun && (sameRun === "show" || old.run === sameRun) && Number(old.price) > 0 && !(Number(o.price) > 0 && Number(o.price) < Number(old.price))) return L;
   return [...L.filter(x => !same(x)), o].slice(-20);
 }
-const KIND_LBL = { invoice: "Invoice", list: "Price list", live: "Signed in", public: "Website", signin: "Website" };
+const KIND_LBL = { invoice: "Invoice", list: "Price list", live: "Signed in", public: "Website", signin: "Website", typed: "Typed in" };
 function offersFor(it){
   let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
