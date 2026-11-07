@@ -1107,10 +1107,9 @@ function find_product_page(array $q, array $ctx = []): array {
    Henry Schein and Safco build their results in the browser, so those pages go through Apify's real browser. */
 function supplier_site_search(string $host, string $q): array {
     $S = [
-        'henryschein.com' => ['https://www.henryschein.com/en-us/search/%s?type=Products', '#(?:https://www\.henryschein\.com)?/en-us/p/[^"\'\s<>?#]+#', true],
         'shop.benco.com'  => ['https://shop.benco.com/Search/Search?Terms=%s', '#(?:https://shop\.benco\.com)?/Product/\d+-\d+/[a-z0-9\-]+#i', false],
         'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
-        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/[a-z0-9\-]+#', true],
+        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/[a-z0-9][a-z0-9\-]{3,}(?=["\'?/#])#i', true],
     ];
     $cfg = null; foreach ($S as $k => $v) if ($host === $k || str_ends_with($host, '.' . $k) || str_ends_with($k, $host)) { $cfg = $v; $base = 'https://' . ($k === 'shop.benco.com' ? 'shop.benco.com' : 'www.' . $k); break; }
     if (!$cfg) return [];
@@ -1146,7 +1145,9 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
     $out = []; $seen = [];
     foreach ($r['results'] as $c) {
         $h = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
-        if ($host !== '' && !($h === $host || str_ends_with($h, '.' . $host))) continue;
+        if ($host !== '' && !($h === $host || $h === 'www.' . $host)) continue;
+        // Henry Schein: any link that carries the 7-digit item number becomes its product page
+        if (str_contains($host, 'henryschein') && preg_match('#(?:productid(?:%3D|=)|/p/(?:[^/]+/)*)(\d{7})(?!\d)#i', $c['url'], $hm)) $c['url'] = 'https://www.henryschein.com/en-us/p/x/' . $hm[1];
         if ($host === '' && array_filter($skip, fn($s) => $s !== '' && ($h === $s || str_ends_with($h, '.' . $s)))) continue;
         if (preg_match('#/(search|s|cart|account|login|blog|category|categories|c)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) continue;
         if ($host === '' && isset($seen[$h])) continue; $seen[$h] = 1;
