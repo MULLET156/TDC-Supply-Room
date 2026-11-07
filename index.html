@@ -2235,6 +2235,7 @@ const normSku = s => String(s ?? "").toUpperCase().replace(/^SKU[:#\s]*/,"").rep
 const when = t => t ? new Date(t).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) : "";
 
 let db = null, user = null, sample = null, downloads = null, canImages = false, readOnly = false, canWrite = null, myId = null;
+const PS = { y: null, userAt: 0 }; /* scroll spot kept while a window is open (see openPanel) */
 let items = [], archived = [], orders = [], logs = [], team = [], rules = { expDays: 60 }, supOrder = [], supReps = {}, supExtra = [], reps = [], supInfo = {}, openSups = new Set(), tab = "need", selected = new Set();
 const fromQty = new Map();
 const localQty = new Map(), saveTimers = new Map(), localOrd = new Map(), ordTimers = new Map();
@@ -3887,7 +3888,17 @@ async function markReceived(it, got){
 }
 
 /* ---------- panels ---------- */
+/* Keep the list where it was while a window is open: remember the scroll spot when a window opens,
+   put the list back if the browser throws it to the top behind the window (phones/tablets do this),
+   and return to that spot when the window closes. Your own scrolling (wheel, swipe, keys) moves the spot. */
+["wheel", "touchmove", "keydown"].forEach(t => addEventListener(t, () => { PS.userAt = Date.now(); }, { passive: true, capture: true }));
+addEventListener("scroll", () => {
+  if (PS.y == null || !$("#overlay").innerHTML) return;
+  if (Date.now() - PS.userAt < 800) { PS.y = scrollY; return; }
+  if (scrollY <= 5 && PS.y > 200) window.scrollTo(0, PS.y); else PS.y = scrollY;
+}, { passive: true });
 function openPanel(html){
+  if (!$("#overlay").innerHTML || PS.y == null) PS.y = scrollY;
   $("#overlay").innerHTML = `<div class="scrim" id="scrim"><div class="panel" role="dialog" aria-modal="true">${html}</div></div>`;
   $("#scrim").addEventListener("click", e => { if (e.target.id === "scrim" || e.target.closest("[data-close]")) {
     /* closing an item card with unsaved changes asks first (the save bar's Cancel means "discard", so it doesn't) */
@@ -3907,7 +3918,13 @@ function showBigPic(src, title){
 }
 /* closing the batch window stops the batch; closing any other window leaves a running quick add alone */
 function endBatchIfShown(){ if (typeof B !== "undefined" && B && !B.quick && $("#overlay #bStop, #overlay #bStart")) { B = null; render(); } }
-function closePanel(){ const y = scrollY; $("#overlay").innerHTML = ""; markOpenRow(null); requestAnimationFrame(() => { if (Math.abs(scrollY - y) > 2) window.scrollTo(0, y); }); }
+function closePanel(){
+  const y = PS.y ?? scrollY, t = tab, at = Date.now(); PS.y = null;
+  $("#overlay").innerHTML = ""; markOpenRow(null);
+  /* put the list back unless you've moved on (another page, or you scrolled yourself); phones can jump a moment later, so check twice */
+  const back = () => { if (tab === t && PS.userAt <= at && !$("#overlay").innerHTML && Math.abs(scrollY - y) > 2) window.scrollTo(0, y); };
+  requestAnimationFrame(back); setTimeout(back, 250);
+}
 /* desktop: outline the list row whose details are showing on the right */
 /* desktop: the item card starts level with the list (just under the header), and moves up as the header scrolls away */
 /* desktop: the item card lines its On hand / Desired / 911 boxes up with the row you clicked, and follows that row
