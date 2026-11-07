@@ -1103,10 +1103,43 @@ function find_product_page(array $q, array $ctx = []): array {
 /* Price comparison: product pages that may carry this exact manufacturer part number, at one supplier's site
    ($host) or anywhere else on the web ($host === '', leaving out $skip hosts). The caller reads each page and keeps it
    only when the page shows the part number. */
+/* product pages from a supplier's own search results for a part number ([] when the site isn't known or found nothing).
+   Henry Schein and Safco build their results in the browser, so those pages go through Apify's real browser. */
+function supplier_site_search(string $host, string $q): array {
+    $S = [
+        'henryschein.com' => ['https://www.henryschein.com/en-us/search/%s?type=Products', '#(?:https://www\.henryschein\.com)?/en-us/p/[^"\'\s<>?#]+#', true],
+        'shop.benco.com'  => ['https://shop.benco.com/Search/Search?Terms=%s', '#(?:https://shop\.benco\.com)?/Product/\d+-\d+/[a-z0-9\-]+#i', false],
+        'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
+        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/[a-z0-9\-]+#', true],
+    ];
+    $cfg = null; foreach ($S as $k => $v) if ($host === $k || str_ends_with($host, '.' . $k) || str_ends_with($k, $host)) { $cfg = $v; $base = 'https://' . ($k === 'shop.benco.com' ? 'shop.benco.com' : 'www.' . $k); break; }
+    if (!$cfg) return [];
+    $url = sprintf($cfg[0], rawurlencode($q));
+    $html = '';
+    if (!$cfg[2]) { $g = http_get($url, 4194304, 25); if ($g['ok'] && !bot_wall($g['body'])) $html = $g['body']; }
+    if ($html === '' && apify_ready()) { $a = apify_page_run($url, 'browser-playwright', 90, true); if ($a['ok']) $html = $a['html']; }
+    if ($html === '' || !preg_match_all($cfg[1], $html, $m, PREG_OFFSET_CAPTURE)) return [];
+    // results first: links closest to where the page shows the part number (menus and "you may also like" come later)
+    $hits = []; $p = 0; $ql = strtolower($q); $lh = strtolower($html);
+    while (($p = strpos($lh, $ql, $p)) !== false) { $hits[] = $p; $p += strlen($ql); }
+    $links = array_map(fn($x) => [$x[0], $hits ? min(array_map(fn($y) => abs($y - $x[1]), $hits)) : $x[1]], $m[0]);
+    usort($links, fn($a, $b) => $a[1] <=> $b[1]);
+    $out = []; $seen = [];
+    foreach (array_column($links, 0) as $u) {
+        if (!str_starts_with($u, 'http')) $u = $base . $u;
+        $u = rtrim($u, '/');
+        if (isset($seen[$u]) || preg_match('#clearance-item#', $u)) continue; $seen[$u] = 1;
+        $out[] = ['url' => $u, 'title' => '', 'host' => $host];
+        if (count($out) >= 4) break;
+    }
+    return $out;
+}
 function mpn_search(string $mpn, string $host, array $skip = []): array {
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
     $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
+    // The supplier's own site search first: web search rarely indexes a supplier page by part number.
+    if ($host !== '') { $own = supplier_site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site']; }
     $r = apify_search('"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' dental'), 8);
     if (!$r['ok']) return ['ok' => false, 'error' => 'search', 'message' => $r['message']];
     $skip = array_map(fn($s) => strtolower(preg_replace('#^www\.#', '', (string)$s)), $skip);
