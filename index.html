@@ -2026,6 +2026,7 @@ body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 .grp .grptools .btn.pbtn.qc{display:inline-flex!important;flex-direction:row!important;align-items:center;white-space:nowrap;gap:0}
 .grp .grptools .btn.pbtn.qc .ic{margin:0 5px 0 0!important}
 @media (max-width:640px){#dockAllLabels{display:none!important}}
+#archSel.armed{background:var(--warn);border-color:var(--warn);color:#fff}
 </style>
 <header>
   <div class="wrap">
@@ -2075,7 +2076,7 @@ body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 </div></main>
 
 <div class="bulkbar ordfloat" id="ordFloat" hidden><div class="in"><b id="ofN">0 ticked</b><button class="btn pri" type="button" id="ofGo">Mark ordered</button><button class="btn ghost" type="button" id="ofClear">Clear</button></div></div>
-<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn" type="button" id="bulkLabels">Shelf labels</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
+<div class="bulkbar" id="bulkBar" hidden><form class="in" id="bulkForm"><b id="bulkN">0 selected</b><select id="bulkField" aria-label="Field to change"><option value="cat">Set category</option><option value="sub">Set subcategory</option><option value="supplier">Set supplier</option><option value="loc">Set location</option><option value="countEvery">Set count schedule</option><option value="desired">Set desired reserve</option><option value="urgent">Set 911 level</option></select><select id="bulkCnt" aria-label="Count schedule" hidden></select><input id="bulkVal" list="bulkList" placeholder="Pick or type a new one" autocomplete="off" aria-label="New value"><datalist id="bulkList"></datalist><button class="btn pri" type="submit">Apply</button><button class="btn cnt" type="button" id="bulkCounted" hidden>✓ Mark counted</button><button class="btn" type="button" id="bulkLabels">Shelf labels</button><button class="btn ghost" type="button" id="bulkClear">Clear</button></form></div>
 <div class="dock"><div class="wrap">
   <button class="btn" id="scanBtn" type="button"><i data-ic="barcode"></i>Scan to count</button>
   <button class="btn" id="dockQc" type="button" hidden><i data-ic="zap"></i>Quick count</button>
@@ -2705,7 +2706,7 @@ function bumpOrd(it, d){
 /* ✓ next to the count: one tap marks this item counted now (with the count shown) */
 /* Count schedule: each item can be counted weekly, monthly, quarterly, every 6 months, yearly, or not at all.
    Blank = the office default from Setup › Alerts. "Counted" (green check) means counted within its schedule. */
-const CNT_OPTS = [["7", "Weekly"], ["30", "Monthly"], ["91", "Quarterly"], ["182", "Every 6 months"], ["365", "Yearly"], ["0", "Don't count"]];
+const CNT_OPTS = [["7", "Weekly"], ["14", "Biweekly"], ["30", "Monthly"], ["91", "Quarterly"], ["182", "Every 6 months"], ["365", "Yearly"], ["0", "Don't count"]];
 const cntName = v => (CNT_OPTS.find(o => o[0] === String(v)) || [, v ? `Every ${v} days` : ""])[1];
 const cntDefault = () => { const d = rules.countEvery; return d == null || d === "" ? 30 : Number(d); };
 const cycleOf = i => { const v = i.countEvery; return v == null || v === "" ? cntDefault() : (Number(v) || 0); };
@@ -3115,11 +3116,12 @@ function updateBulk(){ setTimeout(dockEmpty, 0);
 }
 function fillBulkList(){
   const f = $("#bulkField").value;
+  if (f === "desired" || f === "urgent") { $("#bulkList").innerHTML = ""; return; }
   const vals = f === "cat" ? catTree().map(t => t.name) : f === "sub" ? [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))].sort() : f === "supplier" ? orderedSuppliers().map(g => g.name).sort() : orderedLocs().map(g => g.name);
   $("#bulkList").innerHTML = vals.map(v => `<option value="${esc(v)}">`).join("");
   $("#bulkVal").placeholder = "Pick or type…";
 }
-function syncBulkCnt(){ const c = $("#bulkField").value === "countEvery"; $("#bulkVal").hidden = c; $("#bulkCnt").hidden = !c; if (c) $("#bulkCnt").innerHTML = cntOptsHtml("30", `Office default (${cntName(cntDefault())})`); }
+function syncBulkCnt(){ const fv = $("#bulkField").value, c = fv === "countEvery", nm = fv === "desired" || fv === "urgent"; $("#bulkVal").inputMode = nm ? "decimal" : ""; $("#bulkVal").placeholder = nm ? (fv === "desired" ? "Desired reserve, e.g. 3" : "911 level, e.g. 1") : "Pick or type…"; $("#bulkVal").hidden = c; $("#bulkCnt").hidden = !c; if (c) $("#bulkCnt").innerHTML = cntOptsHtml("30", `Office default (${cntName(cntDefault())})`); }
 $("#bulkField").addEventListener("change", () => { $("#bulkVal").value = ""; fillBulkList(); syncBulkCnt(); });
 $("#ofGo").addEventListener("click", () => { const b = tab === "need" ? $("#markOrd") : $("#markRcv"); if (b && !b.disabled) b.click(); });
 $("#ofClear").addEventListener("click", () => { selected.clear(); render(); });
@@ -3154,17 +3156,19 @@ $("#bulkForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (!needMe()) return;
   const f = $("#bulkField").value, v = f === "countEvery" ? $("#bulkCnt").value : clean($("#bulkVal").value);
-  const label = { cat: "category", sub: "subcategory", supplier: "supplier", loc: "location", countEvery: "count schedule" }[f];
+  const label = { cat: "category", sub: "subcategory", supplier: "supplier", loc: "location", countEvery: "count schedule", desired: "desired reserve", urgent: "911 level" }[f];
+  const isNum = f === "desired" || f === "urgent", nv = isNum ? num(v) : null;
+  if (isNum && (nv == null || nv < 0)) { toast(`Type a number for the ${label}`); $("#bulkVal").focus(); return; }
   if (!v && f !== "sub" && f !== "countEvery") { toast(`Type or pick a ${label}`); $("#bulkVal").focus(); return; }
   const ids = [...selected]; let ok = 0;
   sync("busy", `Updating ${ids.length}…`);
   for (const id of ids) {
     const it = byId(id); if (!it) continue;
-    const patch = { [f]: v };
+    const patch = { [f]: isNum ? nv : v };
     if (f === "cat" && keyOf(it.cat) !== keyOf(v)) patch.sub = "";
-    try { await write(id, patch); ok++; } catch(err) { toast(dbErr(err)); break; }
+    try { await write(id, patch); if (isNum) logIt("Edited", it, `${label} ${fmtQ(it[f])} → ${fmtQ(nv)}`); ok++; } catch(err) { toast(dbErr(err)); break; }
   }
-  logIt("Bulk edit", null, `Set ${label} to "${f === "countEvery" ? (v === "" ? "office default" : cntName(v)) : (v || "none")}" on ${ok} product${ok === 1 ? "" : "s"}`);
+  logIt("Bulk edit", null, `Set ${label} to "${f === "countEvery" ? (v === "" ? "office default" : cntName(v)) : isNum ? fmtQ(nv) : (v || "none")}" on ${ok} product${ok === 1 ? "" : "s"}`);
   sync("ok", "Saved"); toast(`Updated ${ok} product${ok === 1 ? "" : "s"}`);
   $("#bulkVal").value = ""; selected.clear(); document.activeElement?.blur(); render();
 });
@@ -3317,7 +3321,7 @@ function productsHtml(all){
   selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
   const n = selected.size, allSel = list.length && n === list.length;
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${""}</div>
-    <div class="actions">${readOnly ? "" : `<button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button>`}<button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked product${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
+    <div class="actions">${readOnly ? "" : `<button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button>`}<button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked product${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn" id="archSel" ${n && !readOnly ? "" : "disabled"} title="Archive the ticked products: they leave every list but can be restored from All products › Show archived">${ic("archive")}Archive${n ? ` (${n})` : ""}</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
     <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this product (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open product">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${t === "cnt" ? `<select data-cf="countEvery" class="gcnt" aria-label="Count schedule for ${esc(i.name)}" ${readOnly ? "disabled" : ""}>${`<option value="">Default</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(i.countEvery ?? "") === k ? " selected" : ""}>${{ "7": "Weekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" }[k]}</option>`).join("")}</select>` : `${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
@@ -3427,7 +3431,7 @@ function deleteDialog(list){
     sync(ok === n ? "ok" : "err", ok === n ? "Saved" : "Not all deleted"); closePanel(); toast(`Deleted ${ok} product${ok === 1 ? "" : "s"}`); render();
   };
 }
-function syncBatchBtn(){ const ex_ = $("#exportGrid"); if (ex_) { const sh = document.querySelectorAll("#pgrid tr.row").length; ex_.innerHTML = ic("download") + "Export " + (selected.size ? selected.size + " ticked" : sh === items.length ? "all" : sh + " shown"); ex_.title = selected.size ? "Export the ticked products" : "Export the products shown"; } const mg_ = $("#mergeSel"); if (mg_) mg_.disabled = selected.size !== 2; const dl_ = $("#delSel"); if (dl_) { dl_.disabled = !selected.size || readOnly; dl_.innerHTML = ic("trash") + "Delete" + (selected.size ? ` (${selected.size})` : ""); } const bu = $("#batchUpd"); if (!bu) return; const n = selected.size; bu.disabled = !n || !sample; bu.innerHTML = ic("sparkle") + "Batch Update" + (n ? ` (${n})` : ""); bu.title = !sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked product${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"; }
+function syncBatchBtn(){ const ex_ = $("#exportGrid"); if (ex_) { const sh = document.querySelectorAll("#pgrid tr.row").length; ex_.innerHTML = ic("download") + "Export " + (selected.size ? selected.size + " ticked" : sh === items.length ? "all" : sh + " shown"); ex_.title = selected.size ? "Export the ticked products" : "Export the products shown"; } const mg_ = $("#mergeSel"); if (mg_) mg_.disabled = selected.size !== 2; const ar_ = $("#archSel"); if (ar_) { ar_.disabled = !selected.size || readOnly; ar_.innerHTML = ic("archive") + "Archive" + (selected.size ? ` (${selected.size})` : ""); } const dl_ = $("#delSel"); if (dl_) { dl_.disabled = !selected.size || readOnly; dl_.innerHTML = ic("trash") + "Delete" + (selected.size ? ` (${selected.size})` : ""); } const bu = $("#batchUpd"); if (!bu) return; const n = selected.size; bu.disabled = !n || !sample; bu.innerHTML = ic("sparkle") + "Batch Update" + (n ? ` (${n})` : ""); bu.title = !sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked product${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"; }
 function wireProducts(all){
   const list = () => [...document.querySelectorAll("#pgrid tr.row")].map(r => byId(r.dataset.id)).filter(Boolean);
   $("#batchUpd").onclick = () => { const pick = list().filter(i => selected.has(i.id)); if (!pick.length) { toast("Tick the products you want to update first"); return; } startBatch(pick); };
@@ -3436,6 +3440,14 @@ function wireProducts(all){
   document.querySelectorAll("[data-psort]").forEach(b => b.onclick = () => { const k = b.dataset.psort; pSort = { k, dir: pSort.k === k ? -pSort.dir : 1 }; render(); });
   $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   $("#exportGrid").onclick = () => $("#exportBtn").click();
+  $("#archSel") && ($("#archSel").onclick = async () => {
+    const list = [...selected].map(byId).filter(Boolean); if (!list.length || !needMe()) return;
+    const b = $("#archSel"); if (b.dataset.arm !== "1") { b.dataset.arm = "1"; b.innerHTML = ic("archive") + `Tap again to archive ${list.length}`; b.classList.add("armed"); setTimeout(() => { if (b.isConnected && b.dataset.arm === "1") { b.dataset.arm = ""; b.classList.remove("armed"); syncBatchBtn(); } }, 4000); return; }
+    b.dataset.arm = ""; sync("busy", `Archiving ${list.length}…`); let ok = 0;
+    for (const it of list) { try { await write(it.id, { archived: true, archivedAt: Date.now() }); logIt("Archived", it, "archived from the Editor"); ok++; } catch(e) { toast(dbErr(e)); break; } }
+    sync(ok === list.length ? "ok" : "err", ok === list.length ? "Saved" : "Not all saved"); selected.clear(); render();
+    toast(`Archived ${ok} product${ok === 1 ? "" : "s"}. Restore them from All products › Show archived.`);
+  });
   $("#delSel") && ($("#delSel").onclick = () => { const list = [...selected].map(byId).filter(Boolean); if (list.length) deleteDialog(list); });
   $("#mergeSel").onclick = () => { const two = [...selected].map(byId).filter(Boolean); if (two.length !== 2) { toast("Tick exactly 2 products to merge"); return; } mergeDialog(two[0], two[1]); };
 }
@@ -4097,7 +4109,7 @@ function detFields(it){
   </div>${dl("dl-cat", catTree().map(t => t.name))}${dl("dl-sub", [...new Set(catTree().flatMap(t => (keyOf(t.name) === keyOf(it.cat) || !it.cat ? t.subs : []).map(x => x.name)))])}${dl("dl-loc", locNames())}`;
 }
 function countBoxes(q, d, u, cnt, inBox = true){
-  const short = { "7": "Count weekly", "30": "Count monthly", "91": "Count quarterly", "182": "Count every 6 mo", "365": "Count yearly", "0": "Don't count" };
+  const short = { "7": "Count weekly", "14": "Count biweekly", "30": "Count monthly", "91": "Count quarterly", "182": "Count every 6 mo", "365": "Count yearly", "0": "Don't count" };
   const sched = `<span class="chint cntlab">Count schedule</span><select id="e-cnt" class="cntsel" aria-label="Count schedule" title="How often this product is counted. Default follows Setup › Alerts (now ${esc(cntName(cntDefault()).toLowerCase())}).">${`<option value="">Count: default (${esc((cntName(cntDefault()) || "").toLowerCase())})</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(cnt ?? "") === k ? " selected" : ""}>${short[k]}</option>`).join("")}</select>`;
   const box = (id, label, v, hint) => `<div class="cbox${id === "c-911" ? " c911" : ""}"><label for="${id}">${label}</label><div class="step"><button type="button" data-t="${id}" data-d="-1" aria-label="One less">−</button><input id="${id}" inputmode="decimal" value="${v}"><button type="button" data-t="${id}" data-d="1" aria-label="One more">+</button></div>${hint ? `<span class="chint">${hint}</span>` : ""}${id === "c-qty" && inBox ? sched : ""}</div>`;
   return `<div class="counts three">${box("c-qty", "On hand", fmtQ(q ?? 0))}${box("c-des", "Desired reserve", fmtQ(d ?? 1), "Order when below")}${box("c-911", "911 at", u ? fmtQ(u) : "0", "Urgent at or below")}</div>`;
