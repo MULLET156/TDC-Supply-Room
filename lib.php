@@ -585,7 +585,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             . "Page text:\n" . $f['text'] . "\n\n"
             . (!empty($ctx['nameRule']) ? $ctx['nameRule'] . "\n\n" : '')
             . "Reply with one JSON object: {\"names\": [up to 3 short inventory names, best first], \"sku\": \"the supplier's item / catalog number\", "
-            . "\"mfrNumber\": \"manufacturer part number if shown\", \"price\": number or null (the price for one unit as sold; null if no price is shown or it needs sign-in), "
+            . "\"mfrNumber\": \"manufacturer part number if shown\", \"price\": number or null (the price for one unit as sold; " . (!empty($ctx['mpn']) ? "if the page shows a list or regular price and says your own price needs sign-in, give the list price; null only if no price is shown at all" : "null if no price is shown or it needs sign-in") . "), "
             . "\"units\": \"what one unit is, e.g. Box of 100, Each, 5 mL vial\", \"description\": \"one or two plain sentences on what it is and what it's used for\", "
             . "\"supplier\": \"the store's name\", \"photo\": index of the main product photo from the list, or -1, \"note\": \"anything the office should double-check, or empty\"}";
         $a = ai_json($prompt);
