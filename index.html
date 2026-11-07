@@ -1975,6 +1975,13 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 @media (max-width:640px){.sptabs{gap:4px}.sptabs button{padding:7px 9px;font-size:13.5px;gap:4px;white-space:nowrap;flex:1 1 auto;justify-content:center}.sptabs button .ic{display:none}}
 .spb{display:inline-block!important;width:auto!important;vertical-align:2px;margin-left:5px;font:700 10px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.04em;padding:3px 5px;border-radius:5px;background:color-mix(in srgb,var(--info) 16%,transparent);color:var(--info);border:1px solid color-mix(in srgb,var(--info) 45%,transparent)}
 .spb.promo{background:color-mix(in srgb,var(--warn,#b8860b) 18%,transparent);color:var(--warn,#8a6100);border-color:color-mix(in srgb,var(--warn,#b8860b) 50%,transparent)}
+.newprodrow{gap:12px;align-items:center;flex-wrap:wrap}
+.archtog{display:inline-flex;gap:7px;align-items:center;font-weight:600;font-size:14px;margin-right:auto;cursor:pointer}
+.archtog input{width:18px;height:18px}
+.archhead{margin-top:6px}
+.archrow{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 14px;opacity:.75;border-top:1px solid var(--line)}
+.archrow .rmain{min-width:0}.archrow small{display:block}
+.pill.p-arch{background:var(--surface2,#eee);color:var(--muted,#666);border:1px solid var(--line);font-weight:600}
 </style>
 <header>
   <div class="wrap">
@@ -2292,6 +2299,9 @@ function derive(it){
   return it;
 }
 const byId = id => items.find(i => i.id === id);
+/* includes archived products: they stay on the Expiring tab while any are still on the shelf */
+const anyId = id => byId(id) || archived.find(i => i.id === id);
+const archExp = () => archived.filter(i => i.expiring && i.qty !== 0);
 const isInit = v => /^[A-Z0-9]{1,5}$/i.test(String(v || ""));
 /* ---------- initials ---------- */
 function getMe(){ try { return localStorage.getItem("tdc-supply-initials") || ""; } catch { return ""; } }
@@ -2398,9 +2408,9 @@ function orderedLocs(){ const rank = k => { const i = locOrder.indexOf(k); retur
 function locNames(){ return orderedLocs().map(g => g.name); }
 function locNamesAZ(){ const m = new Map(); items.forEach(i => { const v = clean(i.loc); if (v && !m.has(keyOf(v))) m.set(keyOf(v), v); }); locExtra.forEach(v => { v = clean(v); if (v && !m.has(keyOf(v))) m.set(keyOf(v), v); }); return [...m.values()].sort((a, b) => a.localeCompare(b)); }
 async function saveLocs(){ await db.doc("settings/locs").set({ extra: locExtra, order: locOrder }); }
-function filtered(){
+function filtered(src = items){
   const q = keyOf($("#q").value), l = $("#fLoc").value, s = $("#fSup").value, [fc, fs] = ($("#fCat").value || "").split("|");
-  return items.filter(i => (!l || keyOf(i.loc) === l) && (!s || keyOf(i.supplier) === s) &&
+  return src.filter(i => (!l || keyOf(i.loc) === l) && (!s || keyOf(i.supplier) === s) &&
     (!fc || keyOf(i.cat) === fc) && (!fs || keyOf(i.sub) === fs) &&
     (!q || keyOf([i.name, i.sku, i.supplier, i.cat, i.sub, i.loc].join(" ")).includes(q)));
 }
@@ -2595,7 +2605,7 @@ function expEditor(i){
 document.addEventListener("input", e => { if (e.target.matches?.("[data-expdraft]") && expEdit) expEdit.draft = e.target.value; });
 document.addEventListener("click", async e => {
   const b = e.target.closest?.("[data-expreplace], [data-expsave], [data-expclear], [data-expcancel]"); if (!b) return;
-  const box = b.closest(".exprep"), it = box && byId(box.dataset.expid); if (!it) return;
+  const box = b.closest(".exprep"), it = box && anyId(box.dataset.expid); if (!it) return;
   if (b.hasAttribute("data-expreplace")) { expEdit = { id: it.id, draft: "" }; box.innerHTML = expEditor(it); box.querySelector("input").focus(); return; }
   if (b.hasAttribute("data-expcancel")) { expEdit = null; render(); return; }
   if (!needMe()) return;
@@ -2723,17 +2733,17 @@ function expRowHtml(i){
   const w = expWhen(i), armed = expArm?.id === i.id && Date.now() - expArm.at < 4000;
   return `<div class="row xrow" data-id="${esc(i.id)}">
     <div class="info" tabindex="0" role="button">${i.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(i.photo)}" onerror="this.remove()">` : ""}<div class="txt">
-      <div class="nm">${esc(i.name)}</div>
+      <div class="nm">${esc(i.name)}${i.archived ? ` <span class="pill p-arch" title="Archived product: still listed here until the last of it is used up">Archived${i.replacedBy && byId(i.replacedBy) ? " · replaced by " + esc(byId(i.replacedBy).name) : ""}</span>` : ""}</div>
       <div class="xdate ${i.expDays < 0 ? "gone" : i.expDays <= 30 ? "soon" : ""}"><b>${w.date}</b>${w.rel ? `<span>${esc(w.rel)}</span>` : ""}</div>
-      <div class="meta">${i.loc ? `<span>${esc(i.loc)}</span>` : ""}<span>${fmtQ(i.qty ?? 0)} on hand</span>${i.onOrder ? `<span class="pill p-ord">On the way</span>` : i.need ? `<span class="pill p-need">On order list</span>` : ""}</div>
+      <div class="meta">${i.loc ? `<span>${esc(i.loc)}</span>` : ""}<span>${fmtQ(i.qty ?? 0)} on hand</span>${i.archived ? "" : i.onOrder ? `<span class="pill p-ord">On the way</span>` : i.need ? `<span class="pill p-need">On order list</span>` : ""}</div>
     </div></div>
-    <div class="xacts exprep${readOnly ? " ro" : ""}" data-expid="${esc(i.id)}">${expEdit?.id === i.id ? expEditor(i) : `<button type="button" class="btn sm" data-expreplace ${readOnly ? "disabled" : ""} title="Replaced it: enter the new box's expiration date">${ic("calcheck")}New date</button><button type="button" class="btn sm${armed ? " armed" : ""}" data-expused ${readOnly ? "disabled" : ""} title="Used up or thrown out: sets on hand to 0 and clears the date">${ic("trash")}${armed ? "Tap again" : "Used up"}</button>${i.need || i.onOrder ? "" : `<button type="button" class="btn sm" data-expord ${readOnly ? "disabled" : ""} title="Put it on the order list">${ic("cart")}Order</button>`}`}</div>
+    <div class="xacts exprep${readOnly ? " ro" : ""}" data-expid="${esc(i.id)}">${expEdit?.id === i.id ? expEditor(i) : `<button type="button" class="btn sm" data-expreplace ${readOnly ? "disabled" : ""} title="Replaced it: enter the new box's expiration date">${ic("calcheck")}New date</button><button type="button" class="btn sm${armed ? " armed" : ""}" data-expused ${readOnly ? "disabled" : ""} title="Used up or thrown out: sets on hand to 0 and clears the date">${ic("trash")}${armed ? "Tap again" : "Used up"}</button>${i.need || i.onOrder || i.archived ? "" : `<button type="button" class="btn sm" data-expord ${readOnly ? "disabled" : ""} title="Put it on the order list">${ic("cart")}Order</button>`}`}</div>
   </div>`;
 }
 document.addEventListener("click", async e => {
   const b = e.target.closest?.("[data-expused], [data-expord]"); if (!b) return;
   e.stopPropagation();
-  const it = byId(b.closest(".exprep")?.dataset.expid); if (!it || !needMe()) return;
+  const it = anyId(b.closest(".exprep")?.dataset.expid); if (!it || !needMe()) return;
   if (b.hasAttribute("data-expused")) {
     if (!(expArm?.id === it.id && Date.now() - expArm.at < 4000)) { expArm = { id: it.id, at: Date.now() }; render(); setTimeout(() => { if (expArm?.id === it.id) { expArm = null; if (tab === "exp") render(); } }, 4000); return; }
     expArm = null;
@@ -3003,7 +3013,7 @@ function pageHead(){
     all: ["All products", s(items.length), "Everything in the supply room. Tick products to add them to the order list."],
     need: ["Order list", s(n(i => i.need)), "Below reserve or added by hand. Set how many with Order − / +, tick what you've ordered, then Mark ordered."],
     ordered: ["On the way", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
-    exp: ["Expiring", s(n(i => i.expiring)), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap New date. Used it up or threw it out? Tap Used up.`],
+    exp: ["Expiring", s(n(i => i.expiring) + archExp().length), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap New date. Used it up or threw it out? Tap Used up.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
     count: [isPhone() ? "Count" : "Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that product's schedule (Setup › Alerts, or per product). Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
@@ -3103,8 +3113,8 @@ function renderInner(){
   $("#n-need").textContent = items.filter(i=>i.need).length;
   { const u = items.filter(i => i.is911 && !i.onOrder).length; let b = $("#n-911"); if (!b) { b = document.createElement("span"); b.id = "n-911"; b.className = "b911"; $(".tab.t-need").append(b); } b.hidden = !u; b.innerHTML = ic("urgent") + u; }
   $("#n-ordered").textContent = items.filter(i=>i.onOrder).length;
-  $("#n-exp").textContent = items.filter(i=>i.expiring).length;
-  { const ne = items.filter(i => i.expiring).length, e2 = $("#n-exp2"); if (e2) { e2.textContent = ne || ""; e2.hidden = !ne; } }
+  $("#n-exp").textContent = items.filter(i=>i.expiring).length + archExp().length;
+  { const ne = items.filter(i => i.expiring).length + archExp().length, e2 = $("#n-exp2"); if (e2) { e2.textContent = ne || ""; e2.hidden = !ne; } }
   $("#n-all").textContent = items.length;
   const v = $("#view");
   document.body.classList.toggle("on-add", tab === "add"); document.body.classList.toggle("on-setup", tab === "setup"); document.body.classList.toggle("on-products", tab === "products");
@@ -3183,7 +3193,7 @@ function renderInner(){
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "exp") {
-    const list = all.filter(i=>i.expiring).sort((a,b)=>a.expDays-b.expDays);
+    const list = all.filter(i=>i.expiring).concat(filtered(archExp())).sort((a,b)=>a.expDays-b.expDays);
     const lim = rules.expDays ?? 60, soon = Math.min(30, lim);
     const groups = [["Expired", list.filter(i => i.expDays < 0), "x-gone"], [`Next ${soon} days`, list.filter(i => i.expDays >= 0 && i.expDays <= soon), "x-soon"], [`${soon + 1}–${lim} days`, list.filter(i => i.expDays > soon), "x-later"]].filter(g => g[1].length);
     v.innerHTML = banner + (list.length ? `<div class="list explist">${groups.map(([t, L, c]) => `<div class="grp xgrp ${c}"><span>${esc(t)} <span class="gn">${L.length}</span></span></div>${L.map(expRowHtml).join("")}`).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${lim} days.</div></div>`);
@@ -3191,7 +3201,14 @@ function renderInner(){
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
-    v.innerHTML = banner + (readOnly ? "" : `<div class="newprodrow"><button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button></div>`) + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
+    /* archived products: hidden unless asked for; filtered by the same search box */
+    const aq = keyOf($("#q")?.value || "");
+    const arch = showArch ? archived.filter(i => !aq || keyOf([i.name, i.sku, i.mfr, i.supplier].join(" ")).includes(aq)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })) : [];
+    const archHtml = showArch ? `<div class="grp cathead archhead"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span></div>${arch.length ? arch.map(i => `<div class="row archrow"><div class="rmain"><b>${esc(i.name)}</b><small class="hint">${i.archivedAt ? "Archived " + esc(new Date(i.archivedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "Archived"}${i.replacedBy ? ` · replaced by ${esc(byId(i.replacedBy)?.name || "another product")}` : ""}${i.supplier ? " · " + esc(i.supplier) : ""}${i.sku ? " · #" + esc(clean(i.sku)) : ""}</small></div>${readOnly ? "" : `<button type="button" class="btn sm" data-unarch="${esc(i.id)}">Restore</button>`}</div>`).join("") : `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}` : "";
+    const archToggle = archived.length ? `<label class="archtog"><input type="checkbox" id="showArch" ${showArch ? "checked" : ""}> Show archived products (${archived.length})</label>` : "";
+    v.innerHTML = banner + `<div class="newprodrow">${archToggle}${readOnly ? "" : `<button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button>`}</div>` + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
+    $("#showArch") && ($("#showArch").onchange = e => { showArch = e.target.checked; try { localStorage.setItem("tdc.showArch", showArch ? "1" : ""); } catch {} render(); });
+    v.querySelectorAll("[data-unarch]").forEach(b => b.onclick = async () => { const it = archived.find(i => i.id === b.dataset.unarch); if (!it || !needMe()) return; try { await write(it.id, { archived: false }); logIt("Restored", it, "restored from the archive"); toast("Restored " + it.name); } catch(e) { toast(dbErr(e)); } });
     $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
     { const s = $("#selShown"); if (s && !allSel && selected.size) s.indeterminate = true; }
 
@@ -3412,7 +3429,7 @@ function histHtml(){
 }
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
 const cmpSel = new Set(); let cmpQ = "";
-let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = "spend", spendKeep = false, cmpShow = "need", cmpNoMpn = false;
+let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = "spend", spendKeep = false, cmpShow = "need", cmpNoMpn = false, showArch = (() => { try { return !!localStorage.getItem("tdc.showArch"); } catch { return false; } })();
 const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare prices</button><button type="button" role="tab" class="${spendMode === "subs" ? "on" : ""}" data-spmode="subs" aria-selected="${spendMode === "subs"}">${ic("swap")}Substitutes</button></div>`;
 async function loadSpend(){
   if (spendLoading) return; spendLoading = true;
@@ -3787,7 +3804,7 @@ function wireLog(){
 $("#view").addEventListener("click", e => {
   if (e.target.closest(".golink")) return; /* product page link opens on its own */
   const row = e.target.closest(".row"); if (!row) return;
-  const it = byId(row.dataset.id); if (!it) return;
+  const it = row.classList.contains("xrow") ? anyId(row.dataset.id) : byId(row.dataset.id); if (!it) return;
   const ck = e.target.closest("[data-cntok]");
   if (ck) { countOne(it, ck); return; }
   const ob = e.target.closest(".ostep button");
@@ -3797,7 +3814,7 @@ $("#view").addEventListener("click", e => {
   if (e.target.classList.contains("chk")) { e.target.checked ? selected.add(it.id) : selected.delete(it.id); updateOrdFloat(); const m = $("#markOrd"); if (m) { m.disabled = !selected.size || readOnly; m.textContent = `Mark ${selected.size || ""} ordered`; } const r = $("#markRcv"); if (r) { r.disabled = !selected.size || readOnly; r.textContent = `Mark ${selected.size || ""} received`; } updateBulk(); const bu = $("#batchUpd"); if (bu) syncBatchBtn(); const sa = $("#gSelAll"); if (sa) sa.checked = selected.size && selected.size === $("#view").querySelectorAll(".row").length; return; }
   if (e.target.closest(".info")) openItem(it);
 });
-$("#view").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("info")) openItem(byId(e.target.closest(".row").dataset.id)); });
+$("#view").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("info")) { const it = anyId(e.target.closest(".row").dataset.id); if (it) openItem(it); } });
 
 function bumpQty(it, d){
   if (!needMe()) return;
