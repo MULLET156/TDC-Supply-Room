@@ -1489,3 +1489,80 @@ function shopify_cart(array $lines): array {
     if (!$parts) return ['ok' => false, 'error' => 'no_match', 'message' => 'Couldn\'t look up these products on the store'];
     return ['ok' => true, 'url' => $host . '/cart/' . implode(',', $parts), 'missed' => $missed];
 }
+
+/* ---------- substitutes: a cheaper product that does the same job (usually a supplier's house brand) ----------
+   Run from the page one step at a time so no request runs long:
+   sub_plan (once per product) -> sub_find (once per supplier) -> readlink on each pick -> sub_compare (once per product). */
+function sub_desc(array $p): string {
+    $d = '"' . trim((string)($p['name'] ?? '')) . '"';
+    if (!empty($p['units'])) $d .= ', sold as ' . $p['units'];
+    if (!empty($p['price'])) $d .= ', at $' . $p['price'];
+    if (!empty($p['supplier'])) $d .= ' from ' . $p['supplier'];
+    if (!empty($p['cat'])) $d .= ' (category: ' . trim($p['cat'] . ' ' . ($p['sub'] ?? '')) . ')';
+    return $d;
+}
+function sub_plan(array $p): array {
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs Claude (ANTHROPIC_API_KEY in config.php).'];
+    if (trim((string)($p['name'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The product needs a name.'];
+    $a = ai_json("A dental office buys " . sub_desc($p) . " and wants cheaper substitutes from other brands, mostly suppliers' house brands.\n"
+        . "1. phrase: a short generic search phrase for this kind of product, without brand or part numbers (e.g. \"nitrile exam gloves powder free medium\").\n"
+        . "2. specs: the 2-5 things a substitute must match to do the same job (e.g. material nitrile, powder-free, size M; ASTM level 3; 2-ply; 5 oz). Use the product's own size/shade/level.\n"
+        . "3. strict: true when those specs are about safety or fit and must match exactly (gloves, masks, gowns, sterilization, sizes); false when a close product is fine (paper, cups, bibs, cleaners, tips).\n"
+        . "4. unit: the single item counted for a price-per-unit (glove, mask, cup, bib, tip, wipe, sheet, roll, oz, mL, each).\n"
+        . "Reply with JSON: {\"phrase\": \"...\", \"specs\": [\"...\"], \"strict\": true, \"unit\": \"glove\"}", [], 'quick');
+    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'Claude didn\'t answer.'];
+    $v = $a['value'];
+    return ['ok' => true, 'phrase' => mb_substr(trim((string)($v['phrase'] ?? '')), 0, 80) ?: (string)$p['name'],
+        'specs' => array_slice(array_map(fn($s) => mb_substr((string)$s, 0, 60), (array)($v['specs'] ?? [])), 0, 6),
+        'strict' => !empty($v['strict']), 'unit' => mb_substr(trim((string)($v['unit'] ?? 'each')), 0, 20) ?: 'each'];
+}
+// $s: ['sup' => name, 'site' => host, 'brand' => house brand]; returns up to 2 product pages at that supplier
+function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip = []): array {
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
+    $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($s['site'] ?? '')))); $host = explode('/', $host)[0];
+    if ($host === '') return ['ok' => true, 'candidates' => [], 'message' => 'No website saved for this supplier.'];
+    $brand = trim((string)($s['brand'] ?? '')); $phrase = trim((string)($plan['phrase'] ?? $p['name'] ?? ''));
+    $cands = []; $skipK = array_map(fn($u) => strtolower(preg_replace('#[?\#].*$#', '', rtrim($u, '/'))), $skip);
+    $add = function ($url, $title, $desc) use (&$cands, $host, $skipK) {
+        $h = strtolower(preg_replace('#^www\.#', '', (string)parse_url($url, PHP_URL_HOST)));
+        if ($h !== $host && !str_ends_with($h, '.' . $host) && !str_ends_with($host, '.' . $h)) return;
+        $url = rtrim(preg_replace('#([?&])(srsltid|utm_[a-z]+|gclid)=[^&]*&?#i', '$1', $url), '?&');
+        if (preg_match('#/(search|catalogsearch|cart|checkout|account|category|categories|catalog|c)/#i', parse_url($url, PHP_URL_PATH) . '/') && !preg_match('#/product/#i', $url)) return;
+        if (in_array(strtolower(preg_replace('#[?\#].*$#', '', rtrim($url, '/'))), $skipK, true)) return;
+        $cands[$url] = ['url' => $url, 'title' => $title, 'description' => $desc];
+    };
+    $queries = [];
+    if ($brand !== '') $queries[] = $brand . ' ' . $phrase . ' site:' . $host;
+    if ($nameBrands || $brand === '') $queries[] = $phrase . ' site:' . $host;
+    $err = '';
+    foreach ($queries as $q) { $r = apify_search($q, 10); if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
+    if (!$cands) foreach (supplier_site_search($host, trim($brand . ' ' . $phrase)) as $c) $add($c['url'], basename(parse_url($c['url'], PHP_URL_PATH)), '');
+    $cands = array_values($cands);
+    if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'Nothing turned up.'];
+    $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
+    $want = $brand !== '' ? ($nameBrands ? "Prefer the store's house brand ($brand); another brand is fine if it's a good substitute." : "Only the store's house brand ($brand) or another store-label product, not name brands.") : 'Any brand.';
+    $a = ai_json("A dental office buys " . sub_desc($p) . " and wants a substitute from {$s['sup']}.\nMust match: " . implode('; ', (array)($plan['specs'] ?? [])) . ($plan['strict'] ?? false ? ' (exactly)' : ' (close is fine)') . ".\n$want\nSearch results from {$s['sup']}:\n$list\n\n"
+        . "Pick up to 2 product pages (not category, search or article pages) that are good substitutes, best first. Leave out the exact product they already buy. If none fit, pick none.\n"
+        . "Reply with JSON: {\"picks\": [{\"i\": index, \"name\": \"product name\"}]}", [], 'quick');
+    $keep = [];
+    foreach ((array)(($a['ok'] ?? false) ? ($a['value']['picks'] ?? []) : []) as $pk) { $i = (int)($pk['i'] ?? -1); if (!isset($cands[$i])) continue; $keep[] = ['url' => $cands[$i]['url'], 'title' => mb_substr(trim((string)($pk['name'] ?? '')) ?: $cands[$i]['title'], 0, 140)]; if (count($keep) >= 2) break; }
+    return ['ok' => true, 'candidates' => $keep, 'message' => $keep ? '' : 'No substitute turned up.'];
+}
+// $subs: [['i' => n, 'sup', 'title', 'units', 'price', 'desc']]; returns per-unit counts and how each compares
+function sub_compare(array $p, array $plan, array $subs): array {
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Comparing needs Claude.'];
+    $unit = (string)($plan['unit'] ?? 'each');
+    $list = implode("\n", array_map(fn($s) => "{$s['i']}: [{$s['sup']}] {$s['title']} — sold as: " . ($s['units'] ?: '?') . " — price: " . ($s['price'] ? '$' . $s['price'] : '?') . (!empty($s['desc']) ? "\n   " . mb_substr((string)$s['desc'], 0, 300) : ''), array_slice($subs, 0, 14)));
+    $a = ai_json("A dental office buys " . sub_desc($p) . ".\nIt must match: " . implode('; ', (array)($plan['specs'] ?? [])) . ".\nPossible substitutes:\n$list\n\n"
+        . "For their product (index -1) and each substitute, give count: how many {$unit}s come in the package at that price (e.g. 'Box of 200' = 200 gloves; 'Case of 10 boxes of 100' = 1000; null if you can't tell).\n"
+        . "For each substitute also give: same (up to 3 short things that match), diff (up to 3 short differences, e.g. '3.0 mil vs 3.5 mil', 'Box of 200 vs 100'), fit: 'good' (does the same job), 'maybe' (check the difference), or 'no' (wrong product, size or grade).\n"
+        . "Reply with JSON: {\"mine\": {\"count\": n}, \"subs\": [{\"i\": index, \"count\": n, \"same\": [\"...\"], \"diff\": [\"...\"], \"fit\": \"good\"}]}", [], 'quick');
+    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'Claude didn\'t answer.'];
+    $num = fn($v) => is_numeric($v) && $v > 0 ? (float)$v : null;
+    $out = [];
+    foreach ((array)($a['value']['subs'] ?? []) as $s) $out[] = ['i' => (int)($s['i'] ?? -1), 'count' => $num($s['count'] ?? null),
+        'same' => array_slice(array_map(fn($x) => mb_substr((string)$x, 0, 50), (array)($s['same'] ?? [])), 0, 3),
+        'diff' => array_slice(array_map(fn($x) => mb_substr((string)$x, 0, 50), (array)($s['diff'] ?? [])), 0, 3),
+        'fit' => in_array($s['fit'] ?? '', ['good', 'maybe', 'no'], true) ? $s['fit'] : 'maybe'];
+    return ['ok' => true, 'mine' => ['count' => $num($a['value']['mine']['count'] ?? null)], 'subs' => $out];
+}

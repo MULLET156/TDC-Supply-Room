@@ -1932,6 +1932,47 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 }
 .cmpcards{width:100%}
 .manrow .cntrow .cntsel{max-width:240px!important}
+.hbrand{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0;font-weight:600}
+.hbrand input{border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:6px 9px;font:inherit;width:170px}
+.sublist{display:grid;gap:14px}
+.subcard{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:12px}
+.subhead{display:flex;gap:10px;align-items:flex-start}
+.subhead .thumb{width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
+.subhead .cmpchk{margin-top:4px;width:18px;height:18px;flex:none}
+.subme{flex:1;min-width:0}
+.subme .cnb{display:block;text-align:left;font-weight:700;font-size:15.5px;background:none;border:0;padding:0;color:var(--fg);cursor:pointer}
+.subme small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.subme small b{color:var(--fg);font-family:var(--f-mono)}
+.subspecs{font-size:12px!important}
+.subact{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none;text-align:right;max-width:240px}
+.subgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:12px}
+.subc{border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:5px;background:var(--bg)}
+.subc.cheaper{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.subc.nofit{opacity:.55}
+.subtop{display:flex;gap:8px;align-items:center}
+.subpic{width:52px;height:52px;object-fit:contain;border-radius:8px;background:#fff;flex:none;border:1px solid var(--line)}
+.subwho{display:flex;flex-direction:column;gap:3px;min-width:0}
+.subwho .suplogo{max-height:16px;max-width:60px;align-self:flex-start}
+.subwho b{font-size:13.5px}
+.subfit{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;align-self:flex-start}
+.subfit.f-good{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.subfit.f-maybe{background:color-mix(in srgb,var(--warn,#b8860b) 18%,transparent);color:var(--warn,#8a6100)}
+.subfit.f-no{background:var(--sunk);color:var(--muted)}
+.subname{font-weight:600;font-size:14px;line-height:1.25}
+.subprice b,.subpu b{font-family:var(--f-mono)}
+.subprice span{color:var(--muted);font-size:12.5px}
+.subpu{font-size:13px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.linkbtn{background:none;border:0;padding:0;color:var(--info);text-decoration:underline;cursor:pointer;font:inherit;font-size:12.5px}
+.subsave{font-size:13px;color:var(--ok);font-weight:600}
+.subsave b{font-family:var(--f-mono)}
+.subsave.dear{color:var(--muted);font-weight:500}
+.subsame,.subdiff{font-size:12px;color:var(--muted);line-height:1.3}
+.subdiff{color:var(--warn,#8a6100)}
+.subbtns{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.subnone{margin-top:8px}
+.catpick{display:grid;gap:6px;max-height:55vh;overflow:auto;margin:8px 0}
+@media (max-width:640px){.subhead{flex-wrap:wrap}.subact{flex-direction:row;align-items:center;max-width:none;width:100%;justify-content:space-between}.subgrid{grid-template-columns:1fr}}
+@media (max-width:640px){.sptabs{gap:4px}.sptabs button{padding:7px 9px;font-size:13.5px;gap:4px;white-space:nowrap;flex:1 1 auto;justify-content:center}.sptabs button .ic{display:none}}
 </style>
 <header>
   <div class="wrap">
@@ -2154,19 +2195,22 @@ window.TDC = (function(){
   async function usage(){ return call("usage", {}); }
   async function mpnSearch(mpn, host, skip){ const j = await call("mpnsearch", { mpn, host: host || "", skip: skip || [] }); return j.failed ? { candidates: [], message: j.message } : j; }
   async function priceSearch(q, sites, scope, skip){ return call("pricesearch", { q, sites, scope, skip: skip || [] }); }
+  async function subPlan(p){ return call("subplan", { p }); }
+  async function subFind(p, plan, s, nameBrands, skip){ return call("subfind", { p, plan, s, nameBrands: !!nameBrands, skip: skip || [] }); }
+  async function subCompare(p, plan, subs){ return call("subcompare", { p, plan, subs }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const IC = {"list": "<path d=\"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01\"/>", "listplus": "<path d=\"M11 12H3M16 6H3M16 18H3M18 9v6M21 12h-6\"/>", "cart": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "truck": "<path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14\"/><circle cx=\"17\" cy=\"18\" r=\"2\"/><circle cx=\"7\" cy=\"18\" r=\"2\"/>", "hourglass": "<path d=\"M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2\"/>", "clipcheck": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"m9 14 2 2 4-4\"/>", "clipboard": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>", "table": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18\"/>", "history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5M12 7v5l4 2\"/>", "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/>", "barcode": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M14 8v8M17 8v8\"/>", "send": "<path d=\"m22 2-7 20-4-9-9-4z\"/><path d=\"M22 2 11 13\"/>", "pkgcheck": "<path d=\"m16 16 2 2 4-4\"/><path d=\"M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "package": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "download": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3\"/>", "upload": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12\"/>", "merge": "<path d=\"m8 6 4-4 4 4\"/><path d=\"M12 2v10.3a4 4 0 0 1-1.17 2.83L4 22M20 22l-5-5\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/>", "pencil": "<path d=\"M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z\"/><path d=\"m15 5 4 4\"/>", "cal":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>","calcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4\"/>", "sparkle": "<path d=\"M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z\"/>", "plus": "<path d=\"M12 5v14M5 12h14\"/>", "minus": "<path d=\"M5 12h14\"/>", "trash": "<path d=\"M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6\"/>", "camera": "<path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "file": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8\"/>", "receipt": "<path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11\"/>", "mail": "<rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\"/><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\"/>", "msg": "<path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\"/>", "phone": "<path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/>", "mobile": "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\"/><path d=\"M12 18h.01\"/>", "alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4M12 17h.01\"/>", "urgent": "<path d=\"M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z\"/><path d=\"M12 8v4M12 16h.01\"/>", "image": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21\"/>", "globe": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20\"/>", "tag": "<path d=\"M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z\"/><circle cx=\"7.5\" cy=\"7.5\" r=\"1\"/>", "pin": "<path d=\"M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>", "refresh": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5\"/>", "dollar": "<path d=\"M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "x": "<path d=\"M18 6 6 18M6 6l12 12\"/>", "boxcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12 2 2 4-4\"/>", "box": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "music": "<path d=\"M9 18V5l12-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"18\" cy=\"16\" r=\"3\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/>", "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/>", "moon": "<path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/>", "gamepad": "<rect width=\"20\" height=\"12\" x=\"2\" y=\"6\" rx=\"2\"/><path d=\"M6 12h4M8 10v4M15 13h.01M18 11h.01\"/>", "disc": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "undo": "<path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/>", "ext": "<path d=\"M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>", "hand": "<path d=\"M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/>", "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\"/>", "images": "<path d=\"M18 22H4a2 2 0 0 1-2-2V6\"/><rect width=\"16\" height=\"16\" x=\"6\" y=\"2\" rx=\"2\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/><path d=\"m22 13-1.5-1.5a2 2 0 0 0-2.8 0L10 19\"/>", "trend": "<path d=\"M22 7 13.5 15.5 8.5 10.5 2 17M16 7h6v6\"/>", "archive": "<rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4\"/>"};
+const IC = {"filter": "<path d=\"M3 5h18l-7 8v6l-4 2v-8Z\"/>", "swap": "<path d=\"m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16\"/>", "list": "<path d=\"M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01\"/>", "listplus": "<path d=\"M11 12H3M16 6H3M16 18H3M18 9v6M21 12h-6\"/>", "cart": "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>", "truck": "<path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14\"/><circle cx=\"17\" cy=\"18\" r=\"2\"/><circle cx=\"7\" cy=\"18\" r=\"2\"/>", "hourglass": "<path d=\"M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2\"/>", "clipcheck": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"m9 14 2 2 4-4\"/>", "clipboard": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/>", "table": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M3 9h18M3 15h18M9 3v18\"/>", "history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5M12 7v5l4 2\"/>", "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z\"/>", "barcode": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M14 8v8M17 8v8\"/>", "send": "<path d=\"m22 2-7 20-4-9-9-4z\"/><path d=\"M22 2 11 13\"/>", "pkgcheck": "<path d=\"m16 16 2 2 4-4\"/><path d=\"M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "package": "<path d=\"M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z\"/><path d=\"M3.3 7 12 12l8.7-5M12 22V12\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "download": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3\"/>", "upload": "<path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12\"/>", "merge": "<path d=\"m8 6 4-4 4 4\"/><path d=\"M12 2v10.3a4 4 0 0 1-1.17 2.83L4 22M20 22l-5-5\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/>", "pencil": "<path d=\"M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z\"/><path d=\"m15 5 4 4\"/>", "cal":"<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>","calcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4\"/>", "sparkle": "<path d=\"M12 3l1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z\"/>", "plus": "<path d=\"M12 5v14M5 12h14\"/>", "minus": "<path d=\"M5 12h14\"/>", "trash": "<path d=\"M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6\"/>", "camera": "<path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "file": "<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8\"/>", "receipt": "<path d=\"M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z\"/><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11\"/>", "mail": "<rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\"/><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\"/>", "msg": "<path d=\"M7.9 20A9 9 0 1 0 4 16.1L2 22Z\"/>", "phone": "<path d=\"M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z\"/>", "mobile": "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\"/><path d=\"M12 18h.01\"/>", "alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4M12 17h.01\"/>", "urgent": "<path d=\"M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z\"/><path d=\"M12 8v4M12 16h.01\"/>", "image": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21\"/>", "globe": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20\"/>", "tag": "<path d=\"M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z\"/><circle cx=\"7.5\" cy=\"7.5\" r=\"1\"/>", "pin": "<path d=\"M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0\"/><circle cx=\"12\" cy=\"10\" r=\"3\"/>", "refresh": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5\"/>", "dollar": "<path d=\"M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "x": "<path d=\"M18 6 6 18M6 6l12 12\"/>", "boxcheck": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m9 12 2 2 4-4\"/>", "box": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "music": "<path d=\"M9 18V5l12-2v13\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><circle cx=\"18\" cy=\"16\" r=\"3\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/>", "sun": "<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/>", "moon": "<path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/>", "gamepad": "<rect width=\"20\" height=\"12\" x=\"2\" y=\"6\" rx=\"2\"/><path d=\"M6 12h4M8 10v4M15 13h.01M18 11h.01\"/>", "disc": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "undo": "<path d=\"M9 14 4 9l5-5\"/><path d=\"M4 9h10.5a5.5 5.5 0 0 1 0 11H11\"/>", "ext": "<path d=\"M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>", "hand": "<path d=\"M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8\"/><path d=\"M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15\"/>", "zap": "<path d=\"M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z\"/>", "images": "<path d=\"M18 22H4a2 2 0 0 1-2-2V6\"/><rect width=\"16\" height=\"16\" x=\"6\" y=\"2\" rx=\"2\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/><path d=\"m22 13-1.5-1.5a2 2 0 0 0-2.8 0L10 19\"/>", "trend": "<path d=\"M22 7 13.5 15.5 8.5 10.5 2 17M16 7h6v6\"/>", "archive": "<rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\"/><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4\"/>"};
 const ic = (n, cls = "") => IC[n] ? `<svg class="ic${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${IC[n]}</svg>` : "";
 function hydrateIcons(root = document){ root.querySelectorAll("i[data-ic]").forEach(el => { el.outerHTML = ic(el.dataset.ic, el.className); }); }
 hydrateIcons();
@@ -3360,7 +3404,7 @@ function histHtml(){
 /* ---------- Spending: what was ordered, from the prices saved with each order ---------- */
 const cmpSel = new Set(); let cmpQ = "";
 let spendOrders = null, spendLoading = false, spendPer = "12m", spendCat = "", spendSup = "", spendMode = "spend", spendKeep = false, cmpShow = "need", cmpNoMpn = false;
-const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare prices</button></div>`;
+const spendTabs = () => `<div class="sptabs" role="tablist"><button type="button" role="tab" class="${spendMode === "spend" ? "on" : ""}" data-spmode="spend" aria-selected="${spendMode === "spend"}">${ic("dollar")}Spending</button><button type="button" role="tab" class="${spendMode === "compare" ? "on" : ""}" data-spmode="compare" aria-selected="${spendMode === "compare"}">${ic("trend")}Compare prices</button><button type="button" role="tab" class="${spendMode === "subs" ? "on" : ""}" data-spmode="subs" aria-selected="${spendMode === "subs"}">${ic("swap")}Substitutes</button></div>`;
 async function loadSpend(){
   if (spendLoading) return; spendLoading = true;
   try { const s = await db.collection("orders").orderBy("at", "desc").limit(3000).get(); spendOrders = s.docs.map(d => ({ id: d.id, ...d.data() })); }
@@ -3373,6 +3417,7 @@ function spendRange(){
 }
 function spendHtml(){
   if (spendMode === "compare") return spendTabs() + compareHtml();
+  if (spendMode === "subs") return spendTabs() + subsHtml();
   return spendTabs() + spendInner();
 }
 function spendInner(){
@@ -3677,6 +3722,7 @@ function compareColumns(){
 function wireSpend(){
   document.querySelectorAll("[data-spmode]").forEach(b => b.onclick = () => { spendMode = b.dataset.spmode; try { localStorage.setItem("tdc.spmode", spendMode); } catch {} render(); });
   if (spendMode === "compare") { wireCompare(); return; }
+  if (spendMode === "subs") { wireSubs(); return; }
   $("#spPer") && ($("#spPer").onchange = e => { spendPer = e.target.value; render(); });
   $("#spCat") && ($("#spCat").onchange = e => { spendCat = e.target.value; render(); });
   $("#spSup") && ($("#spSup").onchange = e => { spendSup = e.target.value; render(); });
@@ -5605,6 +5651,150 @@ async function suggestReserves(){
     closePanel(); toast(`Updated ${ok} reserve${ok === 1 ? "" : "s"}`);
   });
 }
+/* ---------- substitutes: cheaper products that do the same job, mostly suppliers' house brands ---------- */
+const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco" };
+const houseBrand = sup => { const v = infoOf(sup).houseBrand; return v != null ? v : (HOUSE_DEFAULT[keyOf(sup)] || ""); };
+const SUB_CATS_DEFAULT = /ppe|glove|mask|infection|paper|dispos|consum|clean|steril|suction|evac|cup|bib|barrier|hygiene|gauze|cotton/i;
+const subCats = () => Array.isArray(rules.subCats) ? rules.subCats : [...new Set(items.map(i => clean(i.cat)).filter(c => c && SUB_CATS_DEFAULT.test(c)))];
+let subShow = "need", subQ = "", subNameBrands = false, subSel = new Set(), subBusy = null, subUse = null;
+function subUnits(it){ const u = subUse?.items?.[it.id]; return u && u.used > 0 && u.days >= 14 ? u.used / u.days * 365 : null; }   /* packages a year */
+function subRows(){
+  const cats = new Set(subCats().map(keyOf));
+  let L = items.filter(i => !i.archived && compareable(i) || (i.subs && !i.archived));
+  const q = keyOf(subQ || "");
+  if (q) L = L.filter(i => keyOf([i.name, i.sku, i.supplier, i.cat].join(" ")).includes(q));
+  else if (subShow === "need") L = L.filter(i => i.need && (cats.has(keyOf(i.cat)) || i.subs));
+  else if (subShow === "found") L = L.filter(i => i.subs?.list?.length);
+  else L = L.filter(i => cats.has(keyOf(i.cat)) || i.subs);
+  return L.sort((a, b) => (subBest(b)?.save || 0) - (subBest(a)?.save || 0) || a.name.localeCompare(b.name));
+}
+function subMine(it){ const p = priceNum(it.unitCost); const c = it.subs?.mineCount || unitCount(it.units); return { p, c, pu: p && c ? p / c : null }; }
+function subCalc(it, x){
+  const m = subMine(it), pu = x.price && x.count ? x.price / x.count : null;
+  if (pu == null || m.pu == null) return { pu, save: null };
+  const per = m.pu - pu, yr = subUnits(it);   /* per unit saving x units in a package x packages a year */
+  return { pu, per, pct: Math.round(per / m.pu * 100), save: per * m.c * (yr ?? Math.max(1, num(it.orderQty) || 1)), yearly: yr != null };
+}
+function subBest(it){
+  let best = null; for (const x of it.subs?.list || []) { if (x.fit === "no") continue; const c = subCalc(it, x); if (c.save != null && c.save > 0.005 && (!best || c.save > best.save)) best = { ...c, x }; }
+  return best;
+}
+const perU = (v, unit) => v == null ? "" : (v < 1 ? (v * 100).toFixed(v * 100 < 10 ? 1 : 0) + "¢" : money(v)) + "/" + esc(unit || "each");
+function subsHtml(){
+  const rows = subRows(), cats = subCats(), allCats = [...new Set(items.map(i => clean(i.cat)).filter(Boolean))].sort();
+  const run = subBusy;
+  const can = !!window.TDC?.subFind && !readOnly;
+  const card = it => {
+    const S = it.subs, m = subMine(it), unit = S?.unit || "each";
+    const list = (S?.list || []).filter(x => !(it.subNo || []).some(u => urlKey(u) === urlKey(x.url)));
+    const subCard = (x, k) => { const c = subCalc(it, x);
+      return `<div class="subc ${x.fit === "no" ? "nofit" : ""} ${c.save > 0.005 && x.fit !== "no" ? "cheaper" : ""}">
+        <div class="subtop">${x.photoUrl ? `<img class="subpic" src="${esc(x.photoUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'subpic'}))">` : `<div class="subpic"></div>`}
+          <div class="subwho">${supLogo(x.sup)}<b>${esc(x.sup)}</b><span class="subfit f-${esc(x.fit || "maybe")}">${x.fit === "good" ? "Good match" : x.fit === "no" ? "Not a match" : "Check it"}</span></div></div>
+        <div class="subname">${esc(x.title)}</div>
+        <div class="subprice">${x.price ? `<b>${esc(money(x.price))}</b> <span>/ ${esc(x.pack || "?")}</span>` : `<span class="hint">No price shown</span>`}</div>
+        <div class="subpu">${c.pu != null ? `<b>${perU(c.pu, unit)}</b>` : ""} <button type="button" class="linkbtn" data-subcnt="${esc(it.id)}|${k}" title="How many ${esc(unit)}s are in this package">${x.count ? `${fmtQ(x.count)} ${esc(unit)}s` : "set count"}</button></div>
+        ${c.save != null && x.fit !== "no" ? (c.save > 0.005 ? `<div class="subsave">Save ${perU(c.per, unit)} (${c.pct}%) · <b>${esc(money(c.save))}</b>${c.yearly ? "/yr" : " this order"}</div>` : `<div class="subsave dear">Costs ${perU(-c.per, unit)} more</div>`) : ""}
+        ${x.same?.length ? `<div class="subsame">✓ ${x.same.map(esc).join(" · ")}</div>` : ""}${x.diff?.length ? `<div class="subdiff">≠ ${x.diff.map(esc).join(" · ")}</div>` : ""}
+        <div class="subbtns"><a class="btn sm" href="${esc(webHref(x.url))}" target="_blank" rel="noopener">${ic("ext")}Open</a>${readOnly ? "" : `<button type="button" class="btn sm" data-subbk="${esc(it.id)}|${k}">Backup</button><button type="button" class="btn sm pri" data-subsw="${esc(it.id)}|${k}">Switch…</button><button type="button" class="btn sm ghost" data-subno="${esc(it.id)}|${k}" title="Not a fit: hide it and never suggest it again">Not a fit</button>`}</div>
+      </div>`; };
+    const busyHere = run && run.cur === it.id;
+    return `<div class="subcard" id="sub-${esc(it.id)}">
+      <div class="subhead">${can ? `<input type="checkbox" class="cmpchk" data-subsel="${esc(it.id)}" ${subSel.has(it.id) ? "checked" : ""} aria-label="Tick ${esc(it.name)}">` : ""}
+        ${it.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(it.photo)}" onerror="this.remove()">` : ""}
+        <div class="subme"><button type="button" class="cnb" data-subopen="${esc(it.id)}">${esc(it.name)}</button>
+          <small>${it.supplier ? esc(it.supplier) + " · " : ""}${m.p ? `<b>${esc(money(m.p))}</b> / ${esc(it.units || "?")}` : "no price saved"}${m.pu != null ? ` · <b>${perU(m.pu, unit)}</b>` : ""}${S && !readOnly ? ` <button type="button" class="linkbtn" data-submc="${esc(it.id)}" title="How many ${esc(unit)}s are in your package">${m.c ? `${fmtQ(m.c)} ${esc(unit)}s` : "set count"}</button>` : ""}</small>
+          ${S?.specs?.length ? `<small class="subspecs">Must match: ${S.specs.map(esc).join(" · ")}${S.strict ? " (exactly)" : ""}</small>` : ""}</div>
+        <div class="subact">${busyHere ? `<span class="hint">${esc(run.msg || "Searching…")}</span>` : S ? `<span class="hint">Checked ${esc(shortDate(S.at))}</span>` : `<span class="hint">Not searched yet</span>`}${can && !run ? `<button type="button" class="btn sm" data-subgo="${esc(it.id)}">${ic("search")}${S ? "Search again" : "Find substitutes"}</button>` : ""}</div>
+      </div>
+      ${list.length ? `<div class="subgrid">${list.map(x => subCard(x, (S.list || []).indexOf(x))).join("")}</div>` : S ? `<div class="hint subnone">No substitutes turned up at your suppliers${S.note ? ": " + esc(S.note) : "."}</div>` : ""}
+    </div>`;
+  };
+  const todo = rows.filter(i => subSel.size ? subSel.has(i.id) : !i.subs);
+  return `<p class="hint">Cheaper products that do the same job, mostly your suppliers' own brands (set each supplier's house brand in Setup › Suppliers). Prices are compared per ${"unit"} (per glove, per cup…); savings are per year from how fast you use it, or for this order.</p>
+    <div class="logfilt cmpfilt">
+      <label>Show <select id="subShow"><option value="need" ${subShow === "need" ? "selected" : ""}>Order list</option><option value="cats" ${subShow === "cats" ? "selected" : ""}>Substitute categories</option><option value="found" ${subShow === "found" ? "selected" : ""}>With substitutes found</option></select></label>
+      <label>Find <input type="search" id="subQ" value="${esc(subQ)}" placeholder="Product or category" style="min-width:0;width:100%"></label>
+      <label class="cmpnm"><input type="checkbox" id="subNB" ${subNameBrands ? "checked" : ""}> Include name brands</label>
+    </div>
+    <div class="cmpbar">
+      ${can ? (run ? `<button type="button" class="btn" id="subStop">Stop</button><span class="hint">${esc(run.msg || "")}</span>` : `<button type="button" class="btn pri" id="subRun" ${todo.length ? "" : "disabled"}>${ic("search")}Find substitutes (${todo.length}${subSel.size ? " ticked" : " not searched"})</button>`) : `<span class="hint">${readOnly ? "View only." : "Finding substitutes runs on the Supply Room website."}</span>`}
+      <button type="button" class="btn" id="subCats">${ic("filter")}Categories (${cats.length})</button>
+    </div>
+    ${rows.length ? `<div class="sublist">${rows.map(card).join("")}</div>` : `<div class="list"><div class="empty">${subShow === "need" ? "Nothing on the Order list is in a substitute category. Pick categories, or show Substitute categories." : "No products here."}</div></div>`}`;
+}
+function wireSubs(){
+  if (!subUse && window.TDC?.usage) getUsage().then(u => { subUse = u; if (tab === "spend" && spendMode === "subs") render(); }).catch(() => {});
+  $("#subShow") && ($("#subShow").onchange = e => { subShow = e.target.value; render(); });
+  $("#subNB") && ($("#subNB").onchange = e => { subNameBrands = e.target.checked; });
+  const q = $("#subQ"); if (q) { q.oninput = () => { subQ = q.value; clearTimeout(q._t); q._t = setTimeout(() => { render(); const n = $("#subQ"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 300); }; }
+  document.querySelectorAll("[data-subsel]").forEach(c => c.onchange = () => { c.checked ? subSel.add(c.dataset.subsel) : subSel.delete(c.dataset.subsel); render(); });
+  document.querySelectorAll("[data-subopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.subopen); if (it) openItem(it); });
+  $("#subRun") && ($("#subRun").onclick = () => { const rows = subRows(); subRun(rows.filter(i => subSel.size ? subSel.has(i.id) : !i.subs)); });
+  $("#subStop") && ($("#subStop").onclick = () => { if (subBusy) subBusy.stop = true; });
+  document.querySelectorAll("[data-subgo]").forEach(b => b.onclick = () => { const it = byId(b.dataset.subgo); if (it) subRun([it]); });
+  $("#subCats") && ($("#subCats").onclick = subCatsPanel);
+  const pick = v => { const [id, k] = v.split("|"); const it = byId(id); return it ? [it, it.subs?.list?.[+k], +k] : []; };
+  document.querySelectorAll("[data-subbk]").forEach(b => b.onclick = () => { const [it, x] = pick(b.dataset.subbk); if (x) saveBackup(it, { supplier: x.sup, url: x.url, title: x.title, price: x.price, pack: x.pack, sku: x.sku || "" }, b); });
+  document.querySelectorAll("[data-subsw]").forEach(b => b.onclick = () => { const [it, x] = pick(b.dataset.subsw); if (x) replaceWith(it, { supplier: x.sup, url: x.url, title: x.title, price: x.price, pack: x.pack, sku: x.sku || "" }); });
+  document.querySelectorAll("[data-subno]").forEach(b => b.onclick = async () => { const [it, x] = pick(b.dataset.subno); if (!x || !needMe()) return;
+    const subNo = [...new Set([...(it.subNo || []), x.url])].slice(-60);
+    try { await write(it.id, { subNo }); it.subNo = subNo; render(); toast("Hidden. It won't be suggested again."); } catch(e) { toast(dbErr(e)); } });
+  document.querySelectorAll("[data-submc]").forEach(b => b.onclick = async () => { const it = byId(b.dataset.submc); if (!it?.subs) return;
+    const v = prompt(`How many ${it.subs.unit || "unit"}s come in your "${it.units || it.name}"?`, it.subs.mineCount || ""); if (v == null) return; const n = num(v); if (!(n > 0) || !needMe()) return;
+    try { await write(it.id, { subs: { ...it.subs, mineCount: n } }); it.subs = { ...it.subs, mineCount: n }; render(); } catch(e) { toast(dbErr(e)); } });
+  document.querySelectorAll("[data-subcnt]").forEach(b => b.onclick = async () => { const [it, x, k] = pick(b.dataset.subcnt); if (!x || readOnly) return;
+    const v = prompt(`How many ${it.subs?.unit || "unit"}s come in "${x.pack || x.title}"?`, x.count || ""); if (v == null) return; const n = num(v); if (!(n > 0)) return; if (!needMe()) return;
+    const list = it.subs.list.map((y, i) => i === k ? { ...y, count: n } : y);
+    try { await write(it.id, { subs: { ...it.subs, list } }); it.subs = { ...it.subs, list }; render(); } catch(e) { toast(dbErr(e)); } });
+}
+function subCatsPanel(){
+  const all = [...new Set(items.map(i => clean(i.cat)).filter(Boolean))].sort(), on = new Set(subCats().map(keyOf));
+  openPanel(`<div class="ph"><h2>Substitute categories</h2><button class="iconbtn" data-close type="button">Close</button></div>
+    <p class="hint">Products in these categories are looked at for cheaper substitutes. Leave out things that must stay a specific brand (CEREC blocks, cements, implant parts).</p>
+    <div class="catpick">${all.map(c => `<label class="chkline"><input type="checkbox" data-sc="${esc(c)}" ${on.has(keyOf(c)) ? "checked" : ""}> ${esc(c)} <span class="hint">(${items.filter(i => clean(i.cat) === c && !i.archived).length})</span></label>`).join("")}</div>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button>${readOnly ? "" : `<button class="btn pri grow" id="scSave" type="button">Save</button>`}</div>`);
+  $("#scSave") && ($("#scSave").onclick = async () => { if (!needMe()) return;
+    const v = [...document.querySelectorAll("[data-sc]")].filter(c => c.checked).map(c => c.dataset.sc);
+    try { await db.doc("settings/rules").set({ ...rules, subCats: v }); rules.subCats = v; closePanel(); render(); toast("Saved"); } catch(e) { toast(dbErr(e)); } });
+}
+async function subRun(list){
+  if (!list.length || subBusy || !needMe()) return;
+  const sups = compareSups().map(n => ({ sup: n, site: siteHost(n), brand: houseBrand(n) })).filter(x => x.site);
+  if (!sups.length) { toast("None of your suppliers has a website saved (Setup › Suppliers)"); return; }
+  subBusy = { stop: false, cur: null, msg: "" };
+  const say = (m, it) => { subBusy.msg = m; const row = it && document.querySelector(`#sub-${CSS.escape(it.id)} .subact .hint`); if (row) row.textContent = m; else render(); const bar = document.querySelector(".cmpbar .hint"); if (bar) bar.textContent = `${m}`; };
+  let done = 0, found = 0;
+  render();
+  try {
+    for (const it0 of list) {
+      if (subBusy.stop) break;
+      const it = byId(it0.id) || it0; subBusy.cur = it.id; render();
+      const p = { name: it.name, units: it.units || "", price: priceNum(it.unitCost) || "", supplier: it.supplier || "", cat: it.cat || "", sub: it.sub || "" };
+      let plan; try { say(`${it.name}: working out what to match…`, it); plan = await TDC.subPlan(p); } catch(e) { toast(`${it.name}: ${e.message || e}`); continue; }
+      const picks = []; const skip = [...(it.subNo || []), ...(it.link ? [it.link] : [])];
+      for (const s of sups) {
+        if (subBusy.stop) break;
+        if (keyOf(s.sup) === keyOf(it.supplier) && !s.brand) continue;
+        say(`${it.name}: searching ${s.sup}…`, it);
+        let r; try { r = await TDC.subFind(p, plan, s, subNameBrands, skip); } catch { continue; }
+        for (const c of r.candidates || []) { if (picks.some(x => urlKey(x.url) === urlKey(c.url))) continue;
+          say(`${it.name}: reading ${s.sup}…`, it);
+          let f = {}; try { f = await TDC.readLink(webHref(c.url), { name: c.title }); } catch {}
+          picks.push({ sup: s.sup, url: c.url, title: clean(f.name) || c.title, price: Number(f.price) > 0 ? Number(f.price) : null, pack: clean(f.units), sku: clean(f.sku), photoUrl: f.photoUrl || "", desc: clean(f.description || "").slice(0, 300), at: Date.now() }); }
+      }
+      if (subBusy.stop && !picks.length) break;
+      let cmp = null;
+      if (picks.length) { say(`${it.name}: comparing ${picks.length} product${picks.length > 1 ? "s" : ""}…`, it);
+        try { cmp = await TDC.subCompare(p, plan, picks.map((x, i) => ({ i, sup: x.sup, title: x.title, units: x.pack, price: x.price || "", desc: x.desc }))); } catch {} }
+      const listOut = picks.map((x, i) => { const c = cmp?.subs?.find(y => y.i === i) || {}; const { desc, ...keep } = x; return { ...keep, count: c.count || unitCount(x.pack) || null, same: c.same || [], diff: c.diff || [], fit: c.fit || "maybe" }; })
+        .sort((a, b) => (a.fit === "no") - (b.fit === "no") || ((a.price && a.count ? a.price / a.count : 1e9) - (b.price && b.count ? b.price / b.count : 1e9)));
+      const subs = { at: Date.now(), unit: plan.unit, specs: plan.specs, strict: plan.strict, mineCount: cmp?.mine?.count || unitCount(it.units) || null, list: listOut };
+      try { await write(it.id, { subs }); it.subs = subs; done++; if (listOut.some(x => x.fit !== "no")) found++; } catch(e) { toast(dbErr(e)); }
+      subSel.delete(it.id);
+    }
+  } finally { subBusy = null; render(); toast(`Searched ${done} product${done === 1 ? "" : "s"}; substitutes for ${found}`); }
+}
 /* ---------- alternatives / backup products ---------- */
 function backupsHtml(it){
   const L = Array.isArray(it.altSources) ? it.altSources : [];
@@ -7048,7 +7238,7 @@ function supDetail(name){
     <div class="f"><label for="iu-${id}">Login username</label><div class="pwrow"><input id="iu-${id}" data-inf="username" value="${esc(inf.username)}" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="btn cpy" data-copy="iu-${id}">Copy</button></div></div>
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
-  </div><label class="showpw cartopt"><input type="checkbox" data-nocmp="${esc(name)}" ${noCompareSup(name) ? "checked" : ""}> No price comparison on products bought from this supplier <span class="hint">(manufacturers and products sold only here)</span></label>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  </div><label class="hbrand">House brand <input type="text" data-hbrand="${esc(name)}" value="${esc(houseBrand(name))}" placeholder="e.g. ${esc(name.split(" ")[0])}" maxlength="40"> <span class="hint">(its own-label products, for Spending › Substitutes)</span></label><label class="showpw cartopt"><input type="checkbox" data-nocmp="${esc(name)}" ${noCompareSup(name) ? "checked" : ""}> No price comparison on products bought from this supplier <span class="hint">(manufacturers and products sold only here)</span></label>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){
@@ -7244,6 +7434,11 @@ function wireSetup(){
         toast("Saved");
       } catch(e) { toast(dbErr(e)); }
     };
+  });
+  document.querySelectorAll("[data-hbrand]").forEach(inp => inp.onchange = async () => {
+    if (!needMe()) { render(); return; }
+    const name = inp.dataset.hbrand, id = supSlug(name), v = clean(inp.value);
+    try { await db.doc("supinfo/" + id).set({ ...(supInfo[id] || {}), key: keyOf(name), houseBrand: v, updatedAt: Date.now(), updatedBy: me() }); toast(v ? `${name} house brand: ${v}` : `${name}: no house brand`); } catch(e) { toast(dbErr(e)); }
   });
   document.querySelectorAll("[data-nocmp]").forEach(cb => cb.onchange = async () => {
     if (!needMe()) { render(); return; }

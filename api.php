@@ -211,6 +211,23 @@ try {
             out(200, $r);
         }
 
+        case 'subplan': {
+            $r = sub_plan(is_array($req['p'] ?? null) ? $req['p'] : []);
+            if (!$r['ok']) fail(502, $r['error'], $r['message']);
+            out(200, $r);
+        }
+        case 'subfind': {
+            $skip = is_array($req['skip'] ?? null) ? array_map('strval', array_slice($req['skip'], 0, 60)) : [];
+            $r = sub_find(is_array($req['p'] ?? null) ? $req['p'] : [], is_array($req['plan'] ?? null) ? $req['plan'] : [], is_array($req['s'] ?? null) ? $req['s'] : [], !empty($req['nameBrands']), $skip);
+            if (!$r['ok']) out(200, ['ok' => true, 'failed' => true, 'candidates' => []] + $r);
+            out(200, $r);
+        }
+        case 'subcompare': {
+            $r = sub_compare(is_array($req['p'] ?? null) ? $req['p'] : [], is_array($req['plan'] ?? null) ? $req['plan'] : [], is_array($req['subs'] ?? null) ? array_slice($req['subs'], 0, 14) : []);
+            if (!$r['ok']) fail(502, $r['error'], $r['message']);
+            out(200, $r);
+        }
+
         case 'fetchphoto': {
             $r = fetch_photo(trim((string)($req['url'] ?? '')), trim((string)($req['page'] ?? '')));
             if (!$r['ok']) fail($r['error'] === 'invalid_argument' ? 400 : 502, $r['error'], $r['message']);
