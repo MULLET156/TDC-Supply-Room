@@ -518,7 +518,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v4|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v5|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -611,8 +611,11 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     $wantMpn = trim((string)($ctx['mpn'] ?? ''));
     if ($wantMpn !== '') {
         $n = sku_norm($wantMpn);
-        $res['mpnCheck'] = (sku_in($f['skus'] ?? [], $wantMpn) || ($n !== '' && (sku_norm($res['mfrNumber']) === $n || sku_norm($res['sku']) === $n))
-            || ($n !== '' && strlen($n) >= 4 && str_contains(sku_norm(json_encode($f['jsonld'] ?? []) . ' ' . ($f['title'] ?? '')), $n))) ? 'found' : 'missing';
+        $read = sku_norm($res['mfrNumber']);
+        if ($n !== '' && ($read === $n || sku_norm($res['sku']) === $n)) $res['mpnCheck'] = 'found';
+        // the page's own product has a different part number (the one we want only shows in "related products"): not this product
+        elseif ($read !== '' && !str_contains($read, $n) && !str_contains($n, $read)) $res['mpnCheck'] = 'missing';
+        else $res['mpnCheck'] = (sku_in($f['skus'] ?? [], $wantMpn) || sku_in(sku_tokens(json_encode($f['jsonld'] ?? []) . ' ' . ($f['title'] ?? '')), $wantMpn)) ? 'found' : 'missing';
     }
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.

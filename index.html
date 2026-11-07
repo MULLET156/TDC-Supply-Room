@@ -3493,11 +3493,14 @@ async function cmpRun(kind, list){
     /* update: find missing pages once, then read every saved page */
     say(`Updating ${i} of ${list.length}: ${it.name}`);
     const cur = byId(it.id) || it;
-    const got = (await Promise.all(sups.map(async s => {
-      if (!linkFor(cur, s)) { if (cur.links?.[keyOf(s)]?.none) return null; const x = await probeFind(cur, s); if (x && !x.none) { found++; if (x.f.price) priced++; } return x; }
-      try { const f = await readAt(cur, s, linkFor(cur, s)); if (f.ok && f.price) { priced++; return { sup: s, f, mine: true }; } } catch {}
-      return null;
-    }))).filter(Boolean);
+    /* one supplier at a time: the page reads share a limited pool of browser time on the server */
+    const got = [];
+    for (const s of sups) {
+      if (cmpBusy.stop) break;
+      say(`Updating ${i} of ${list.length}: ${it.name} · ${s}`);
+      if (!linkFor(cur, s)) { if (cur.links?.[keyOf(s)]?.none) continue; const x = await probeFind(cur, s); if (x) { got.push(x); if (!x.none) { found++; if (x.f.price) priced++; } } continue; }
+      try { const f = await readAt(cur, s, linkFor(cur, s)); if (f.ok && f.price) { priced++; got.push({ sup: s, f, mine: true }); } } catch {}
+    }
     try { await saveResults(it, got); } catch(e) { toast(dbErr(e)); }
   }
   const stopped = cmpBusy.stop; cmpBusy = null; render();
