@@ -3089,7 +3089,7 @@ function renderInner(){
   }
 }
 /* ---------- products master list (grid editing) ---------- */
-const PCOLS = [["name","Product name","text",244],["link","Reorder link","text",120],["sku","SKU / catalog #","text",90],["mfr","Mfr part #","text",100],["units","Package size","text",112],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["countEvery","Count","cnt",84],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the product window */
+const PCOLS = [["name","Product name","text",244],["link","Reorder link","text",120],["sku","SKU / catalog #","text",90],["mfr","MPN","text",100],["units","Package size","text",112],["cat","Category","text",105,"dl-gcat"],["sub","Subcategory","text",100,"dl-gsub"],["loc","Location","text",100,"dl-gloc"],["supplier","Supplier","text",120,"dl-gsup"],["countEvery","Count","cnt",84],["unitCost","Price","text",82]];   /* counts, expiration, description and notes are edited in the product window */
 let pSort = { k: "name", dir: 1 };
 /* Products editor's own search and filters (the header search is hidden here) */
 let pF = { q: "", sup: "", cat: "", loc: "", flag: "" };
@@ -3406,10 +3406,10 @@ function compareHtml(){
     return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(r.usePU && pu != null && unitCount(o.pack) > 1 ? money(pu) : money(Number(o.price)))}</b><small>${r.usePU && pu != null && unitCount(o.pack) > 1 ? "each · " + esc(money(Number(o.price))) + "/" + esc(o.pack) : esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
   };
   const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
-  return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by manufacturer part number. Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
-    ${noMpn && !readOnly ? `<div class="notice spest"><span>${noMpn} product${noMpn > 1 ? "s have" : " has"} no manufacturer part number yet, so ${noMpn > 1 ? "they" : "it"} can't be matched at other suppliers.</span>${window.TDC?.readLink ? `<button type="button" class="btn" id="cmpMpn">${ic("search")}Fill in part numbers</button>` : ""}</div>` : ""}
+  return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by MPN (manufacturer part number). Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
+    ${noMpn && !readOnly ? `<div class="notice spest"><span>${noMpn} product${noMpn > 1 ? "s have" : " has"} no MPN (manufacturer part number) yet, so ${noMpn > 1 ? "they" : "it"} can't be matched at other suppliers.</span>${window.TDC?.readLink ? `<button type="button" class="btn" id="cmpMpn">${ic("search")}Fill in MPNs</button>` : ""}</div>` : ""}
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
-    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or part #" style="min-width:200px"></label></div>
+    <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:200px"></label></div>
     ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
@@ -3472,7 +3472,7 @@ async function cmpRun(kind, list){
     if (cmpBusy.stop) break; i++;
     const it = byId(it0.id) || it0;
     if (kind === "mpn") {
-      say(`Reading part numbers: ${i} of ${list.length} · ${it.name}`);
+      say(`Reading MPNs: ${i} of ${list.length} · ${it.name}`);
       const url = it.link ? webHref(it.link) : "";
       let mpn = "";
       if (url) { try { const r = await TDC.readLink(url, { name: it.name }); mpn = clean(r.mfrNumber); } catch {} }
@@ -3504,7 +3504,7 @@ async function cmpRun(kind, list){
     try { await saveResults(it, got); } catch(e) { toast(dbErr(e)); }
   }
   const stopped = cmpBusy.stop; cmpBusy = null; render();
-  if (kind === "mpn") toast(`${found} part number${found === 1 ? "" : "s"} filled in${nf.length ? `; ${nf.length} not found on their pages (add those by hand)` : ""}${stopped ? " (stopped)" : ""}`);
+  if (kind === "mpn") toast(`${found} MPN${found === 1 ? "" : "s"} filled in${nf.length ? `; ${nf.length} not found on their pages (add those by hand)` : ""}${stopped ? " (stopped)" : ""}`);
   else toast(`${priced} price${priced === 1 ? "" : "s"} read${found ? `, ${found} new supplier page${found === 1 ? "" : "s"} found` : ""}${nf.length ? `; ${nf.length} without a part # skipped` : ""}${stopped ? " (stopped)" : ""}`);
 }
 const sku_ok = s => clean(s).replace(/[^A-Za-z0-9]/g, "").length >= 3;
@@ -3805,7 +3805,7 @@ function ordFields(it){
     ${fwrap("", it.unitCost, `<label for="e-cost">Price</label><input id="e-cost" value="${esc(it.unitCost)}" placeholder="$0.00" inputmode="decimal">`)}
     ${fwrap("", it.units, `<label for="e-units">Unit / package size</label><input id="e-units" value="${esc(it.units)}" placeholder="e.g. Box of 100">`)}
     ${fwrap("", it.sku, `<label for="e-sku">SKU / catalog #</label><input id="e-sku" class="mono" value="${esc(it.sku)}">`)}
-    ${fwrap("", it.mfr, `<label for="e-mfr" title="The manufacturer's own part number, the same at every supplier. Price comparison only matches on this.">Manufacturer part #</label><input id="e-mfr" class="mono" value="${esc(it.mfr)}">`)}
+    ${fwrap("", it.mfr, `<label for="e-mfr" title="MPN: the manufacturer's own part number, the same at every supplier. Price comparison only matches on this.">MPN</label><input id="e-mfr" class="mono" value="${esc(it.mfr)}">`)}
     ${fwrap("full", it.link, `<label for="e-link">Reorder link</label><div class="linkrow"><input id="e-link" value="${esc(it.link)}" placeholder="https://…" type="url"><a class="btn openlink" data-openlink href="#" target="_blank" rel="noopener">Open ↗</a></div>`)}
     <div class="f full pastebox" hidden><label>Open the reorder link, select all the text on that page (Ctrl/⌘+A, or long-press → Select all), copy it, and paste it here:</label><textarea rows="4" data-pastetxt placeholder="Paste the product page text"></textarea><div class="pbtns2"><button type="button" class="btn pri" data-pastego>Fill in SKU, price and details</button><button type="button" class="btn" data-pfill>Cancel</button></div><span class="hint" data-pastestat></span></div>
   </div>${dl("dl-sup", orderedSuppliers().map(g => g.name))}`;
@@ -4607,7 +4607,7 @@ function batchReview(it, r, name, head){
   openPanel(head + (clean(r.pastOrder) ? `<div class="pastord">${ic("receipt")}<b>We've ordered this before:</b> ${esc(clean(r.pastOrder))}</div>` : "") + `<span class="hint">${photoOnly ? "Is this the right product photo?" : "Step 2 — check the details, then save"}</span>
     ${!r.photo && r.photoDiag ? `<details class="pdiag" open><summary>No photo found — why?</summary><p class="hint">${esc(r.photoDiag)}</p><button class="btn sm" type="button" data-copydiag>Copy this</button></details>` : ""}
     ${usePhoto ? `<div class="bphoto"><img src="${purl}" alt="Photo from the supplier page"><div class="bpopts"><label><input type="checkbox" id="bf-photo" checked> Save this as the product photo</label><button class="btn sm" type="button" id="bNextPhoto" ${hasMorePhotos(r) ? "" : "hidden"}>Show another photo</button></div>${hasMorePhotos(r) ? `<div class="pstrip" aria-label="Other photos on the page">${r.morePhotos.slice(0, 8).map(u => `<button type="button" data-pstrip="${esc(u)}" title="Use this photo"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.remove()"></button>`).join("")}</div>` : ""}</div>` : ""}
-    <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Product name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("mfr", "Manufacturer part #", it.mfr)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
+    <div class="fields"${photoOnly ? " hidden" : ""}>${row("name", "Product name", it.name)}${row("unitCost", "Price", it.unitCost)}${row("units", "Unit / package size", it.units)}${row("sku", "SKU / catalog #", it.sku)}${row("mfr", "MPN", it.mfr)}${row("supplier", "Supplier", it.supplier)}${row("desc", "Description", it.desc)}${row("link", "Reorder link", it.link)}</div>
     ${r.url ? `<a class="hint" href="${esc(r.url)}" target="_blank" rel="noopener">Open the page Claude read ↗</a>` : ""}
     <div class="actions savebar"><button class="btn" type="button" id="bBack"${o.name ? "" : " hidden"}>← Name</button><button class="btn" type="button" id="bSkip">Skip</button><button class="btn pri grow" type="button" id="bSave">${photoOnly ? "Save photo &amp; next" : "Save &amp; next"}</button></div>`);
   $("#bStop").onclick = () => { const d = B.done; B = null; closePanel(); toast(`Stopped. ${d} updated.`); render(); };
@@ -4628,7 +4628,7 @@ function batchReview(it, r, name, head){
     if (!patch.name) delete patch.name;
     try {
       if (usePhoto && $("#bf-photo")?.checked && assets) { const up = await uploadPhoto(r.photo); const old = it.photo; patch.photo = up.id; if (old) assets.delete(old).catch(() => {}); }
-      if (Object.keys(patch).length) { (B.changes = B.changes || []).push({ id: it.id, name: patch.name || it.name, ch: Object.keys(patch).filter(k => k !== "photo").map(k => [k, it[k] || "", patch[k]]), photo: !!patch.photo }); await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU", mfr: "part #" })[k] || k).join(", ")); B.done++; }
+      if (Object.keys(patch).length) { (B.changes = B.changes || []).push({ id: it.id, name: patch.name || it.name, ch: Object.keys(patch).filter(k => k !== "photo").map(k => [k, it[k] || "", patch[k]]), photo: !!patch.photo }); await write(it.id, patch); logIt("Updated from supplier page", { id: it.id, name: patch.name || it.name }, Object.keys(patch).map(k => ({ unitCost: "price", units: "package size", desc: "description", link: "reorder link", sku: "SKU", mfr: "MPN" })[k] || k).join(", ")); B.done++; }
       B.i++; batchStep();
     } catch(err) { btn.disabled = false; btn.textContent = "Save & next"; toast(err?.code ? dbErr(err) : photoErr(err)); }
   };
