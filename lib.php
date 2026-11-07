@@ -475,6 +475,8 @@ function flatten_ld($j): array {
     if (array_is_list($j)) { foreach ($j as $x) $out = array_merge($out, flatten_ld($x)); return $out; }
     $out[] = $j;
     if (isset($j['@graph'])) $out = array_merge($out, flatten_ld($j['@graph']));
+    // a product with sizes/variants (schema.org ProductGroup): each variant is its own Product with sku and price
+    if (isset($j['hasVariant'])) $out = array_merge($out, flatten_ld(is_array($j['hasVariant']) && !array_is_list($j['hasVariant']) ? [$j['hasVariant']] : $j['hasVariant']));
     return $out;
 }
 function attr(string $tag, string $name): string {
@@ -521,7 +523,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v8|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v9|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
