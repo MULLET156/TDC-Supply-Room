@@ -443,6 +443,9 @@ function page_facts(string $html, string $base, string $sku = ''): array {
     // Pictures named after the item we want (…/HJH4305.jpg), wherever they are on the page: on pages listing a
     // whole size range they are the only way to tell this row's photo from the others.
     $f['skus'] = sku_tokens($html);
+    // some stores (Safco) list the variants' manufacturer part numbers only in the keywords meta tag
+    if (preg_match('#<meta\s+name=["\']keywords["\']\s+content=["\']([^"\']*)#i', $html, $kw))
+        foreach (preg_split('/[\s,;]+/', html_entity_decode($kw[1], ENT_QUOTES)) as $k) { $n = sku_norm($k); if (strlen($n) >= 4 && preg_match('/\d/', $n)) $f['skus'][$n] = true; }
     $want = sku_norm($sku);
     if ($want !== '' && preg_match_all('#(?:https?:)?//[^\s"\'<>()]+?\.(?:jpe?g|png|webp)(?:\?[^\s"\'<>()]*)?|/[A-Za-z0-9_\-./%]+?\.(?:jpe?g|png|webp)#i', $html, $sm)) {
         foreach ($sm[0] as $u) {
@@ -518,7 +521,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v6|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v7|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -1112,7 +1115,6 @@ function supplier_site_search(string $host, string $q): array {
     $S = [
         'shop.benco.com'  => ['https://shop.benco.com/Search/Search?Terms=%s', '#(?:https://shop\.benco\.com)?/Product/\d+-\d+/[a-z0-9\-]+#i', false],
         'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
-        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/[a-z0-9][a-z0-9\-]{3,}(?=["\'?/#])#i', true],
     ];
     $cfg = null; foreach ($S as $k => $v) if ($host === $k || str_ends_with($host, '.' . $k) || str_ends_with($k, $host)) { $cfg = $v; $base = 'https://' . ($k === 'shop.benco.com' ? 'shop.benco.com' : 'www.' . $k); break; }
     if (!$cfg) return [];
