@@ -523,7 +523,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v9|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v10|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -612,6 +612,8 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     } elseif ($res['skuCheck'] === 'missing') {
         $res['note'] = trim('Item ' . $wantSku . ' isn\'t shown on this page, so it may be a different product or size. ' . $res['note']);
     }
+    // Safco's pages carry a letters-only group code (e.g. CIEQB) as the product's SKU: it isn't a manufacturer part number
+    if (str_contains(strtolower((string)parse_url($url, PHP_URL_HOST)), 'safcodental') && !preg_match('/\d/', (string)$res['mfrNumber'])) $res['mfrNumber'] = '';
     // Price comparison: does the page show the manufacturer part number we're matching on?
     $wantMpn = trim((string)($ctx['mpn'] ?? ''));
     if ($wantMpn !== '') {
