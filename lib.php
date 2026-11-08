@@ -639,7 +639,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     // the same picture is often listed twice (7770454_US_Top_05.jpg and 7770454_US_Top_05_-Name.jpg)
     $seen = []; $order = array_values(array_filter($order, function($u) use (&$seen) { $k = strtolower(preg_replace('/_-[^\/]*(\.\w+)(\?.*)?$/', '$1', $u)); if (isset($seen[$k])) return false; return $seen[$k] = true; }));
     $tried = [];
-    $order = array_slice($order, 0, 12);
+    $order = array_slice($order, 0, !empty($ctx['priceOnly']) ? 0 : 12);   // price checks don't need the photo
     foreach ($order as $k => $u) {
         $why = '';
         $im = fetch_image($u, $url, $why);
@@ -648,7 +648,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         if (count($tried) >= 10) break;
     }
     $res['pageUrl'] = $url;
-    if (!$res['photo']) {
+    if (!$res['photo'] && empty($ctx['priceOnly'])) {
         $res['photoNote'] = 'The server couldn\'t download a product photo from that page.';
         $res['photoDiag'] = $tried ? 'Pictures tried: ' . implode('; ', $tried) : 'The page didn\'t list any product pictures the server could see (they may be loaded by the page\'s scripts).';
     }
@@ -1179,7 +1179,7 @@ function supplier_site_search(string $host, string $q): array {
     }
     return $out;
 }
-function mpn_search(string $mpn, string $host, array $skip = []): array {
+function mpn_search(string $mpn, string $host, array $skip = [], string $name = ''): array {
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
     $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
@@ -1187,7 +1187,9 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
     if ($host !== '') { $own = supplier_site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site']; }
     // Google results only (no page fetches): steadier than the browser actor, which drops results whose pages
     // it can't open (Net32 sits behind Cloudflare) and sometimes comes back empty. Fall back to it, and retry once.
-    $qq = '"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' dental');
+    // the whole web: the part number alone is too vague ("3055" matches anything), so add the first words of the name
+    $nm = implode(' ', array_slice(preg_split('/\s+/', trim(preg_replace('/[\(\)\[\],#"]+/', ' ', $name))), 0, 4));
+    $qq = '"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' ' . ($nm !== '' ? $nm : 'dental'));
     $r = apify_serp($qq);
     if (!$r['ok'] || !$r['results']) { $b = apify_search($qq, 8); if ($b['ok'] && $b['results']) $r = $b; elseif (!$r['ok']) $r = $b; }
     if ($r['ok'] && !$r['results']) { $again = apify_serp($qq); if ($again['ok'] && $again['results']) $r = $again; }

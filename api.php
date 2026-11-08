@@ -197,7 +197,7 @@ try {
 
         case 'mpnsearch': {
             $skip = is_array($req['skip'] ?? null) ? array_map('strval', array_slice($req['skip'], 0, 30)) : [];
-            $r = mpn_search((string)($req['mpn'] ?? ''), (string)($req['host'] ?? ''), $skip);
+            $r = mpn_search((string)($req['mpn'] ?? ''), (string)($req['host'] ?? ''), $skip, mb_substr((string)($req['name'] ?? ''), 0, 200));
             if (!$r['ok']) out(200, ['ok' => true, 'failed' => true] + $r);
             out(200, $r);
         }
