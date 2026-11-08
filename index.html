@@ -3693,6 +3693,8 @@ function wireCompare(){
   document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp); if (it) cmpCellPanel(it, b.dataset.sup, !!b.dataset.ew); });
 }
 /* read one saved page and keep its price only when the page shows the part number */
+/* give up on one slow supplier page instead of holding up the whole run (null = no answer in time) */
+const within = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
 async function readAt(it, sup, url){
   const mpn = clean(it.mfr);
   /* price-only read (no photo download); one retry, since a supplier page sometimes times out once */
@@ -3799,7 +3801,7 @@ async function cmpRun(kind, list){
       const got = [];
       try { const res = await TDC.mpnSearch(clean(it.mfr), "", skip, it.name);
         const cs = (res.candidates || []).filter(c => !isBadUrl(it, c.url)).slice(0, 5);
-        const reads = await Promise.all(cs.map(c => readAt(it, c.host, c.url).catch(() => null)));
+        const reads = await Promise.all(cs.map(c => within(readAt(it, c.host, c.url), 90000).catch(() => null)));
         reads.forEach((f, k) => { if (f && f.ok && f.price) { got.push({ sup: cs[k].host.replace(/\.(com|net|org|co|us)$/, "").replace(/^./, x => x.toUpperCase()), f, mine: false }); priced++; } });
       } catch {}
       try { await saveResults(it, got.map(x => ({ ...x, mine: false })).map(x => ({ ...x, none: false }))); } catch {}
@@ -3811,8 +3813,8 @@ async function cmpRun(kind, list){
     const got = [];
     await Promise.all(sups.map(async s => {
       if (cmpBusy.stop) return;
-      if (!linkFor(cur, s)) { if (cur.links?.[keyOf(s)]?.none) return; const x = await probeFind(cur, s); if (x) { got.push(x); if (!x.none) { found++; if (x.f.price) priced++; } } return; }
-      try { const f = await readAt(cur, s, linkFor(cur, s)); if (f.ok && f.price) { priced++; got.push({ sup: s, f, mine: true }); } } catch {}
+      if (!linkFor(cur, s)) { if (cur.links?.[keyOf(s)]?.none) return; const x = await within(probeFind(cur, s), 100000); if (x) { got.push(x); if (!x.none) { found++; if (x.f.price) priced++; } } return; }
+      try { const f = await within(readAt(cur, s, linkFor(cur, s)), 90000); if (f && f.ok && f.price) { priced++; got.push({ sup: s, f, mine: true }); } } catch {}
     }));
     try { await saveResults(it, got); } catch(e) { toast(dbErr(e)); }
     done++; say(`${kind === "web" ? "Searching the web" : "Updating"}: ${done} of ${list.length} done`);
