@@ -3771,13 +3771,16 @@ function cmpCellPanel(it, sup, ew){
   });
 }
 /* find this product's page at one supplier: search its site for the part number, keep the first page that shows it */
+let cmpSearchErr = "";
 async function probeFind(it, sup){
   const mpn = clean(it.mfr), host = siteHost(sup); if (!mpn || !host) return null;
   let res; try { res = await TDC.mpnSearch(mpn, host, [], it.name); } catch { try { res = await TDC.mpnSearch(mpn, host, [], it.name); } catch { return null; } }
+  /* a search that errored (service down, usage limit) is not "not sold here": don't mark it */
+  if (res.failed || (!(res.candidates || []).length && /didn.t work|limit|couldn.t reach|blocked/i.test(res.message || ""))) { cmpSearchErr = res.message || "The search service didn't answer."; return null; }
   const cs = (res.candidates || []).filter(c => !isBadUrl(it, c.url)).slice(0, 3);
   const reads = await Promise.all(cs.map(c => readAt(it, sup, c.url).catch(() => null)));
   const f = reads.find(r => r && r.ok); if (f) return { sup, f, mine: true };
-  return res.failed ? null : { sup, none: true };
+  return { sup, none: true };
 }
 async function findAt(it, sup){ const x = await probeFind(it, sup); if (!x) return false; try { await saveResults(it, [x]); } catch(e) { toast(dbErr(e)); } return !x.none; }
 async function cmpRun(kind, list){
@@ -3825,7 +3828,8 @@ async function cmpRun(kind, list){
   let done = 0; const queue = list.slice(), lanes = kind === "mpn" ? 1 : 2;
   await Promise.all(Array.from({ length: Math.min(lanes, queue.length) }, async () => { while (queue.length && !cmpBusy.stop) await one(queue.shift()); }));
   const stopped = cmpBusy.stop; cmpBusy = null; render();
-  if (kind === "mpn") toast(`${found} MPN${found === 1 ? "" : "s"} filled in${nf.length ? `; ${nf.length} not found on their pages (add those by hand)` : ""}${stopped ? " (stopped)" : ""}`);
+  if (cmpSearchErr) { const m = cmpSearchErr; cmpSearchErr = ""; toast(`Some searches couldn't run, so those products weren't marked "not found": ${m.slice(0, 160)}`); }
+  else if (kind === "mpn") toast(`${found} MPN${found === 1 ? "" : "s"} filled in${nf.length ? `; ${nf.length} not found on their pages (add those by hand)` : ""}${stopped ? " (stopped)" : ""}`);
   else toast(`${priced} price${priced === 1 ? "" : "s"} read${found ? `, ${found} new supplier page${found === 1 ? "" : "s"} found` : ""}${nf.length ? `; ${nf.length} without a part # skipped` : ""}${stopped ? " (stopped)" : ""}`);
 }
 const sku_ok = s => clean(s).replace(/[^A-Za-z0-9]/g, "").length >= 3;
