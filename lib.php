@@ -523,7 +523,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v10|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v11|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -652,7 +652,16 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         $res['photoNote'] = 'The server couldn\'t download a product photo from that page.';
         $res['photoDiag'] = $tried ? 'Pictures tried: ' . implode('; ', $tried) : 'The page didn\'t list any product pictures the server could see (they may be loaded by the page\'s scripts).';
     }
-    if ($res['price'] === null) $res['priceNote'] = 'No price on the page (it may only show after signing in to your supplier account).';
+    // a page priced in another currency is an overseas store: keep its details but not its price
+    $cur = '';
+    foreach ($f['jsonld'] as $p) { $o = $p['offers'] ?? null; if (is_array($o)) { $o = array_is_list($o) ? ($o[0] ?? []) : $o; if (!empty($o['priceCurrency'])) { $cur = strtoupper((string)$o['priceCurrency']); break; } } }
+    if ($cur === '' && preg_match('#<meta[^>]+(?:property|itemprop)=["\'](?:product:price:currency|og:price:currency|priceCurrency)["\'][^>]+content=["\']([A-Za-z]{3})#i', (string)($page['body'] ?? ''), $cm)) $cur = strtoupper($cm[1]);
+    if (($cur !== '' && $cur !== 'USD') || !us_store($finalUrl ?: $url)) {
+        $res['nonUS'] = true;
+        $res['priceNote'] = 'This store isn\'t in the US' . ($cur !== '' && $cur !== 'USD' ? ' (it prices in ' . $cur . ')' : '') . ', so its price isn\'t used.';
+        $res['price'] = null;
+    }
+    if ($res['price'] === null && empty($res['priceNote'])) $res['priceNote'] = 'No price on the page (it may only show after signing in to your supplier account).';
     if (!$res['names'] && $f['title'] !== '') $res['names'][] = $f['title'];
     return ['ok' => true] + $res;
 }
@@ -1013,6 +1022,22 @@ function catalog_find(string $site, string $sku, string $name = '', int $budget 
 
 /* ---------- finding a product page by name / SKU (web search through Apify's RAG Web Browser) ---------- */
 // $q: name, sku, supplier, site (the supplier's web address, e.g. henryschein.com)
+/* Price comparison and substitutes only look at stores that sell in the US: a host on a foreign country domain
+   (.co.uk, .ca, .com.au, .de …) or a known overseas store is left out. A page that prices in another currency is
+   left out when it's read (see read_product_link_live). */
+function us_store(string $url): bool {
+    $h = strtolower(preg_replace('#^www\.#', '', (string)parse_url($url, PHP_URL_HOST)));
+    if ($h === '') return false;
+    // overseas branches and stores that turn up for US part numbers
+    foreach (['henryschein.co.uk','henryschein.ca','henryschein.com.au','henryschein.de','henryschein.fr','henryschein.it','henryschein.es','henryschein.nl','henryschein.co.nz',
+              'trycare.co.uk','dentalsky.com','dentaltix.com','kentexpress.co.uk','dentaltown.co.uk','amazon.co.uk','amazon.ca','amazon.com.au','amazon.de','ebay.co.uk','ebay.ca','ebay.com.au',
+              'alibaba.com','aliexpress.com','aliexpress.us','dhgate.com','made-in-china.com','indiamart.com','temu.com','shein.com'] as $x)
+        if ($h === $x || str_ends_with($h, '.' . $x)) return false;
+    if (preg_match('#/(en-gb|en-ca|en-au|en-nz|en-in|en-ie|fr-ca|de-de|fr-fr|en-eu)(/|$)#i', (string)parse_url($url, PHP_URL_PATH))) return false;
+    $tld = substr($h, strrpos($h, '.') + 1);
+    return in_array($tld, ['com','net','org','us','co','io','shop','store','dental','health','care','biz','info','pro','supply','med'], true)
+        && !preg_match('#\.(co|com|net|org)\.[a-z]{2}$#', $h);
+}
 function find_product_page(array $q, array $ctx = []): array {
     $name = trim((string)($q['name'] ?? '')); $sku = trim((string)($q['sku'] ?? '')); $sup = trim((string)($q['supplier'] ?? ''));
     $site = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($q['site'] ?? ''))));
@@ -1176,6 +1201,7 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
         $c['url'] = rtrim(preg_replace('#([?&])(srsltid|utm_[a-z]+|gclid)=[^&]*&?#i', '$1', $c['url']), '?&');   // Google's tracking tags
         if (str_contains($host, 'henryschein') && preg_match('#(?:productid(?:%3D|=)|/p/(?:[^/]+/)*)(\d{7})(?!\d)#i', $c['url'], $hm)) $c['url'] = 'https://www.henryschein.com/en-us/p/x/' . $hm[1];
         if ($host === '' && array_filter($skip, fn($s) => $s !== '' && ($h === $s || str_ends_with($h, '.' . $s)))) continue;
+        if ($host === '' && !us_store($c['url'])) continue;
         if (preg_match('#/(search|s|cart|account|login|blog|category|categories|c)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) continue;
         if ($host === '' && isset($seen[$h])) continue; $seen[$h] = 1;
         $out[] = ['url' => $c['url'], 'title' => $c['title'], 'host' => $h];
@@ -1276,6 +1302,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
             if (($scope === 'mine' || $scope === 'alt') && $mine === '') continue;
             if ($scope === 'web' && $mine !== '') continue;
             if (in_array($c['url'], $skip, true)) continue;
+            if ($mine === '' && !us_store($c['url'])) continue;   // only US stores (a saved supplier is always fine)
             $cands[$c['url']] = $c + ['supplier' => $mine, 'host' => $host];
         }
     }
@@ -1285,7 +1312,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
         if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs Claude (ANTHROPIC_API_KEY in config.php).'];
         $list = implode("\n", array_map(fn($i, $c) => "$i: [{$c['supplier']}] {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
         $a = ai_json("A dental office uses \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . " and wants alternatives: other products that do the same job and could replace it (another brand, or the same brand's equivalent).\nSearch results from their suppliers:\n$list\n\n"
-            . "Pick product pages (not category, search or article pages) that are good substitutes. Leave out the exact same product. Prefer the same size, shade or strength. Up to 8, best first, at most 2 per store. For each, say in a few words how it differs (brand, size, pack).\n"
+            . "Pick product pages (not category, search or article pages) from US stores that are good substitutes. Leave out the exact same product. Prefer the same size, shade or strength. Up to 8, best first, at most 2 per store. For each, say in a few words how it differs (brand, size, pack).\n"
             . "Reply with JSON: {\"picks\": [{\"i\": index, \"name\": \"product name\", \"why\": \"e.g. Different brand, same size\"}]}", [], 'quick');
         $keep = []; $per = [];
         foreach ((array)(($a['ok'] ?? false) ? ($a['value']['picks'] ?? []) : []) as $p) { $i = (int)($p['i'] ?? -1); if (!isset($cands[$i])) continue; $h = $cands[$i]['host']; if (($per[$h] = ($per[$h] ?? 0) + 1) > 2) continue;
@@ -1296,7 +1323,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     if (ai_ready()) {
         $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
         $a = ai_json("A dental office wants to compare prices for this exact product: \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . ($sku !== '' ? " (their supplier's SKU $sku)" : '')
-            . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . ".\nSearch results:\n$list\n\nPick the results that are a product page (not a category, search or article page) selling this same product. "
+            . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . ".\nSearch results:\n$list\n\nPick the results that are a product page (not a category, search or article page) selling this same product, from a US store that prices in US dollars (leave out stores in other countries). "
             . "Different pack sizes of the same product are fine; a different shade, size, strength or a different brand is not. At most one page per store, best first, up to 6. "
             . "Reply with JSON: {\"picks\": [{\"i\": index, \"sure\": true if it is clearly the same product, false if it might be a different variant}]}", [], 'quick');
         if ($a['ok'] && is_array($a['value']['picks'] ?? null)) {
