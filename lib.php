@@ -1160,7 +1160,12 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
     // The supplier's own site search first: web search rarely indexes a supplier page by part number.
     if ($host !== '') { $own = supplier_site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site']; }
-    $r = apify_search('"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' dental'), 8);
+    // Google results only (no page fetches): steadier than the browser actor, which drops results whose pages
+    // it can't open (Net32 sits behind Cloudflare) and sometimes comes back empty. Fall back to it, and retry once.
+    $qq = '"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' dental');
+    $r = apify_serp($qq);
+    if (!$r['ok'] || !$r['results']) { $b = apify_search($qq, 8); if ($b['ok'] && $b['results']) $r = $b; elseif (!$r['ok']) $r = $b; }
+    if ($r['ok'] && !$r['results']) { $again = apify_serp($qq); if ($again['ok'] && $again['results']) $r = $again; }
     if (!$r['ok']) return ['ok' => false, 'error' => 'search', 'message' => $r['message']];
     $skip = array_map(fn($s) => strtolower(preg_replace('#^www\.#', '', (string)$s)), $skip);
     $out = []; $seen = [];
@@ -1177,6 +1182,30 @@ function mpn_search(string $mpn, string $host, array $skip = []): array {
         if (count($out) >= 5) break;
     }
     return ['ok' => true, 'candidates' => $out];
+}
+/* Google results through Apify's Google Search Scraper: titles, links and snippets only, no page visits. */
+function apify_serp(string $query, int $max = 10): array {
+    @set_time_limit(120);
+    $actor = (string)cfg('APIFY_SERP_ACTOR', 'apify~google-search-scraper');
+    $input = ['queries' => $query, 'maxPagesPerQuery' => 1, 'resultsPerPage' => max(1, min(20, $max)), 'countryCode' => 'us', 'languageCode' => 'en', 'mobileResults' => false, 'saveHtml' => false, 'includeUnfilteredResults' => false];
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=60&format=json&clean=true');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 75, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
+    ]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+    if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code < 200 || $code >= 300 || !is_array($j)) { error_log("tdc apify serp: $code " . substr((string)$res, 0, 300)); return ['ok' => false, 'message' => 'The web search didn\'t work (' . $code . ').']; }
+    $out = []; $seen = [];
+    foreach ((array_is_list($j) ? $j : [$j]) as $page) {
+        foreach ((array)($page['organicResults'] ?? []) as $o) {
+            $u = (string)($o['url'] ?? ''); if (!preg_match('#^https?://#i', $u) || isset($seen[$u])) continue; $seen[$u] = 1;
+            $out[] = ['url' => $u, 'title' => mb_substr((string)($o['title'] ?? ''), 0, 200), 'description' => mb_substr((string)($o['description'] ?? ''), 0, 300)];
+        }
+    }
+    return ['ok' => true, 'results' => $out];
 }
 function apify_search(string $query, int $max = 5): array {
     @set_time_limit(120);
