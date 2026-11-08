@@ -2027,6 +2027,8 @@ body[data-view="all"] .selbar.slim .xhead{margin-left:18px}
 .grp .grptools .btn.pbtn.qc .ic{margin:0 5px 0 0!important}
 @media (max-width:640px){#dockAllLabels{display:none!important}}
 #archSel.armed{background:var(--warn);border-color:var(--warn);color:#fff}
+.pfilt .archtog{margin-left:auto;margin-right:0;white-space:nowrap}
+.list.parch{margin-top:16px}
 </style>
 <header>
   <div class="wrap">
@@ -2351,6 +2353,20 @@ function cntBar(list){
   const all = list.length && list.every(i => selected.has(i.id));
   return `<div class="ordbar cntbar"><div class="actions pacts"><label class="selall"><input type="checkbox" class="chk" id="selAllCnt" data-grpsel="${esc(list.map(i => i.id).join(","))}" data-grplabel="all ${list.length} shown" ${all ? "checked" : ""}>${all ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label><button class="btn pbtn act" id="markCnt" type="button" ${selected.size ? "" : "disabled"} title="Tick the products you've counted first">${markLbl("counted")}</button></div></div>`;
 }
+/* archived products, listed under All products and the Editor when "Show archived" is ticked; Restore brings one back */
+function archSection(q){
+  const aq = keyOf(q || "");
+  const arch = archived.filter(i => !aq || keyOf([i.name, i.sku, i.mfr, i.supplier, i.notes].join(" ")).includes(aq)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  const rows = arch.map(i => `<div class="row archrow"><div class="rmain"><b>${esc(i.name)}</b><small class="hint">${i.archivedAt ? "Archived " + esc(new Date(i.archivedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "Archived"}${i.replacedBy ? ` · replaced by ${esc(byId(i.replacedBy)?.name || "another product")}` : ""}${i.supplier ? " · " + esc(i.supplier) : ""}${i.sku ? " · #" + esc(clean(i.sku)) : ""}${i.loc ? " · " + esc(i.loc) : ""}</small></div>${readOnly ? "" : `<button type="button" class="btn sm" data-restore="${esc(i.id)}">Restore</button>`}</div>`).join("");
+  return `<div class="grp cathead archhead"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span>${arch.length > 1 && !readOnly ? `<span class="grptools"><button type="button" class="btn sm" data-restore="${esc(arch.map(i => i.id).join(","))}">Restore all ${arch.length}${aq ? " shown" : ""}</button></span>` : ""}</div>${rows || `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest?.("[data-restore]"); if (!b || !needMe()) return;
+  const list = b.dataset.restore.split(",").map(id => archived.find(i => i.id === id)).filter(Boolean); if (!list.length) return;
+  b.disabled = true; let ok = 0;
+  for (const it of list) { try { await write(it.id, { archived: false }); logIt("Restored", it, "restored from the archive"); ok++; } catch(err) { toast(dbErr(err)); break; } }
+  toast(ok === 1 ? "Restored " + list[0].name : `Restored ${ok} products`);
+});
 const markLbl = verb => ic(verb === "ordered" ? "send" : verb === "counted" ? "clipcheck" : "pkgcheck") + (selected.size ? `Mark ${selected.size} ${verb}` : `Mark ${verb}`);
 /* includes archived products: they stay on the Expiring tab while any are still on the shelf */
 const anyId = id => byId(id) || archived.find(i => i.id === id);
@@ -3269,14 +3285,11 @@ function renderInner(){
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
     const allSel = list.length && list.every(i => selected.has(i.id));
     /* archived products: hidden unless asked for; filtered by the same search box */
-    const aq = keyOf($("#q")?.value || "");
-    const arch = showArch ? archived.filter(i => !aq || keyOf([i.name, i.sku, i.mfr, i.supplier].join(" ")).includes(aq)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })) : [];
-    const archHtml = showArch ? `<div class="grp cathead archhead"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span></div>${arch.length ? arch.map(i => `<div class="row archrow"><div class="rmain"><b>${esc(i.name)}</b><small class="hint">${i.archivedAt ? "Archived " + esc(new Date(i.archivedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "Archived"}${i.replacedBy ? ` · replaced by ${esc(byId(i.replacedBy)?.name || "another product")}` : ""}${i.supplier ? " · " + esc(i.supplier) : ""}${i.sku ? " · #" + esc(clean(i.sku)) : ""}</small></div>${readOnly ? "" : `<button type="button" class="btn sm" data-unarch="${esc(i.id)}">Restore</button>`}</div>`).join("") : `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}` : "";
+    const archHtml = showArch ? archSection($("#q")?.value || "") : "";
     const archToggle = archived.length ? `<label class="archtog"><input type="checkbox" id="showArch" ${showArch ? "checked" : ""}> Show archived<span class="archlong"> products</span> (${archived.length})</label>` : "";
     const newBtn = readOnly ? "" : `<button type="button" class="btn pri newprod" data-newprod>${ic("plus")}New product</button>`;
     v.innerHTML = banner + (list.length ? "" : `<div class="newprodrow">${archToggle}${newBtn}</div>`) + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label>${archToggle}${newBtn}<span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
     $("#showArch") && ($("#showArch").onchange = e => { showArch = e.target.checked; try { localStorage.setItem("tdc.showArch", showArch ? "1" : ""); } catch {} render(); });
-    v.querySelectorAll("[data-unarch]").forEach(b => b.onclick = async () => { const it = archived.find(i => i.id === b.dataset.unarch); if (!it || !needMe()) return; try { await write(it.id, { archived: false }); logIt("Restored", it, "restored from the archive"); toast("Restored " + it.name); } catch(e) { toast(dbErr(e)); } });
     $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
     { const s = $("#selShown"); if (s && !allSel && selected.size) s.indeterminate = true; }
 
@@ -3302,7 +3315,7 @@ function pFilterBar(){
     <select id="pCat" aria-label="Category">${opts(items.map(i => i.cat), pF.cat, "All categories")}</select>
     <select id="pLoc" aria-label="Location">${opts(items.map(i => i.loc), pF.loc, "All locations")}</select>
     <select id="pFlag" aria-label="Show"><option value="">Show: everything</option>${P_FLAGS.map(([k, l, f]) => `<option value="${k}" ${k === pF.flag ? "selected" : ""}>${l} (${items.filter(f).length})</option>`).join("")}</select>
-    ${on ? `<button type="button" class="btn" id="pClear">Clear filters</button>` : ""}</div>`;
+    ${on ? `<button type="button" class="btn" id="pClear">Clear filters</button>` : ""}${archived.length ? `<label class="archtog"><input type="checkbox" id="pShowArch" ${showArch ? "checked" : ""}> Show archived (${archived.length})</label>` : ""}</div>`;
 }
 let pqT = 0;
 document.addEventListener("input", e => {
@@ -3314,6 +3327,7 @@ document.addEventListener("change", e => {
   const k = { pSup: "sup", pCat: "cat", pLoc: "loc", pFlag: "flag" }[e.target.id]; if (!k) return;
   pF[k] = e.target.value; render();
 });
+document.addEventListener("change", e => { if (e.target.id !== "pShowArch") return; showArch = e.target.checked; try { localStorage.setItem("tdc.showArch", showArch ? "1" : ""); } catch {} render(); if (showArch) setTimeout(() => $("#pArch")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); });
 document.addEventListener("click", e => { if (e.target.closest?.("#pClear")) { pF = { q: "", sup: "", cat: "", loc: "", flag: "" }; render(); } });
 function productsHtml(all){
   all = all.filter(pMatch);
@@ -3323,7 +3337,8 @@ function productsHtml(all){
   return `<div class="ptools"><div><h2 class="ptitle">Products editor</h2><span class="hint">${list.length} of ${items.length} shown. Edit any cell — changes save when you leave it. Tick products, then press Batch Update to refresh them from supplier pages, or change a field for all of them in the bar that appears under these buttons.</span>${""}</div>
     <div class="actions">${readOnly ? "" : `<button type="button" class="btn pri" data-newprod>${ic("plus")}New product</button>`}<button type="button" class="btn pri" id="batchUpd" ${n && sample ? "" : "disabled"} title="${!sample ? (window.HOSTED ? "Batch Update needs Claude: add ANTHROPIC_API_KEY to config.php on the server" : "Batch Update needs Claude, which isn't available here") : n ? `Update the ${n} ticked product${n === 1 ? "" : "s"} from supplier pages` : "Tick the products to update first"}">${ic("sparkle")}Batch Update${n ? ` (${n})` : ""}</button><div id="bulkSlot"></div><span class="pright"><button type="button" class="btn" id="mergeSel" ${n === 2 ? "" : "disabled"} title="Tick exactly 2 products to merge them"><svg class="bico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M6 3v4.5a5 5 0 0 0 2 4L12 14.5M18 3v4.5a5 5 0 0 1-2 4L12 14.5v6.5M8.5 18.5 12 21l3.5-2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg> Merge</button><button type="button" class="btn" id="archSel" ${n && !readOnly ? "" : "disabled"} title="Archive the ticked products: they leave every list but can be restored from All products › Show archived">${ic("archive")}Archive${n ? ` (${n})` : ""}</button><button type="button" class="btn danger" id="delSel" ${n && !readOnly ? "" : "disabled"} title="Delete the ticked products">${ic("trash")}Delete${n ? ` (${n})` : ""}</button><button type="button" class="btn" id="exportGrid" title="${n ? "Export the ticked products" : "Export the products shown"}">${ic("download")}Export ${n ? n + " ticked" : list.length === items.length ? "all" : list.length + " shown"}</button></span></div></div>
     ${pFilterBar()}<div class="gridwrap" id="pgrid"><table class="pgrid"><thead><tr><th class="gchk"><input type="checkbox" id="gSelAll" ${allSel ? "checked" : ""} aria-label="Select all shown"></th><th class="gpic"></th>${PCOLS.map(([k, l, , w]) => `<th style="min-width:${w}px;width:${w}px" class="${k === "name" ? "gname" : ""}"><button type="button" data-psort="${k}">${l}${pSort.k === k ? (pSort.dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead>
-    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this product (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open product">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${t === "cnt" ? `<select data-cf="countEvery" class="gcnt" aria-label="Count schedule for ${esc(i.name)}" ${readOnly ? "disabled" : ""}>${`<option value="">Default</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(i.countEvery ?? "") === k ? " selected" : ""}>${{ "7": "Weekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" }[k]}</option>`).join("")}</select>` : `${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <tbody>${list.map(i => `<tr class="row ${stockCls(i)}" data-id="${esc(i.id)}"><td class="gchk"><input type="checkbox" class="chk" ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}"></td><td class="gpic"><button type="button" class="info gopen" title="Open this product (counts, ordering, photos, all details). Drag a picture here to make it the photo." aria-label="Open product">${i.photo ? `<img src="blob.php?id=${esc(i.photo)}" alt="" loading="lazy" onerror="this.remove()">` : "⋯"}</button></td>${PCOLS.map(([k, l, t, , dl]) => `<td class="${k === "name" ? "gname" : ""}${k === "link" ? " glink" : ""}${i.need && k === "qty" ? " gneed" : ""}${i.is911 && k === "qty" ? " g911" : ""}">${t === "cnt" ? `<select data-cf="countEvery" class="gcnt" aria-label="Count schedule for ${esc(i.name)}" ${readOnly ? "disabled" : ""}>${`<option value="">Default</option>` + CNT_OPTS.map(([k]) => `<option value="${k}"${String(i.countEvery ?? "") === k ? " selected" : ""}>${{ "7": "Weekly", "14": "Biweekly", "30": "Monthly", "91": "Quarterly", "182": "6 months", "365": "Yearly", "0": "Never" }[k]}</option>`).join("")}</select>` : `${k === "link" ? `<div class="linkrow">` : ""}<input data-f="${k}" ${t === "num" ? 'inputmode="decimal"' : ""} ${k === "link" ? 'type="url" placeholder="Paste product link…"' : ""} ${dl ? `list="${dl}"` : ""} value="${esc(t === "num" ? fmtQ(i[k] ?? 0) : i[k] ?? "")}" aria-label="${esc(l)} for ${esc(i.name)}" ${readOnly ? "readonly" : ""}>${k === "link" ? `<a class="gol" data-openlink href="#" target="_blank" rel="noopener" title="Open link">↗</a></div>` : ""}`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    ${showArch ? `<div class="list parch" id="pArch">${archSection(pF.q)}</div>` : ""}
     ${dl("dl-gcat", catTree().map(t => t.name))}${dl("dl-gsub", [...new Set(catTree().flatMap(t => t.subs.map(x => x.name)))])}${dl("dl-gloc", locNames())}${dl("dl-gsup", orderedSuppliers().map(g => g.name))}`;
 }
 /* Merge safety: point out when the two products look different */
