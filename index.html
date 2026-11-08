@@ -5947,15 +5947,18 @@ async function subRun(list){
       if (subBusy.stop) break;
       const it = byId(it0.id) || it0; subBusy.cur = it.id; render();
       const p = { name: it.name, units: it.units || "", price: priceNum(it.unitCost) || "", supplier: it.supplier || "", cat: it.cat || "", sub: it.sub || "" };
-      let plan; try { say(`${it.name}: working out what to match…`, it); plan = await TDC.subPlan(p); } catch(e) { toast(`${it.name}: ${e.message || e}`); continue; }
+      let plan; try { say(`${it.name}: working out what to match…`, it); plan = await within(TDC.subPlan(p), 60000); if (!plan) throw new Error("timed out working out what to match"); } catch(e) { toast(`${it.name}: ${e.message || e}`); continue; }
       const picks = []; const skip = [...(it.subNo || []), ...(it.link ? [it.link] : [])];
       /* two suppliers at a time (more at once hits the search service's limit) */
       const queue = sups.filter(s => !(keyOf(s.sup) === keyOf(it.supplier) && !s.brand)); const total = queue.length; let left = total;
       const one = async s => {
-        let r; try { r = await TDC.subFind(p, plan, s, subNameBrands, skip); } catch { r = {}; }
-        for (const c of r.candidates || []) { if (subBusy.stop || picks.some(x => urlKey(x.url) === urlKey(c.url))) continue;
-          let f = {}; try { f = await TDC.readLink(webHref(c.url), { name: c.title, listPrice: true }); } catch {}
-          picks.push({ sup: s.sup, url: c.url, title: clean(f.name) || c.title, price: Number(f.price) > 0 ? Number(f.price) : null, pack: clean(f.units), sku: clean(f.sku), photoUrl: f.photoUrl || "", desc: clean(f.description || "").slice(0, 300), at: Date.now() }); }
+        /* time limits so one slow supplier can't hold the whole run; candidate pages are read side by side */
+        let r; try { r = (await within(TDC.subFind(p, plan, s, subNameBrands, skip), 90000)) || {}; } catch { r = {}; }
+        const cs = (r.candidates || []).filter((c, k, a) => a.findIndex(y => urlKey(y.url) === urlKey(c.url)) === k && !picks.some(x => urlKey(x.url) === urlKey(c.url)));
+        const signIn = SIGNIN_ONLY.includes(keyOf(s.sup));
+        const reads = await Promise.all(cs.map(c => subBusy.stop || signIn ? Promise.resolve({}) : within(TDC.readLink(webHref(c.url), { name: c.title, listPrice: true }).catch(() => ({})), 60000).then(f => f || {})));
+        cs.forEach((c, k) => { const f = reads[k]; if (picks.some(x => urlKey(x.url) === urlKey(c.url))) return;
+          picks.push({ sup: s.sup, url: c.url, title: clean(f.name) || c.title, price: Number(f.price) > 0 ? Number(f.price) : null, pack: clean(f.units), sku: clean(f.sku), photoUrl: f.photoUrl || "", desc: clean(f.description || "").slice(0, 300), at: Date.now() }); });
         left--; say(`${it.name}: searching suppliers (${total - left} of ${total} done)…`, it);
       };
       say(`${it.name}: searching suppliers…`, it);
