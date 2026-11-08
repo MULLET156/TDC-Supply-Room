@@ -469,6 +469,35 @@ function page_facts(string $html, string $base, string $sku = ''): array {
     $f['text'] = mb_substr(trim($t), 0, 24000);
     return $f;
 }
+/* Safco product page: the size table is embedded as escaped JSON items ({"sku":"2850417", …, "name":"…",
+   …, "manufacturer_part_number":"PX100"}). Find the item whose Mfr # is $mpn; its price comes from the page's
+   schema.org variant with the same sku (falling back to the first price shown inside that item). */
+function safco_variant(string $html, string $mpn, array $jsonld): ?array {
+    if ($html === '' || $mpn === '') return null;
+    $want = sku_norm($mpn); if (strlen($want) < 3) return null;
+    $h = str_replace(['\\\\\"', '\\"', '\\/'], ['"', '"', '/'], $html);   // un-escape the embedded JSON
+    if (!preg_match_all('/"manufacturer_part_number"\s*:\s*"([^"]{1,60})"/', $h, $m, PREG_OFFSET_CAPTURE)) return null;
+    foreach ($m[1] as [$val, $pos]) {
+        if (sku_norm($val) !== $want) continue;
+        $seg = substr($h, max(0, $pos - 20000), min(20000, $pos));
+        if (!preg_match_all('/"sku"\s*:\s*"(\d{5,9})"/', $seg, $sm, PREG_OFFSET_CAPTURE)) continue;
+        [$item, $ipos] = end($sm[1]);
+        $obj = substr($seg, $ipos);
+        $name = preg_match('/"name"\s*:\s*"([^"]{2,200})"/', $obj, $nm) ? html_entity_decode(json_decode('"' . $nm[1] . '"') ?? $nm[1], ENT_QUOTES) : '';
+        $price = null;
+        foreach ($jsonld as $p) {
+            if (!is_array($p) || (string)($p['sku'] ?? '') !== $item) continue;
+            $o = $p['offers'] ?? null; if (is_array($o)) { $o = array_is_list($o) ? ($o[0] ?? []) : $o; $pr = $o['price'] ?? $o['lowPrice'] ?? null; if (is_numeric($pr)) $price = (float)$pr; }
+            if ($name === '' && !empty($p['name'])) $name = (string)$p['name'];
+            break;
+        }
+        if ($price === null && preg_match('/data-price-amount="([\d.]+)"/', $obj, $pm)) $price = (float)$pm[1];
+        if ($price === null || $price <= 0) continue;
+        $pack = preg_match('#(\d+)\s*/\s*(pkg|pk|bx|box|bag|case|cs|bt|btl|pack)\b#i', $name, $pk) ? $pk[1] . '/' . strtolower($pk[2]) : '';
+        return ['sku' => $item, 'price' => round($price, 2), 'name' => trim($name), 'pack' => $pack];
+    }
+    return null;
+}
 function flatten_ld($j): array {
     $out = [];
     if (!is_array($j)) return $out;
@@ -523,7 +552,7 @@ function fetch_image(string $url, string $referer = '', ?string &$why = null): ?
 // Product page reads are kept for a day, so a retry or the same item in another batch doesn't pay twice.
 function read_product_link(string $url, array $ctx = [], bool $quick = false): array {
     $dir = sys_get_temp_dir() . '/tdc-pages';
-    $key = $dir . '/' . hash('sha256', 'v11|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
+    $key = $dir . '/' . hash('sha256', 'v12|' . $url . '|' . json_encode($ctx) . '|' . (int)$quick) . '.json';
     if (is_file($key) && filemtime($key) > time() - 86400) { $c = json_decode((string)@file_get_contents($key), true); if (is_array($c) && !empty($c['ok'])) return $c; }
     $r = read_product_link_live($url, $ctx, $quick);
     if (!empty($r['ok'])) { if (!is_dir($dir)) @mkdir($dir, 0700, true); @file_put_contents($key, json_encode($r, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)); }
@@ -623,6 +652,21 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         // the page's own product has a different part number (the one we want only shows in "related products"): not this product
         elseif ($read !== '' && !str_contains($read, $n) && !str_contains($n, $read)) $res['mpnCheck'] = 'missing';
         else $res['mpnCheck'] = (sku_in($f['skus'] ?? [], $wantMpn) || sku_in(sku_tokens(json_encode($f['jsonld'] ?? []) . ' ' . ($f['title'] ?? '')), $wantMpn)) ? 'found' : 'missing';
+    }
+    // Safco lists every size on one page (a table of Item # / Mfr # / price). With a known MPN, take that row's own
+    // item number and price instead of whichever price the page shows first.
+    $wantMpnS = trim((string)($ctx['mpn'] ?? $ctx['sku'] ?? ''));
+    if ($wantMpnS !== '' && str_contains(strtolower((string)parse_url($finalUrl ?: $url, PHP_URL_HOST)), 'safcodental')) {
+        $sv = safco_variant((string)($page['body'] ?? ''), $wantMpnS, $f['jsonld'] ?? []);
+        if ($sv) {
+            $res['price'] = $sv['price']; $res['sku'] = $sv['sku']; $res['mfrNumber'] = $wantMpnS; $res['mpnCheck'] = 'found'; $res['skuCheck'] = 'found';
+            if ($sv['name'] !== '') { $res['names'] = [$sv['name']]; }
+            if ($sv['pack'] !== '') $res['units'] = $sv['pack'];
+            $res['note'] = trim('Safco item ' . $sv['sku'] . ' (Mfr # ' . $wantMpnS . '). ' . ($res['note'] ?? ''));
+        } elseif (preg_match('/manufacturer_part_number/', (string)($page['body'] ?? ''))) {
+            // the page has a size table but none of its rows is this MPN: not this product
+            $res['mpnCheck'] = 'missing'; $res['price'] = null; $res['priceNote'] = 'Safco\'s page doesn\'t list Mfr # ' . $wantMpnS . '.';
+        }
     }
     if ($am !== null && apify_ready()) $res['supplier'] = 'Amazon';
     // Claude's pick first, then the pictures the page marks as the product's, then the rest of the page's pictures.
