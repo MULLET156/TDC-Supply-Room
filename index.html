@@ -2037,6 +2037,16 @@ body[data-view="products"] .ptools > .actions > .pright .btn{padding-inline:11px
 body[data-view="products"] .ptools > .actions{gap:10px}
 .ptools .edlead .pright{display:flex;gap:8px;flex-wrap:wrap;margin-left:6px}
 body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justify-self:auto}
+/* Editor grid: fit under the frozen header so its bottom edge and scroll bars stay on screen, and always show the scroll bars */
+@media (min-width:641px){
+  .gridwrap{max-height:calc(100vh - var(--hdrh,0px) - 28px);max-height:calc(100dvh - var(--hdrh,0px) - 28px);scroll-margin-top:calc(var(--hdrh,0px) + 8px)}
+  .gridwrap::-webkit-scrollbar{width:14px;height:14px}
+  .gridwrap::-webkit-scrollbar-track{background:var(--sunk,#eee);border-radius:8px}
+  .gridwrap::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--fg) 35%,transparent);border-radius:8px;border:3px solid var(--sunk,#eee)}
+  .gridwrap::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--fg) 55%,transparent)}
+  .gridwrap::-webkit-scrollbar-corner{background:var(--sunk,#eee)}
+}
+@supports not selector(::-webkit-scrollbar){@media (min-width:641px){.gridwrap{scrollbar-width:auto;scrollbar-color:color-mix(in srgb,var(--fg) 40%,transparent) var(--sunk,#eee)}}}
 </style>
 <header>
   <div class="wrap">
@@ -3105,6 +3115,12 @@ function pageHead(){
   $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1]; $("#phSub").textContent = P[2];
 }
 /* On Order list / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
+/* Editor grid: scrolling down inside it first scrolls the page until the whole grid (with its bottom scroll bar) is on screen */
+document.addEventListener("wheel", e => {
+  const g = e.target.closest?.("#pgrid"); if (!g || e.deltaY <= 0 || innerWidth <= 640) return;
+  const r = g.getBoundingClientRect(), over = r.bottom - innerHeight;
+  if (over > 1) { e.preventDefault(); scrollBy({ top: Math.min(e.deltaY, over + 4), behavior: "instant" }); }
+}, { passive: false });
 try { const hd = document.querySelector("header"); if (hd && window.ResizeObserver) { const setH = () => document.documentElement.style.setProperty("--hdrh", (/sticky|fixed/.test(getComputedStyle(hd).position) ? hd.offsetHeight : 0) + "px"); new ResizeObserver(setH).observe(hd); addEventListener("resize", setH); } } catch {}
 function updateOrdFloat(){
   const fb = $("#ordFloat"); if (!fb) return;
