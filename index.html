@@ -3667,7 +3667,7 @@ function compareHtml(){
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
     ${hiddenNoMpn || cmpNoMpn ? `<label class="cmpnm"><input type="checkbox" id="cmpNoMpn" ${cmpNoMpn ? "checked" : ""}> Show products with no MPN${hiddenNoMpn ? ` (${hiddenNoMpn} hidden)` : ""}</label>` : ""}
     <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:0;width:100%"></label></div>
-    ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
+    ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices. Henry Schein is skipped: Claude reads your HS prices while you're signed in.">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
     ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="ce">Elsewhere</th><th class="cs">Save</th></tr></thead><tbody>
@@ -3779,7 +3779,7 @@ async function probeFind(it, sup){
 async function findAt(it, sup){ const x = await probeFind(it, sup); if (!x) return false; try { await saveResults(it, [x]); } catch(e) { toast(dbErr(e)); } return !x.none; }
 async function cmpRun(kind, list){
   if (cmpBusy || !list.length || !needMe()) return;
-  const sups = compareSups(); let i = 0, found = 0, priced = 0, nf = [];
+  const sups = compareSups().filter(autoSup); let i = 0, found = 0, priced = 0, nf = [];
   cmpBusy = { stop: false, label: "Starting…" }; render();
   const say = t => { cmpBusy.label = t; const el = $("#cmpProg"); if (el) el.textContent = t; };
   /* two products at a time, and each product's suppliers at once: most of the wait is the suppliers' pages loading */
@@ -3832,7 +3832,7 @@ async function fetchPrices(list, scope = "mine"){
   if (!list.length) { toast("No products to fetch prices for"); return; }
   if (!window.TDC?.priceSearch) { livePricesHelp(null); return; }
   if (priceRun) { toast("A price check is already running"); return; }
-  const sups = compareSups(), wk = Date.now() - 7 * 864e5;
+  const sups = compareSups().filter(autoSup), wk = Date.now() - 7 * 864e5;
   const fresh = it => sups.every(s => { const o = offerAt(it, s); return o && (o.at || 0) > wk; }) || (Array.isArray(it.offers) && it.offers.some(o => o.run === undefined && o.kind !== "invoice" && o.kind !== "list" && (o.at || 0) > Date.now() - 864e5 && o.mine));
   const todo = scope === "web" ? list.slice() : list.filter(it => !fresh(it)), skip = list.length - todo.length;
   let stop = false, n = 0;
@@ -5727,6 +5727,7 @@ async function runPriceCheck(it, scope, opt = {}){
     const res = await TDC.priceSearch({ name: it.name, sku: it.sku || "", mfr: it.mfr || "", units: it.units || "", supplier: it.supplier || "" }, supplierSites(), scope, []);
     let cands = res.candidates || [];
     if (scope === "mine" && it.link && !cands.some(c => c.url === webHref(it.link))) cands.unshift({ url: webHref(it.link), supplier: it.supplier || "", mine: true, sure: true, title: "Saved reorder link" });
+    cands = cands.filter(c => !isHsUrl(c.url) && autoSup(c.supplier || ""));   // Henry Schein: read by Claude while you're signed in
     if (!cands.length) { status(res.message ? `Nothing found: ${res.message}` : "No matching product pages turned up."); return true; }
     let offers = Array.isArray(it.offers) ? [...it.offers] : [], done = 0;
     const one = async c => {
@@ -6688,6 +6689,11 @@ const COMPARE_DEFAULT = ["Henry Schein", "Benco", "Net32", "Darby Dental", "Safc
 const NOCMP_DEFAULT = /ultradent|blue ?sky|brasseler/i;
 const noCompareSup = sup => { if (!sup) return false; const v = infoOf(sup).noCompare; return v === true || (v == null && NOCMP_DEFAULT.test(sup)); };
 const compareable = it => !noCompareSup(it.supplier);
+/* Henry Schein only shows your price when you're signed in, so the website's automatic price runs skip it
+   (it was the slowest page to read and came back without a price); Claude reads HS prices in the signed-in browser. */
+const SIGNIN_ONLY = ["henry schein"];
+const autoSup = s => !SIGNIN_ONLY.includes(keyOf(canonSup(s) || s));
+const isHsUrl = u => /(^|\.)henryschein\.com$/i.test((() => { try { return new URL(webHref(u)).hostname.replace(/^www\./, ""); } catch { return ""; } })());
 const compareSups = () => { const v = rules.compareSups; const old = ["henry schein","benco","net32","darby dental"]; const L = Array.isArray(v) && v.length && !(v.length === 4 && v.every((s, i) => keyOf(s) === old[i])) ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };
 function openPriceListImport(preSup){
   if (!needMe()) return;
