@@ -1677,11 +1677,13 @@ function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip
     foreach (array_unique(array_merge($queries, [$broad])) as $q) { $r = store_search($host, $q); if ($r === null) break; $own = $own ?? []; foreach ($r as $c) $add($c['url'], $c['title'], ''); if (count($cands) >= 12) break; }
     if ($own !== null && $cands) $queries = [];
     // Google results (fast, consistent) first; the slower page-reading search only if Google comes back empty or fails
-    foreach (array_slice(array_values(array_unique($queries)), 0, 2) as $q) { if (count($cands) >= 8) break;
+    $t0 = microtime(true);
+    foreach (array_slice(array_values(array_unique($queries)), 0, 2) as $q) { if (count($cands) >= 8 || microtime(true) - $t0 > 50) break;
         $r = apify_serp($q . ' site:' . $host, 10);
-        if (!$r['ok'] || !$r['results']) { $r2 = apify_search($q . ' site:' . $host, 10); if ($r2['ok']) $r = $r2; }
+        if (!$r['ok']) { $r2 = apify_search($q . ' site:' . $host, 10); if ($r2['ok']) $r = $r2; }
+        if ($r['ok'] && $r['results'] && count($cands) + count($r['results']) >= 3) { foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); break; }
         if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
-    if (count($cands) < 3 && $own === null) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
+    if (count($cands) < 3 && $own === null && microtime(true) - $t0 < 40) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'Nothing turned up.'];
     $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
