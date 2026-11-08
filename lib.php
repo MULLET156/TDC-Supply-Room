@@ -493,7 +493,8 @@ function safco_variant(string $html, string $mpn, array $jsonld): ?array {
         }
         if ($price === null && preg_match('/data-price-amount="([\d.]+)"/', $obj, $pm)) $price = (float)$pm[1];
         if ($price === null || $price <= 0) continue;
-        $pack = preg_match('#(\d+)\s*/\s*(pkg|pk|bx|box|bag|case|cs|bt|btl|pack)\b#i', $name, $pk) ? $pk[1] . '/' . strtolower($pk[2]) : '';
+        $desc = preg_match('/"description"\s*:\s*"([^"]{2,160})"/', substr($h, $pos - 3000 > 0 ? $pos - 3000 : 0, 3000), $dm) ? trim(html_entity_decode(json_decode('"' . $dm[1] . '"') ?? $dm[1], ENT_QUOTES)) : '';
+        $pack = preg_match('#(\d+)\s*/\s*(pkg|pk|bx|box|bag|case|cs|bt|btl|pack)\b#i', $name, $pk) ? $pk[1] . '/' . strtolower($pk[2]) : ($desc !== '' && mb_strlen($desc) <= 60 ? $desc : '');
         return ['sku' => $item, 'price' => round($price, 2), 'name' => trim($name), 'pack' => $pack];
     }
     return null;
