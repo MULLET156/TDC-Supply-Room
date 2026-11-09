@@ -7171,8 +7171,8 @@ function setupHtml(){
       <div class="f full"><label for="rt-${esc(r.id)}">Notes</label><input id="rt-${esc(r.id)}" data-rf="notes" value="${esc(r.notes)}" placeholder="Best time to call, ordering cutoff, free shipping minimum…"></div>
     </div><div class="actions"><div class="supchips"><span class="hint">Supplier${sups.length === 1 ? "" : "s"}:</span>${sups.map(([k, nm]) => `<span class="chip">${esc(nm)}<button type="button" data-unassign="${esc(k)}" aria-label="Remove ${esc(nm)} from ${esc(r.name)}">×</button></span>`).join("")}<select data-assign="${esc(r.id)}" aria-label="Add a supplier for ${esc(r.name)}"><option value="">+ Add supplier…</option>${allSups.filter(g => supReps[keyOf(g.name)] !== r.id).map(g => { const cur = repOf(g.name); return `<option value="${esc(keyOf(g.name))}">${esc(g.name)}${cur ? " (now " + esc(cur.name) + ")" : ""}</option>`; }).join("")}</select></div><button class="btn danger" type="button" data-rdel="${esc(r.id)}">Remove</button></div></div>`; }).join("") || '<div class="empty">No reps yet. Add your first one below.</div>'}
     <form class="addline" id="repForm"><div class="f"><label for="newRepName">Name</label><input id="newRepName" autocomplete="off"></div><div class="f"><label for="newRepCo">Company</label><input id="newRepCo" autocomplete="off"></div><div class="f"><label for="newRepPhone">Cell phone</label><input id="newRepPhone" type="tel" autocomplete="off"></div><div class="f"><label for="newRepEmail">Email</label><input id="newRepEmail" type="email" autocomplete="off"></div><div class="f"><label for="newRepSup">Supplier</label><select id="newRepSup" style="border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px"><option value="">None yet</option>${allSups.map(g => `<option value="${esc(keyOf(g.name))}">${esc(g.name)}</option>`).join("")}</select></div><button class="btn pri" type="submit">Add rep</button></form></div>`;
-  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button></nav>`;
-  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${backup}${power}</div>`;
+  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" data-jump="logo">Logo</button><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button></nav>`;
+  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${brandSec()}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${backup}${power}</div>`;
 }
 let pendingMerge = null;
 const editReps = new Set();
@@ -7460,7 +7460,53 @@ async function renameAll(field, from, to, label){
   logIt("Setup", null, `${label} "${from}" renamed to "${to}" on ${ok} product${ok!==1?"s":""}`);
   sync("ok", "Saved"); toast(`Updated ${ok} product${ok!==1?"s":""}`); document.activeElement?.blur(); render();
 }
+/* ---------- office logo (Setup › Logo): replaces the built-in logo in the header ---------- */
+let brand = {};
+const LOGO_DEF = {};
+function applyBrand(){
+  const L = document.querySelector(".logo .logo-l"), D = document.querySelector(".logo .logo-d");
+  if (!L) return;
+  if (!("l" in LOGO_DEF)) { LOGO_DEF.l = L.getAttribute("src"); LOGO_DEF.d = D ? D.getAttribute("src") : ""; }
+  const src = id => "blob.php?id=" + encodeURIComponent(id);
+  L.src = brand.logo ? src(brand.logo) : LOGO_DEF.l;
+  if (D) D.src = brand.logoDark ? src(brand.logoDark) : brand.logo ? src(brand.logo) : LOGO_DEF.d;
+}
+async function uploadLogo(file){
+  /* keep transparency: PNG, at most 800 px on the long side */
+  let blob = file;
+  try {
+    if (!/svg/i.test(file.type)) {
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, 800 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      blob = (await new Promise(r => c.toBlob(r, "image/png"))) || file;
+    }
+  } catch {}
+  return assets.upload(blob, { type: blob.type || "image/png" });
+}
+function brandSec(){
+  const prev = (id, dark) => id ? `<img src="blob.php?id=${esc(id)}" alt="" style="height:44px;width:auto;max-width:220px;display:block">` : `<span class="hint">${dark ? "Uses the main logo" : "Built-in logo"}</span>`;
+  const row = (k, label, note, dark) => `<div class="setrow two"><span><b>${label}</b> <span class="hint">${note}</span><span style="display:block;margin-top:6px;padding:6px 8px;border-radius:8px;width:fit-content;background:${dark ? "#1d2228" : "#fff"};border:1px solid var(--line)">${prev(brand[k], dark)}</span></span>
+    <span class="actions"><label class="btn filebtn">${ic("upload")}Upload…<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-logo="${k}"></label>${brand[k] ? `<button type="button" class="btn ghost" data-logorm="${k}">Remove</button>` : ""}</span></div>`;
+  return `<div class="sechead" id="sec-logo"><h2>Logo</h2></div><p class="secnote">Your office logo at the top of every page, for everyone using the Supply Room. A PNG with a transparent background looks best. Add a light-colored version for dark mode if your logo is dark.</p>
+    <div class="list">${row("logo", "Logo", "(light backgrounds)", false)}${row("logoDark", "Dark-mode logo", "(optional)", true)}</div>`;
+}
+function wireBrand(){
+  document.querySelectorAll("[data-logo]").forEach(inp => inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f || !needMe()) return;
+    if (f.size > 8e6) { toast("That image is too big. Use one under 8 MB."); return; }
+    try { toast("Uploading logo…"); const up = await uploadLogo(f); const next = { ...brand, [inp.dataset.logo]: up.id };
+      await db.doc("settings/brand").set(next); brand = next; applyBrand(); logIt("Setup", null, inp.dataset.logo === "logo" ? "Uploaded a new logo" : "Uploaded a dark-mode logo"); toast("Logo saved"); render(); }
+    catch(e) { toast(photoErr(e)); }
+  });
+  document.querySelectorAll("[data-logorm]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const next = { ...brand }; delete next[b.dataset.logorm];
+    try { await db.doc("settings/brand").set(next); brand = next; applyBrand(); logIt("Setup", null, "Removed a logo"); toast("Logo removed"); render(); } catch(e) { toast(dbErr(e)); }
+  });
+}
 function wireSetup(){
+  wireBrand();
   $("#resSug") && ($("#resSug").onclick = () => suggestReserves());
   const chips = $("#teamChips"); if (!chips) return;
   chips.onclick = async e => {
@@ -8013,6 +8059,7 @@ async function boot(){
     reps = snap.docs.map(d => ({ id: d.id, name: "", company: "", cell: "", phone: "", email: "", account: "", website: "", notes: "", ...d.data() })).sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     render();
   }, () => {});
+  db.doc("settings/brand").onSnapshot(snap => { brand = (snap.exists && snap.data()) || {}; applyBrand(); if (tab === "setup") render(); }, () => {});
   db.doc("settings/colors").onSnapshot(snap => {
     const d = (snap.exists && snap.data()) || {};
     colSaved = Object.fromEntries(Object.entries(d).filter(([k, v]) => k in COL_DEFAULT && /^#[0-9a-f]{6}$/i.test(v)));
