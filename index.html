@@ -3636,7 +3636,7 @@ function cmpRows(){
    found once by searching that supplier's site for the MPN and kept only when the page shows it. Refresh re-reads
    the saved pages. Prices from invoices and price lists (your real prices) always win over website prices. */
 const linkFor = (it, sup) => { const l = it.links?.[keyOf(sup)]; if (l?.url) return l.url; return keyOf(it.supplier) === keyOf(sup) && it.link ? webHref(it.link) : ""; };
-const KNOWN_HOSTS = { "henry schein": "henryschein.com", "benco": "shop.benco.com", "net32": "net32.com", "darby dental": "darbydental.com", "darby": "darbydental.com", "safco dental supply": "safcodental.com", "safco": "safcodental.com" };
+const KNOWN_HOSTS = { "henry schein": "henryschein.com", "benco": "shop.benco.com", "net32": "net32.com", "darby dental": "darbydental.com", "darby": "darbydental.com", "safco dental supply": "safcodental.com", "safco": "safcodental.com", "dental city": "dentalcity.com", "frontier dental": "frontierdental.com", "frontier": "frontierdental.com" };
 const siteHost = sup => { const s = supplierSites().find(x => keyOf(x.name) === keyOf(sup)); const w = s?.site || infoOf(sup).website || ""; try { return new URL(webHref(w)).hostname.replace(/^www\./, ""); } catch { return KNOWN_HOSTS[keyOf(sup)] || ""; } };
 /* phone: one card per product, suppliers listed top to bottom (the table is too wide for a phone) */
 function cmpCards(rows, sups, cell){
@@ -3874,7 +3874,7 @@ async function fetchPrices(list, scope = "mine"){
   render();
 }
 function compareColumns(){
-  const all = [...new Set([...compareSups(), ...items.map(i => clean(i.supplier)).filter(Boolean)])].sort((a, b) => a.localeCompare(b)), on = new Set(compareSups().map(keyOf));
+  const seen = new Set(), all = [...compareSups(), ...COMPARE_MORE.map(s => canonSup(s) || s), ...items.map(i => clean(i.supplier)).filter(Boolean)].filter(s => { const k = supKey(s); if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => a.localeCompare(b)), on = new Set(compareSups().map(keyOf));
   openPanel(`<div class="ph"><h2>Suppliers to compare</h2><button class="iconbtn" data-close type="button">Close</button></div>
     <div class="ccols">${all.map(s => `<label><input type="checkbox" value="${esc(s)}" ${on.has(keyOf(s)) ? "checked" : ""}> ${esc(s)}</label>`).join("")}</div>
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="ccGo" type="button">Save</button></div>`);
@@ -5840,7 +5840,7 @@ function spBadge(o){
   return `<span class="spb ${t === "promo" ? "promo" : ""}" title="${esc(tip)}">${t === "promo" ? "Promo" : "SP"}</span>`;
 }
 /* ---------- substitutes: cheaper products that do the same job, mostly suppliers' house brands ---------- */
-const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco", "net32": "House Brand" };
+const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco", "net32": "House Brand", "dental city": "Dental City", "frontier dental": "HSB - House Brand Dentistry" };
 const houseBrand = sup => { const v = infoOf(sup).houseBrand; return v != null ? v : (HOUSE_DEFAULT[keyOf(sup)] || ""); };
 const SUB_CATS_DEFAULT = /ppe|glove|mask|infection|paper|dispos|consum|clean|steril|suction|evac|cup|bib|barrier|hygiene|gauze|cotton/i;
 const subCats = () => Array.isArray(rules.subCats) ? rules.subCats : [...new Set(items.map(i => clean(i.cat)).filter(c => c && SUB_CATS_DEFAULT.test(c)))];
@@ -6700,13 +6700,17 @@ function readCsv(text){
   return rows.filter(r => r.some(c => clean(c)));
 }
 const COMPARE_DEFAULT = ["Henry Schein", "Benco", "Net32", "Darby Dental", "Safco Dental Supply"];
+/* more stores the office can turn on as columns (Compare prices › Suppliers to compare) */
+const COMPARE_MORE = ["Dental City", "Frontier Dental", "Safco Dental Supply"];
 /* suppliers whose products aren't compared (manufacturers and proprietary lines sold nowhere else) */
 const NOCMP_DEFAULT = /ultradent|blue ?sky|brasseler/i;
 const noCompareSup = sup => { if (!sup) return false; const v = infoOf(sup).noCompare; return v === true || (v == null && NOCMP_DEFAULT.test(sup)); };
 const compareable = it => !noCompareSup(it.supplier);
 /* Henry Schein only shows your price when you're signed in, so the website's automatic price runs skip it
    (it was the slowest page to read and came back without a price); Claude reads HS prices in the signed-in browser. */
-const SIGNIN_ONLY = ["henry schein"];
+/* Frontier Dental turns away servers, so the website can't read its pages either: like Henry Schein, its prices come
+   from Claude reading them in the office's browser, or from a price list (Spending › Compare › Import a price list). */
+const SIGNIN_ONLY = ["henry schein", "frontier dental", "frontier"];
 const autoSup = s => !SIGNIN_ONLY.includes(keyOf(canonSup(s) || s));
 const isHsUrl = u => /(^|\.)henryschein\.com$/i.test((() => { try { return new URL(webHref(u)).hostname.replace(/^www\./, ""); } catch { return ""; } })());
 const compareSups = () => { const v = rules.compareSups; const old = ["henry schein","benco","net32","darby dental"]; const L = Array.isArray(v) && v.length && !(v.length === 4 && v.every((s, i) => keyOf(s) === old[i])) ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };

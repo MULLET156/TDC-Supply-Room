@@ -895,6 +895,7 @@ const KNOWN_SUPPLIER_SITES = [
     'blue sky' => 'blueskybio.com', 'henry schein' => 'henryschein.com', 'schein' => 'henryschein.com',
     'net32' => 'net32.com', 'benco' => 'shop.benco.com', 'patterson' => 'pattersondental.com',
     'darby' => 'darbydental.com', 'safco' => 'safcodental.com', 'dental city' => 'dentalcity.com',
+    'frontier' => 'frontierdental.com',
 ];
 const CATALOG_MAX_PAGES = 1500;   // per site, per week
 const CATALOG_BUDGET    = 35;     // seconds of page reading per lookup
@@ -1202,6 +1203,11 @@ function supplier_site_search(string $host, string $q): array {
     $S = [
         'shop.benco.com'  => ['https://shop.benco.com/Search/Search?Terms=%s', '#(?:https://shop\.benco\.com)?/Product/\d+-\d+/[a-z0-9\-]+#i', false],
         'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
+        // Safco and Dental City build their search results in the browser (the server copy has no results), so these
+        // go through Apify's real browser. Both find products by the manufacturer's part number.
+        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/(?!clearance-item)[a-z0-9\-]+#i', true],
+        'dentalcity.com'  => ['https://www.dentalcity.com/search?filter=&search=%s&type=q&keywordoption=ALL&cid=0&fltrdesc=', '#(?:https://www\.dentalcity\.com)?/product/\d+/[a-z0-9\-]+#i', true],
+        // Frontier Dental turns away servers (and Apify), so it is left to the web search and the office's own browser.
     ];
     $cfg = null; foreach ($S as $k => $v) if ($host === $k || str_ends_with($host, '.' . $k) || str_ends_with($k, $host)) { $cfg = $v; $base = 'https://' . ($k === 'shop.benco.com' ? 'shop.benco.com' : 'www.' . $k); break; }
     if (!$cfg) return [];
