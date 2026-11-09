@@ -1412,7 +1412,8 @@ div.altpic{background:var(--sunk)}
 .copybox code{flex:1;white-space:normal;font-size:13px}
 @media (max-width:640px){ .prow{grid-template-columns:minmax(0,1fr) auto} .prow .pk{grid-column:1 / -1;justify-content:flex-start} }
 /* Spending */
-body[data-view="spend"] .filters, body[data-view="spend"] #pageHead{display:none!important}
+body[data-view="spend"] .filters{display:none!important}
+body[data-view="spend"]{--pg:var(--money);--pg-soft:var(--money-soft);--pg-ink:var(--money)}
 .spcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .spcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
 .spcard small{color:var(--muted);font-size:12.5px;font-weight:600}
@@ -3103,6 +3104,7 @@ function pageHead(){
     ordered: ["On the way", s(n(i => i.onOrder)), "Ordered and on the way. Tick what arrived, then Mark received."],
     exp: ["Expiring", s(n(i => i.expiring) + archExp().length), `Expired or expiring within ${rules.expDays ?? 60} days. Replaced one? Tap New date. Used it up or threw it out? Tap Used up.`],
     products: ["Editor", `${items.filter(pMatch).length} of ${s(items.length)} shown`, "Edit any cell; changes save when you leave it. Tick products for Batch Update, Merge, Delete or changing a field together."],
+    spend: [{ compare: "Compare prices", subs: "Substitutes" }[spendMode] || "Spending", spendMode === "spend" && spendOrders ? spendRange()[1].replace(/^./, c => c.toUpperCase()) : "", { compare: "Each product's price at every supplier that sells it. Tap a price to switch where you order it.", subs: "Similar products from other suppliers that could cost less. Check the match before switching." }[spendMode] || "What the office has spent on supplies, by month, category, supplier and product."],
     count: [isPhone() ? "Count" : "Inventory counter", `${n(countedToday)} of ${s(n(countable))} counted`, "Count by supplier, category or location. A green check means counted within that product's schedule (Setup › Alerts, or per product). Tick what you've counted, then Mark counted."]
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
