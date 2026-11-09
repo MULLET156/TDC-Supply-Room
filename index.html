@@ -1883,16 +1883,8 @@ header .topright .tooltabs .tab[data-t="spend"][aria-selected="true"]{background
 main .wrap{grid-template-columns:minmax(0,1fr)}
 /* phone: the order-list line in the product window wraps its buttons under the text instead of squeezing it */
 @media (max-width:520px){.istatus:has(> .btn){flex-wrap:wrap}.istatus:has(> .btn) > span:first-child{flex:1 1 100%}}
-/* desktop: a shorter header (logo, title, tools on one row; slimmer tabs) so more products show */
+/* desktop: slimmer tabs so more products show (logo stays large, above the title) */
 @media (min-width:900px){
-  header .wrap{padding-block:10px 10px}
-  header .top{grid-template-columns:auto auto minmax(0,1fr) auto;grid-template-areas:"logo title . tools1" "logo title . tools2";align-items:center;column-gap:14px;row-gap:6px}
-  header .top .logo{margin:0;align-self:center}
-  header .top .logo img{height:42px}
-  header .apptitle{font-size:28px;margin:0}
-  header .titlerow{gap:2px}
-  header .toolrow{grid-area:tools1;align-self:center;justify-self:end;padding-top:0}
-  header .toolrow2{grid-area:tools2;justify-self:end}
   .tab.big{min-height:46px;flex-direction:row;gap:8px;padding:6px 10px;font-size:17px}
   .tab.big .n{order:-1;font-size:19px}
   .tab.big .bigic{margin:0}
