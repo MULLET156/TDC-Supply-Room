@@ -1182,7 +1182,7 @@ function find_product_page(array $q, array $ctx = []): array {
     $queries = array_slice(array_values(array_unique($queries)), 0, 4);
     $cands = []; $lastErr = '';
     foreach ($queries as $query) {
-        $r = apify_search($query);
+        $r = web_results($query, 5);
         if (!$r['ok']) { $lastErr = $r['message']; continue; }
         foreach ($r['results'] as $c) $cands[$c['url']] = $c;
         if ($cands) break;
@@ -1268,7 +1268,10 @@ function mpn_search_live(string $mpn, string $host, array $skip = [], string $na
 }
 /* Google results through Apify's Google Search Scraper: titles, links and snippets only, no page visits. */
 function apify_serp(string $query, int $max = 10): array {
+    // the same Google search within two weeks is answered from the cache (prices aren't in these results, only pages)
+    if (function_exists('cache_get') && ($c = cache_get('serp', $query . '|' . $max, 14)) !== null) return $c;
     $r = apify_serp_raw($query, $max);
+    if (!empty($r['ok']) && function_exists('cache_put')) cache_put('serp', $query . '|' . $max, $r);
     if (function_exists('apify_meter')) apify_meter('google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
     return $r;
 }
@@ -1294,6 +1297,14 @@ function apify_serp_raw(string $query, int $max = 10): array {
         }
     }
     return ['ok' => true, 'results' => $out];
+}
+/* web search results, cheapest first: Google results (about a quarter of a cent); Apify's page-reading search
+   (several times more) only when the Google search itself failed */
+function web_results(string $query, int $max = 10): array {
+    $r = apify_serp($query, $max);
+    if ($r['ok']) return $r;
+    $b = apify_search($query, min(10, $max));
+    return $b['ok'] ? $b : $r;
 }
 function apify_search(string $query, int $max = 5): array {
     $r = apify_search_raw($query, $max);
@@ -1360,7 +1371,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     }
     $cands = []; $err = '';
     foreach (array_slice($queries, 0, 2) as $qq) {
-        $r = apify_search($qq, 10);
+        $r = web_results($qq, 10);
         if (!$r['ok']) { $err = $r['message']; continue; }
         foreach ($r['results'] as $c) {
             $host = strtolower(preg_replace('#^www\.#', '', (string)parse_url($c['url'], PHP_URL_HOST)));
