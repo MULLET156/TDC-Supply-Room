@@ -56,7 +56,8 @@ function site_pdo(): ?PDO {
     return $p;
 }
 function site_stored(): array {
-    static $cache = null; if ($cache !== null) return $cache;
+    static $cache = null; if ($cache !== null && empty($GLOBALS['tdc_site_stored_reset'])) return $cache;
+    $GLOBALS['tdc_site_stored_reset'] = false;
     $pdo = site_pdo(); $cache = $pdo ? ((load($pdo, 'settings', 'siteprofiles') ?? [])['sites'] ?? []) : [];
     return is_array($cache) ? $cache : [];
 }
@@ -88,6 +89,16 @@ function site_learn(string $host, array $patch): void {
     $next['learnedAt'] = time();
     $sites[$key] = $next;
     try { save($pdo, 'settings', 'siteprofiles', ['sites' => $sites]); } catch (Throwable $e) { error_log('tdc site_learn: ' . $e->getMessage()); }
+    $GLOBALS['tdc_site_stored_reset'] = true;
+}
+function site_forget(string $host): void {
+    $key = site_default_key(site_host($host)) ?? site_host($host);
+    $pdo = site_pdo(); if (!$pdo) return;
+    $doc = load($pdo, 'settings', 'siteprofiles') ?? []; $sites = is_array($doc['sites'] ?? null) ? $doc['sites'] : [];
+    if (!isset($sites[$key])) return;
+    unset($sites[$key]);
+    try { save($pdo, 'settings', 'siteprofiles', ['sites' => $sites]); } catch (Throwable $e) {}
+    $GLOBALS['tdc_site_stored_reset'] = true;
 }
 function site_profiles_all(array $hosts = []): array {
     $out = []; foreach (array_unique(array_merge(array_keys(SITE_DEFAULTS), array_keys(site_stored()), array_map('site_host', $hosts))) as $h) if ($h !== '') $out[$h] = site_profile($h);
@@ -199,45 +210,58 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
         }
     }
     foreach (['/search?q=%s', '/catalogsearch/result/?q=%s', '/search?search=%s', '/search?query=%s', '/search?text=%s', '/search?keyword=%s', '/?s=%s&post_type=product', '/products?search=%s', '/search?type=product&q=%s'] as $t) $tpls[] = $base . $t;
+    // a fresh check starts from the built-in profile (or nothing), not from what earlier reads learned
+    site_forget($host);
+    $cur = site_profile($host);
+    if (!empty($cur['searchUrl'])) array_unshift($tpls, $cur['searchUrl']);   // the address already known to work goes first
     $tpls = array_values(array_unique($tpls));
     // 2. which template returns product links on the server, and what product links look like
     $shapes = ['#(?:https?://[^"\'\s<>]*)?/products?/[a-z0-9][a-z0-9\-_%]{2,}(?:/[a-z0-9\-_%]+)?(?=["\'?\#\s<])#i', '#(?:https?://[^"\'\s<>]*)?/p/[a-z0-9\-_%]{3,}(?:/[a-z0-9\-_%]+)?(?=["\'?\#\s<])#i',
                '#(?:https?://[^"\'\s<>]*)?/(?:item|items|ec)/[a-z0-9\-_%]{3,}(?=["\'?\#\s<])#i', '#(?:https?://[^"\'\s<>]*)?/[a-z0-9\-]{8,}-(?:d-)?\d{4,}(?:\.html)?(?=["\'?\#\s<])#i', '#(?:https?://[^"\'\s<>]*)?/\d{5,}[0-9\-]*\.html(?=["\'?\#\s<])#i'];
+    if (!empty($cur['link'])) array_unshift($shapes, $cur['link']);           // the store's known product-link pattern first
     $pickShape = function (string $html) use ($shapes, $host): array {
         $best = ['re' => '', 'n' => 0, 'urls' => []];
         foreach ($shapes as $re) {
-            if (!preg_match_all($re, $html, $m)) continue;
+            if (!@preg_match_all($re, $html, $m)) continue;
             $u = array_values(array_unique(array_filter($m[0], fn($x) => !preg_match('#\.(jpe?g|png|gif|webp|svg|css|js)$#i', $x) && (!str_starts_with($x, 'http') || site_host((string)parse_url($x, PHP_URL_HOST)) === $host))));
             if (count($u) > $best['n']) $best = ['re' => $re, 'n' => count($u), 'urls' => $u];
         }
         return $best;
     };
-    $tryTerm = $mpn !== '' ? $mpn : $term;
-    $found = null;
+    // A part number the store doesn't sell gives an empty result page, which says nothing about the search itself,
+    // so common supplies every dental store carries are tried too.
+    $terms = array_values(array_unique(array_filter([$mpn, $term, 'cotton rolls'])));
+    $found = null; $serverPages = 0; $browserTry = null;
     if (!$blockedHome) foreach (array_slice($tpls, 0, 6) as $t) {
-        $g = http_get(sprintf($t, rawurlencode($tryTerm)), 4194304, 20);
-        if (!$g['ok'] || bot_wall($g['body'])) continue;
-        $s = $pickShape($g['body']); $hasQ = stripos($g['body'], $tryTerm) !== false;
-        if ($s['n'] >= 1 && $hasQ) { $found = ['tpl' => $t, 'mode' => 'server'] + $s; break; }
-        if (!isset($found) && $hasQ && $s['n'] === 0) $found = ['tpl' => $t, 'mode' => 'maybe-browser', 're' => '', 'n' => 0, 'urls' => []];
+        foreach ($terms as $tt) {
+            $g = http_get(sprintf($t, rawurlencode($tt)), 4194304, 20);
+            if (!$g['ok'] || bot_wall($g['body'])) continue 2;
+            $hasQ = stripos($g['body'], $tt) !== false; if (!$hasQ) continue 2;   // not a search page
+            $serverPages++;
+            $s = $pickShape($g['body']);
+            if ($s['n'] >= 2) { $found = ['tpl' => $t, 'mode' => 'server', 'term' => $tt] + $s; break 2; }
+            $browserTry = $browserTry ?? ['tpl' => $t, 'term' => $term];
+        }
     }
-    if ($found && $found['mode'] === 'server') { $say("Its own search works on the server: {$found['tpl']} ({$found['n']} product links)."); }
-    elseif ($found && apify_ready()) {
-        $a = apify_page_run(sprintf($found['tpl'], rawurlencode($tryTerm)), 'browser-playwright', 90, true);
+    if ($found) $say("Its own search works on the server ({$found['n']} product links for \"{$found['term']}\").");
+    elseif ($browserTry && apify_ready()) {
+        // one browser run, with a common supply, to see whether results only appear in a real browser
+        $a = apify_page_run(sprintf($browserTry['tpl'], rawurlencode($browserTry['term'])), 'browser-playwright', 90, true);
         $s = $a['ok'] ? $pickShape($a['html']) : ['n' => 0, 're' => '', 'urls' => []];
-        if ($s['n'] >= 1) { $found = ['tpl' => $found['tpl'], 'mode' => 'browser'] + $s; $say("Its search only shows results in a real browser ({$s['n']} product links through Apify)."); }
-        else { $found = null; $say('Its search page didn\'t show product links even in a browser.'); }
-    } else { $found = null; $say($blockedHome ? 'Its search can\'t be read from the server.' : 'Couldn\'t find a search page that lists products.'); }
+        if ($s['n'] >= 2) { $found = ['tpl' => $browserTry['tpl'], 'mode' => 'browser', 'term' => $browserTry['term']] + $s; $say("Its search only shows results in a real browser ({$s['n']} product links through Apify)."); }
+        else $say('Its search page didn\'t show product links, even in a browser.');
+    } else $say($blockedHome ? 'Its search can\'t be read from the server.' : 'Couldn\'t find a search page that lists products.');
     if ($found) { $prof['search'] = $found['mode']; $prof['searchUrl'] = $found['tpl']; $prof['link'] = $found['re']; }
-    else $prof['search'] = 'web';
+    elseif ($blockedHome || empty($cur['searchUrl'])) $prof['search'] = 'web';
+    else $say('Kept the way it was already searched (' . ($cur['search'] ?? 'web') . '), since the test couldn\'t confirm a better one.');
     // 3. a product page: free server read, else Apify's quick proxy, else its browser
     $sample = $found['urls'][0] ?? '';
-    if ($sample === '' && apify_ready()) { $r = apify_serp(($mpn !== '' ? '"' . $mpn . '"' : $term) . ' site:' . $host, 5); foreach ((array)($r['results'] ?? []) as $c) if (site_host((string)parse_url($c['url'], PHP_URL_HOST)) === $host) { $sample = $c['url']; break; } }
+    if ($sample === '' && apify_ready()) { $r = apify_serp($term . ' site:' . $host, 5); foreach ((array)($r['results'] ?? []) as $c) if (site_host((string)parse_url($c['url'], PHP_URL_HOST)) === $host && !preg_match('#/(search|category|c|catalog)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) { $sample = $c['url']; break; } }
     if (!str_starts_with($sample, 'http') && $sample !== '') $sample = $base . $sample;
     if ($sample !== '') {
         $g = http_get($sample, 4194304, 20); $blk = !$g['ok'] ? in_array($g['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($g['body']);
         if ($g['ok'] && !$blk) {
-            $prof['page'] = 'server';
+            $prof['page'] = ($cur['page'] ?? '') === 'signin' ? 'signin' : 'server';
             $hasLd = preg_match('#"@type"\s*:\s*"Product(Group)?"#', $g['body']) || preg_match('#itemtype="https?://schema\.org/Product"#i', $g['body']);
             $say('Product pages open on the server' . ($hasLd ? ', with product data (name, SKU, price) built in.' : '; Claude reads the page text for price and SKU.'));
         } elseif (apify_ready()) {
