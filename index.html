@@ -2233,6 +2233,8 @@ window.TDC = (function(){
   function gate(){
     const el = document.getElementById("signin"), form = document.getElementById("signinForm"), pw = document.getElementById("signinPw"), msg = document.getElementById("signinMsg"), btn = form.querySelector("button");
     const logo = document.querySelector("header .logo"); if (logo && !el.querySelector(".logo")) el.querySelector(".sg-brand").prepend(logo.cloneNode(true));
+    /* the office's uploaded logo (Setup › Logo) is served without signing in; keep the built-in one if there isn't one */
+    el.querySelectorAll(".logo img").forEach(im => { const def = im.getAttribute("src"), alt = im.alt; im.onerror = () => { im.onerror = null; im.src = def; im.alt = alt; }; im.src = "blob.php?brand=" + (im.classList.contains("logo-d") ? "dark" : "light"); im.alt = "Logo"; });
     return new Promise(resolve => {
       el.hidden = false; setTimeout(() => pw.focus(), 50);
       form.onsubmit = async ev => { ev.preventDefault(); msg.textContent = ""; btn.disabled = true; btn.textContent = "Signing in…";
