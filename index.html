@@ -7453,7 +7453,7 @@ async function renameAll(field, from, to, label){
   sync("ok", "Saved"); toast(`Updated ${ok} product${ok!==1?"s":""}`); document.activeElement?.blur(); render();
 }
 /* ---------- office logo (Setup › Logo): replaces the built-in logo in the header ---------- */
-let brand = {};
+let brand = (() => { try { return JSON.parse(localStorage.getItem("tdc.brand") || "{}") || {}; } catch { return {}; } })();
 const LOGO_DEF = {};
 function applyBrand(){
   const L = document.querySelector(".logo .logo-l"), D = document.querySelector(".logo .logo-d");
@@ -7498,6 +7498,7 @@ function wireBrand(){
     try { await db.doc("settings/brand").set(next); brand = next; applyBrand(); logIt("Setup", null, "Removed a logo"); toast("Logo removed"); render(); } catch(e) { toast(dbErr(e)); }
   });
 }
+try { applyBrand(); } catch {}
 function wireSetup(){
   wireBrand();
   $("#resSug") && ($("#resSug").onclick = () => suggestReserves());
@@ -8052,7 +8053,7 @@ async function boot(){
     reps = snap.docs.map(d => ({ id: d.id, name: "", company: "", cell: "", phone: "", email: "", account: "", website: "", notes: "", ...d.data() })).sort((a,b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     render();
   }, () => {});
-  db.doc("settings/brand").onSnapshot(snap => { brand = (snap.exists && snap.data()) || {}; applyBrand(); if (tab === "setup") render(); }, () => {});
+  db.doc("settings/brand").onSnapshot(snap => { brand = (snap.exists && snap.data()) || {}; try { localStorage.setItem("tdc.brand", JSON.stringify(brand)); } catch {} applyBrand(); if (tab === "setup") render(); }, () => {});
   db.doc("settings/colors").onSnapshot(snap => {
     const d = (snap.exists && snap.data()) || {};
     colSaved = Object.fromEntries(Object.entries(d).filter(([k, v]) => k in COL_DEFAULT && /^#[0-9a-f]{6}$/i.test(v)));
