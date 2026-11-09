@@ -571,13 +571,20 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
     } elseif (($bz = brasseler_facts($url)) !== null) {
         $f = $bz; $finalUrl = $url;
     } else {
-        $page = http_get($url);
+        // The site's profile says how to read it: skip the free read a site always refuses, and don't pay Apify
+        // to fail on a site that blocked everything recently (sites.php).
+        $host = site_host((string)parse_url($url, PHP_URL_HOST)); $prof = site_profile($host); $mode = $prof['page'] ?? 'server';
+        if ($mode === 'blocked') return ['ok' => false, 'error' => 'blocked', 'message' => ($prof['name'] ?? $host) . ' turns away the server and Apify, so the website can\'t read it. Claude can read it in your browser, or import a price list.'];
+        $page = in_array($mode, ['proxy', 'browser'], true) ? ['ok' => false, 'code' => 403, 'error' => ''] : http_get($url);
         $looksBlocked = !$page['ok'] ? in_array($page['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($page['body']);
         if ($looksBlocked && apify_ready()) {
-            // The site turned the server away: open it in a real browser through Apify instead.
-            $got = apify_page($url, $quick);
-            if (!$got['ok']) return $got;
+            // The site turned the server away: open it through Apify instead (the quick proxy first, unless the site needs the browser).
+            $got = apify_page($url, $quick, $mode === 'browser' ? 'browser' : 'proxy');
+            if (!$got['ok']) { if (!$quick) site_learn($host, ['page' => 'blocked', 'blockedAt' => time()]); return $got; }
+            if (($got['tool'] ?? '') !== $mode && $mode !== 'signin') site_learn($host, ['page' => $got['tool']]);
             $page = ['ok' => true, 'body' => $got['html'], 'url' => $got['url'], 'type' => 'text/html'];
+        } elseif ($page['ok'] && in_array($mode, ['proxy', 'browser', 'blocked'], true)) {
+            site_learn($host, ['page' => 'server']);
         } elseif (!$page['ok']) {
             return ['ok' => false, 'error' => $looksBlocked ? 'blocked' : 'unreachable',
                     'message' => $looksBlocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
@@ -843,16 +850,25 @@ function bot_wall(string $html): bool {
 }
 
 /* Any blocked page, opened in a real browser by Apify's RAG Web Browser (apify/rag-web-browser). */
-function apify_page(string $url, bool $quick = false): array {
+function apify_page(string $url, bool $quick = false, string $start = 'proxy'): array {
     // First a quick plain fetch through Apify's proxies (a few seconds); only if that is
-    // blocked too, a full browser (slower, 30-60 seconds). $quick skips the browser.
-    // Residential proxies look like a home internet connection, which most store sites let in.
-    $r = apify_page_run($url, 'raw-http', 40, true);
-    if ($r['ok'] || $quick) return $r;
+    // blocked too, a full browser (slower, 30-60 seconds, more credit). $quick skips the browser.
+    // A site known to need the browser ($start = 'browser') skips the quick fetch it would fail.
+    if ($start !== 'browser') {
+        $r = apify_page_run($url, 'raw-http', 40, true);
+        if ($r['ok'] && !bot_wall((string)($r['html'] ?? ''))) return $r + ['tool' => 'proxy'];
+        if ($quick) return $r['ok'] ? ['ok' => false, 'error' => 'blocked', 'message' => 'The page showed a robot check.'] : $r;
+    } elseif ($quick) return ['ok' => false, 'error' => 'blocked', 'message' => 'This site needs the full browser.'];
     $b = apify_page_run($url, 'browser-playwright', 110, true);
-    return $b['ok'] ? $b : $r;
+    if ($b['ok'] && !bot_wall((string)($b['html'] ?? ''))) return $b + ['tool' => 'browser'];
+    return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site blocked the server, and Apify couldn\'t get past it either.'];
 }
 function apify_page_run(string $url, string $tool, int $secs, bool $residential = false): array {
+    $r = apify_page_run_raw($url, $tool, $secs, $residential);
+    if (function_exists('apify_meter')) apify_meter('page-' . $tool, (string)parse_url($url, PHP_URL_HOST), !empty($r['ok']));
+    return $r;
+}
+function apify_page_run_raw(string $url, string $tool, int $secs, bool $residential = false): array {
     @set_time_limit($secs + 40);
     $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
     $input = ['query' => $url, 'maxResults' => 1, 'outputFormats' => ['html'], 'scrapingTool' => $tool,
@@ -1199,52 +1215,39 @@ function find_product_page(array $q, array $ctx = []): array {
    only when the page shows the part number. */
 /* product pages from a supplier's own search results for a part number ([] when the site isn't known or found nothing).
    Henry Schein and Safco build their results in the browser, so those pages go through Apify's real browser. */
-function supplier_site_search(string $host, string $q): array {
-    $S = [
-        'shop.benco.com'  => ['https://shop.benco.com/Search/Search?Terms=%s', '#(?:https://shop\.benco\.com)?/Product/\d+-\d+/[a-z0-9\-]+#i', false],
-        'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
-        // Safco and Dental City build their search results in the browser (the server copy has no results), so these
-        // go through Apify's real browser. Both find products by the manufacturer's part number.
-        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?(?<!catalog)/product/(?!clearance-item)[a-z0-9\-]{3,}(?=["\'?\#\s<])#i', true],
-        'dentalcity.com'  => ['https://www.dentalcity.com/search?filter=&search=%s&type=q&keywordoption=ALL&cid=0&fltrdesc=', '#(?:https://www\.dentalcity\.com)?/product/\d+/[a-z0-9\-]+#i', true],
-        // Frontier Dental turns away servers (and Apify), so it is left to the web search and the office's own browser.
-    ];
-    $cfg = null; foreach ($S as $k => $v) if ($host === $k || str_ends_with($host, '.' . $k) || str_ends_with($k, $host)) { $cfg = $v; $base = 'https://' . ($k === 'shop.benco.com' ? 'shop.benco.com' : 'www.' . $k); break; }
-    if (!$cfg) return [];
-    $url = sprintf($cfg[0], rawurlencode($q));
-    $html = '';
-    if (!$cfg[2]) { $g = http_get($url, 4194304, 25); if ($g['ok'] && !bot_wall($g['body'])) $html = $g['body']; }
-    if ($html === '' && apify_ready()) { $a = apify_page_run($url, 'browser-playwright', 90, true); if ($a['ok']) $html = $a['html']; }
-    if ($html === '' || !preg_match_all($cfg[1], $html, $m, PREG_OFFSET_CAPTURE)) return [];
-    // results first: links closest to where the page shows the part number (menus and "you may also like" come later)
-    $hits = []; $p = 0; $ql = strtolower($q); $lh = strtolower($html);
-    while (($p = strpos($lh, $ql, $p)) !== false) { $hits[] = $p; $p += strlen($ql); }
-    $links = array_map(fn($x) => [$x[0], $hits ? min(array_map(fn($y) => abs($y - $x[1]), $hits)) : $x[1]], $m[0]);
-    usort($links, fn($a, $b) => $a[1] <=> $b[1]);
-    $out = []; $seen = [];
-    foreach (array_column($links, 0) as $u) {
-        if (!str_starts_with($u, 'http')) $u = $base . $u;
-        $u = rtrim($u, '/');
-        if (isset($seen[$u]) || preg_match('#clearance-item#', $u)) continue; $seen[$u] = 1;
-        $out[] = ['url' => $u, 'title' => '', 'host' => $host];
-        if (count($out) >= 4) break;
-    }
-    return $out;
+function supplier_site_search(string $host, string $q, bool $allowBrowser = true): array {
+    return site_search($host, $q, $allowBrowser) ?? [];
 }
 function mpn_search(string $mpn, string $host, array $skip = [], string $name = ''): array {
     if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
     $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
-    // The supplier's own site search first: web search rarely indexes a supplier page by part number.
-    if ($host !== '') { $own = supplier_site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site']; }
+    // Same part number at the same store searched in the last 30 days (14 when nothing was found): reuse it.
+    $ck = sku_norm($mpn) . '|' . $host . '|' . ($host === '' ? implode(',', $skip) : '');
+    $c = cache_get('mpn', $ck, 30); if ($c !== null && (!empty($c['candidates']) || cache_get('mpn', $ck, 14) !== null)) return $c + ['cached' => true];
+    $r = mpn_search_live($mpn, $host, $skip, $name);
+    if (!empty($r['ok'])) cache_put('mpn', $ck, $r);
+    return $r;
+}
+function mpn_search_live(string $mpn, string $host, array $skip = [], string $name = ''): array {
+    $prof = $host !== '' ? site_profile($host) : [];
+    // A store whose own search works on the server: use it first (free). A store whose search needs the browser:
+    // try Google first (a cheap run) and open its search in Apify's browser only if Google finds nothing.
+    if ($host !== '' && ($prof['search'] ?? '') === 'server') { $own = site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site']; }
+    $browserLater = $host !== '' && ($prof['search'] ?? '') === 'browser';
     // Google results only (no page fetches): steadier than the browser actor, which drops results whose pages
     // it can't open (Net32 sits behind Cloudflare) and sometimes comes back empty. Fall back to it, and retry once.
     // the whole web: the part number alone is too vague ("3055" matches anything), so add the first words of the name
     $nm = implode(' ', array_slice(preg_split('/\s+/', trim(preg_replace('/[\(\)\[\],#"]+/', ' ', $name))), 0, 4));
     $qq = '"' . $mpn . '"' . ($host !== '' ? ' site:' . $host : ' ' . ($nm !== '' ? $nm : 'dental'));
+    // One Google search. The page-reading search only when Google itself failed (it costs several times more);
+    // an empty Google answer is an answer, not a reason to search again.
     $r = apify_serp($qq);
-    if (!$r['ok'] || !$r['results']) { $b = apify_search($qq, 8); if ($b['ok'] && $b['results']) $r = $b; elseif (!$r['ok']) $r = $b; }
-    if ($r['ok'] && !$r['results']) { $again = apify_serp($qq); if ($again['ok'] && $again['results']) $r = $again; }
+    if (!$r['ok']) { $b = apify_search($qq, 8); if ($b['ok']) $r = $b; }
+    if ($browserLater && (!$r['ok'] || !array_filter($r['results'] ?? [], fn($c) => str_contains(strtolower((string)parse_url($c['url'], PHP_URL_HOST)), $host)))) {
+        $own = site_search($host, $mpn); if ($own) return ['ok' => true, 'candidates' => $own, 'via' => 'site'];
+        if ($own === [] && !$r['ok']) $r = ['ok' => true, 'results' => []];
+    }
     if (!$r['ok']) return ['ok' => false, 'error' => 'search', 'message' => $r['message']];
     $skip = array_map(fn($s) => strtolower(preg_replace('#^www\.#', '', (string)$s)), $skip);
     $out = []; $seen = [];
@@ -1265,6 +1268,11 @@ function mpn_search(string $mpn, string $host, array $skip = [], string $name = 
 }
 /* Google results through Apify's Google Search Scraper: titles, links and snippets only, no page visits. */
 function apify_serp(string $query, int $max = 10): array {
+    $r = apify_serp_raw($query, $max);
+    if (function_exists('apify_meter')) apify_meter('google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
+    return $r;
+}
+function apify_serp_raw(string $query, int $max = 10): array {
     @set_time_limit(120);
     $actor = (string)cfg('APIFY_SERP_ACTOR', 'apify~google-search-scraper');
     $input = ['queries' => $query, 'maxPagesPerQuery' => 1, 'resultsPerPage' => max(1, min(20, $max)), 'countryCode' => 'us', 'languageCode' => 'en', 'mobileResults' => false, 'saveHtml' => false, 'includeUnfilteredResults' => false];
@@ -1288,6 +1296,11 @@ function apify_serp(string $query, int $max = 10): array {
     return ['ok' => true, 'results' => $out];
 }
 function apify_search(string $query, int $max = 5): array {
+    $r = apify_search_raw($query, $max);
+    if (function_exists('apify_meter')) apify_meter('web-browse', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
+    return $r;
+}
+function apify_search_raw(string $query, int $max = 5): array {
     @set_time_limit(120);
     $actor = (string)cfg('APIFY_BROWSER_ACTOR', 'apify~rag-web-browser');
     $input = ['query' => $query, 'maxResults' => max(1, min(10, $max)), 'outputFormats' => ['markdown'], 'scrapingTool' => 'raw-http', 'maxRequestRetries' => 0, 'removeCookieWarnings' => true];
@@ -1689,7 +1702,7 @@ function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip
         if (!$r['ok']) { $r2 = apify_search($q . ' site:' . $host, 10); if ($r2['ok']) $r = $r2; }
         if ($r['ok'] && $r['results'] && count($cands) + count($r['results']) >= 3) { foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); break; }
         if (!$r['ok']) { $err = $r['message']; continue; } foreach ($r['results'] as $c) $add($c['url'], $c['title'], $c['description']); }
-    if (count($cands) < 3 && $own === null && microtime(true) - $t0 < 40) foreach (supplier_site_search($host, trim($brand . ' ' . $broad)) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
+    if (count($cands) < 3 && $own === null && microtime(true) - $t0 < 40) foreach (supplier_site_search($host, trim($brand . ' ' . $broad), false) as $c) { $slug = str_replace('-', ' ', basename((string)parse_url($c['url'], PHP_URL_PATH))); if (preg_match('/[a-z]{3}/i', $slug)) $add($c['url'], $slug, ''); }
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'Nothing turned up.'];
     $list = implode("\n", array_map(fn($i, $c) => "$i: {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
@@ -1719,3 +1732,5 @@ function sub_compare(array $p, array $plan, array $subs): array {
         'fit' => in_array($s['fit'] ?? '', ['good', 'maybe', 'no'], true) ? $s['fit'] : 'maybe'];
     return ['ok' => true, 'mine' => ['count' => $num($a['value']['mine']['count'] ?? null)], 'subs' => $out];
 }
+
+require_once __DIR__ . '/sites.php';

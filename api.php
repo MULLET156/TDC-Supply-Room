@@ -211,6 +211,18 @@ try {
             out(200, $r);
         }
 
+        case 'siteprofiles': {   // how each supplier website is read (sites.php)
+            $hosts = is_array($req['hosts'] ?? null) ? array_map('strval', array_slice($req['hosts'], 0, 60)) : [];
+            out(200, ['ok' => true, 'sites' => site_profiles_all($hosts), 'meter' => apify_meter_summary()]);
+        }
+        case 'siteprobe': {      // Check site: work out how to read a store's website
+            $r = site_probe((string)($req['host'] ?? ''), mb_substr((string)($req['mpn'] ?? ''), 0, 60));
+            if (!$r['ok']) fail(502, 'probe', $r['message']);
+            out(200, $r);
+        }
+        case 'apifyusage': {     // what Apify billed per actor, from the account's run history
+            out(200, apify_account_usage(max(1, min(90, (int)($req['days'] ?? 30)))));
+        }
         case 'storesearch': {   // check a store's own search from the server (troubleshooting)
             $host = (string)($req['host'] ?? ''); $q = (string)($req['q'] ?? '');
             $r = store_search($host, $q);

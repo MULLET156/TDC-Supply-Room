@@ -2280,12 +2280,15 @@ window.TDC = (function(){
   async function subPlan(p){ return call("subplan", { p }); }
   async function subFind(p, plan, s, nameBrands, skip){ return call("subfind", { p, plan, s, nameBrands: !!nameBrands, skip: skip || [] }); }
   async function subCompare(p, plan, subs){ return call("subcompare", { p, plan, subs }); }
+  async function siteProfiles(hosts){ return call("siteprofiles", { hosts: hosts || [] }); }
+  async function siteProbe(host, mpn){ return call("siteprobe", { host, mpn: mpn || "" }); }
+  async function apifyUsage(days){ return call("apifyusage", { days: days || 30 }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -3790,6 +3793,7 @@ async function probeFind(it, sup){
 async function findAt(it, sup){ const x = await probeFind(it, sup); if (!x) return false; try { await saveResults(it, [x]); } catch(e) { toast(dbErr(e)); } return !x.none; }
 async function cmpRun(kind, list){
   if (cmpBusy || !list.length || !needMe()) return;
+  await loadSiteProfiles();
   const sups = compareSups().filter(autoSup); let i = 0, found = 0, priced = 0, nf = [];
   cmpBusy = { stop: false, label: "Starting…" }; render();
   const say = t => { cmpBusy.label = t; const el = $("#cmpProg"); if (el) el.textContent = t; };
@@ -3844,6 +3848,7 @@ async function fetchPrices(list, scope = "mine"){
   if (!list.length) { toast("No products to fetch prices for"); return; }
   if (!window.TDC?.priceSearch) { livePricesHelp(null); return; }
   if (priceRun) { toast("A price check is already running"); return; }
+  await loadSiteProfiles();
   const sups = compareSups().filter(autoSup), wk = Date.now() - 7 * 864e5;
   const fresh = it => sups.every(s => { const o = offerAt(it, s); return o && (o.at || 0) > wk; }) || (Array.isArray(it.offers) && it.offers.some(o => o.run === undefined && o.kind !== "invoice" && o.kind !== "list" && (o.at || 0) > Date.now() - 864e5 && o.mine));
   const todo = scope === "web" ? list.slice() : list.filter(it => !fresh(it)), skip = list.length - todo.length;
@@ -6711,7 +6716,16 @@ const compareable = it => !noCompareSup(it.supplier);
 /* Frontier Dental turns away servers, so the website can't read its pages either: like Henry Schein, its prices come
    from Claude reading them in the office's browser, or from a price list (Spending › Compare › Import a price list). */
 const SIGNIN_ONLY = ["henry schein", "frontier dental", "frontier"];
-const autoSup = s => !SIGNIN_ONLY.includes(keyOf(canonSup(s) || s));
+/* each supplier website's profile (sites.php): automatic price runs skip sites marked sign-in only or blocked */
+let siteProf = {}, siteMeter = [], siteProfAt = 0;
+async function loadSiteProfiles(force){
+  if (!window.TDC?.siteProfiles || (!force && Date.now() - siteProfAt < 10 * 60e3)) return;
+  siteProfAt = Date.now();
+  try { const hosts = [...new Set([...compareSups(), ...COMPARE_MORE, ...supplierSites().map(s => s.name)].map(siteHost).filter(Boolean))];
+    const r = await TDC.siteProfiles(hosts); siteProf = r.sites || {}; siteMeter = r.meter || []; } catch {}
+}
+const profOf = sup => { const h = siteHost(sup); if (!h) return null; return siteProf[h] || Object.values(siteProf).find(p => p.host && (h === p.host || h.endsWith("." + p.host) || p.host.endsWith("." + h))) || null; };
+const autoSup = s => { const p = profOf(canonSup(s) || s); if (p && (p.page === "signin" || p.page === "blocked")) return false; return !SIGNIN_ONLY.includes(keyOf(canonSup(s) || s)); };
 const isHsUrl = u => /(^|\.)henryschein\.com$/i.test((() => { try { return new URL(webHref(u)).hostname.replace(/^www\./, ""); } catch { return ""; } })());
 const compareSups = () => { const v = rules.compareSups; const old = ["henry schein","benco","net32","darby dental"]; const L = Array.isArray(v) && v.length && !(v.length === 4 && v.every((s, i) => keyOf(s) === old[i])) ? v : COMPARE_DEFAULT; return L.map(s => canonSup(s) || s); };
 function openPriceListImport(preSup){
@@ -7180,8 +7194,8 @@ function setupHtml(){
       <div class="f full"><label for="rt-${esc(r.id)}">Notes</label><input id="rt-${esc(r.id)}" data-rf="notes" value="${esc(r.notes)}" placeholder="Best time to call, ordering cutoff, free shipping minimum…"></div>
     </div><div class="actions"><div class="supchips"><span class="hint">Supplier${sups.length === 1 ? "" : "s"}:</span>${sups.map(([k, nm]) => `<span class="chip">${esc(nm)}<button type="button" data-unassign="${esc(k)}" aria-label="Remove ${esc(nm)} from ${esc(r.name)}">×</button></span>`).join("")}<select data-assign="${esc(r.id)}" aria-label="Add a supplier for ${esc(r.name)}"><option value="">+ Add supplier…</option>${allSups.filter(g => supReps[keyOf(g.name)] !== r.id).map(g => { const cur = repOf(g.name); return `<option value="${esc(keyOf(g.name))}">${esc(g.name)}${cur ? " (now " + esc(cur.name) + ")" : ""}</option>`; }).join("")}</select></div><button class="btn danger" type="button" data-rdel="${esc(r.id)}">Remove</button></div></div>`; }).join("") || '<div class="empty">No reps yet. Add your first one below.</div>'}
     <form class="addline" id="repForm"><div class="f"><label for="newRepName">Name</label><input id="newRepName" autocomplete="off"></div><div class="f"><label for="newRepCo">Company</label><input id="newRepCo" autocomplete="off"></div><div class="f"><label for="newRepPhone">Cell phone</label><input id="newRepPhone" type="tel" autocomplete="off"></div><div class="f"><label for="newRepEmail">Email</label><input id="newRepEmail" type="email" autocomplete="off"></div><div class="f"><label for="newRepSup">Supplier</label><select id="newRepSup" style="border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px"><option value="">None yet</option>${allSups.map(g => `<option value="${esc(keyOf(g.name))}">${esc(g.name)}</option>`).join("")}</select></div><button class="btn pri" type="submit">Add rep</button></form></div>`;
-  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="logo">Logo</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button></nav>`;
-  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${brandSec()}${backup}${power}</div>`;
+  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="sites">Supplier websites</button><button type="button" data-jump="logo">Logo</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button></nav>`;
+  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${sitesSec()}${brandSec()}${backup}${power}</div>`;
 }
 let pendingMerge = null;
 const editReps = new Set();
@@ -7495,6 +7509,32 @@ async function uploadLogo(file){
   } catch {}
   return assets.upload(blob, { type: blob.type || "image/png" });
 }
+const SEARCH_WORDS = { server: "Its own search, read on the server (free)", browser: "Google first; its own search in a real browser only if Google misses (Apify)", web: "Google results for the site (a cheap Apify run)", none: "Not searched" };
+const PAGE_WORDS = { server: "Read on the server (free)", proxy: "Apify's quick proxy (cheap)", browser: "Apify's full browser (most credit)", blocked: "Blocked: Claude reads it in your browser, or a price list", signin: "Prices need sign-in: Claude reads them in your browser" };
+function sitesSec(){
+  if (!window.TDC?.siteProfiles) return "";
+  if (!siteProfAt) loadSiteProfiles().then(() => { if (tab === "setup") render(); });
+  const names = [...new Set([...compareSups(), ...COMPARE_MORE.map(s => canonSup(s) || s), ...supplierSites().filter(s => s.site).map(s => s.name)])];
+  const rows = names.map(n => ({ n, h: siteHost(n), p: profOf(n) })).filter(r => r.h).sort((a, b) => a.n.localeCompare(b.n));
+  const meter = siteMeter.filter(m => m.month === new Date().toISOString().slice(0, 7));
+  const runs = meter.reduce((a, m) => a + m.runs, 0);
+  return `<div class="sechead" id="sec-sites"><h2>Supplier websites</h2><span class="hint">${rows.length}</span></div>
+  <p class="secnote">How the Supply Room finds products and reads prices at each store. It always uses the cheapest way that works, learns when a site changes (a site that starts blocking is skipped for a week instead of paying Apify to fail), and Check site works out a new store by itself. Only public pages are read, the same ones you see.</p>
+  <div class="list">${rows.map(r => { const p = r.p || {}; return `<div class="setrow two siterow"><span><b>${esc(r.n)}</b> <small class="muted">${esc(r.h)}</small><br><small>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></span>${readOnly ? "" : `<button class="btn" type="button" data-siteprobe="${esc(r.n)}">Check site</button>`}</div>`; }).join("")}</div>
+  <p class="secnote">Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? " · " + meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ") : ""}. ${readOnly ? "" : `<button class="linkbtn" type="button" id="apifyBill">What Apify billed</button>`}</p><div id="apifyOut" class="hint"></div>`;
+}
+function wireSites(){
+  document.querySelectorAll("[data-siteprobe]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const n = b.dataset.siteprobe, h = siteHost(n); b.disabled = true; b.textContent = "Checking…";
+    const mpn = clean(items.find(i => keyOf(i.supplier) === keyOf(n) && clean(i.mfr))?.mfr || items.find(i => clean(i.mfr))?.mfr || "");
+    try { const r = await TDC.siteProbe(h, mpn); toast((r.log || []).slice(-1)[0] || "Checked"); logIt("Setup", null, "Checked " + n + "'s website"); await loadSiteProfiles(true); render(); }
+    catch(e) { toast(e.message || "Couldn't check that site"); b.disabled = false; b.textContent = "Check site"; }
+  });
+  const ab = $("#apifyBill"); if (ab) ab.onclick = async () => { const o = $("#apifyOut"); o.textContent = "Asking Apify…";
+    try { const r = await TDC.apifyUsage(30); if (!r.ok) { o.textContent = r.message || "Apify didn't answer"; return; }
+      o.innerHTML = `Last ${r.days} days: <b>$${r.usd.toFixed(2)}</b> over ${r.runs} runs. ` + r.actors.map(a => `${esc(a.name)}: $${a.usd.toFixed(2)} (${a.runs} runs${a.failed ? `, ${a.failed} failed` : ""})`).join(" · "); }
+    catch(e) { o.textContent = e.message || "Apify didn't answer"; } };
+}
 function brandSec(){
   const prev = (id, dark) => id ? `<img src="blob.php?id=${esc(id)}" alt="" style="height:44px;width:auto;max-width:220px;display:block">` : `<span class="hint">${dark ? "Uses the main logo" : "Built-in logo"}</span>`;
   const row = (k, label, note, dark) => `<div class="setrow two"><span><b>${label}</b> <span class="hint">${note}</span><span style="display:block;margin-top:6px;padding:6px 8px;border-radius:8px;width:fit-content;background:${dark ? "#1d2228" : "#fff"};border:1px solid var(--line)">${prev(brand[k], dark)}</span></span>
@@ -7517,7 +7557,7 @@ function wireBrand(){
 }
 try { applyBrand(); } catch {}
 function wireSetup(){
-  wireBrand();
+  wireBrand(); wireSites();
   $("#resSug") && ($("#resSug").onclick = () => suggestReserves());
   const chips = $("#teamChips"); if (!chips) return;
   chips.onclick = async e => {
