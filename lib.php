@@ -1205,7 +1205,7 @@ function supplier_site_search(string $host, string $q): array {
         'darbydental.com' => ['https://www.darbydental.com/catalogsearch/result/?q=%s', '#(?:https://www\.darbydental\.com)?/\d{5,}[0-9\-]*\.html#', false],
         // Safco and Dental City build their search results in the browser (the server copy has no results), so these
         // go through Apify's real browser. Both find products by the manufacturer's part number.
-        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?/product/(?!clearance-item)[a-z0-9\-]+#i', true],
+        'safcodental.com' => ['https://www.safcodental.com/catalogsearch/result/?q=%s', '#(?:https://www\.safcodental\.com)?(?<!catalog)/product/(?!clearance-item)[a-z0-9\-]{3,}(?=["\'?\#\s<])#i', true],
         'dentalcity.com'  => ['https://www.dentalcity.com/search?filter=&search=%s&type=q&keywordoption=ALL&cid=0&fltrdesc=', '#(?:https://www\.dentalcity\.com)?/product/\d+/[a-z0-9\-]+#i', true],
         // Frontier Dental turns away servers (and Apify), so it is left to the web search and the office's own browser.
     ];
