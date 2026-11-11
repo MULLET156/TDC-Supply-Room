@@ -17,8 +17,9 @@ define('DB_USER', 'u000000000_supplies');
 define('DB_PASS', 'database-password-here');
 
 // The three keys below can be left empty here and pasted in the site instead:
-// Setup › Data collection (they're stored in your database, never sent back to the page).
-// A key filled in here wins over one pasted in Setup, and can only be changed here.
+// Setup › Data collection. Saving there checks the key and writes it into this file
+// (into the database instead, if the server doesn't let the site change this file).
+// Keys are never sent back to the page.
 
 // Claude, for reading product links and photos (console.anthropic.com → API keys).
 // Leave empty to turn those features off; everything else still works.

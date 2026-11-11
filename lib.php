@@ -1784,6 +1784,37 @@ function sub_compare(array $p, array $plan, array $subs): array {
     return ['ok' => true, 'mine' => ['count' => $num($a['value']['mine']['count'] ?? null)], 'subs' => $out];
 }
 
+/* Save a key into config.php (Setup › Data collection). Replaces the key's define() line, or adds one.
+ * The value is written with var_export, so quotes or backslashes in it can't break out of the string.
+ * Returns false when config.php can't be written (then the key goes in the database instead). */
+function config_write(string $name, string $value): bool {
+    if (!in_array($name, SECRET_NAMES, true)) return false;
+    $path = __DIR__ . '/config.php';
+    if (!is_file($path) || !is_writable($path) || !is_writable(__DIR__)) return false;
+    $src = file_get_contents($path); if ($src === false) return false;
+    $line = "define('" . $name . "', " . var_export($value, true) . ");";
+    $re = '/define\(\s*([\'"])' . $name . '\1\s*,\s*(?:\'(?:[^\'\\\\]|\\\\.)*\'|"(?:[^"\\\\]|\\\\.)*")\s*\)\s*;/';
+    $n = 0; $out = preg_replace_callback($re, fn() => $line, $src, 1, $n);
+    if ($out === null) return false;
+    if (!$n) {
+        if (preg_match('/define\(\s*[\'"]' . $name . '[\'"]/', $src)) return false;   // there, but not a plain string: leave it alone
+        $out = preg_replace('/\?>\s*$/', '', $src);
+        $out = rtrim($out) . "\n\n// Saved from Setup › Data collection\n" . $line . "\n";
+    }
+    $tmp = __DIR__ . '/.config-' . bin2hex(random_bytes(6)) . '.php';
+    if (file_put_contents($tmp, $out, LOCK_EX) === false) { @unlink($tmp); return false; }
+    @chmod($tmp, fileperms($path) & 0777);
+    if (!@rename($tmp, $path)) { @unlink($tmp); return false; }
+    if (function_exists('opcache_invalidate')) @opcache_invalidate($path, true);
+    return true;
+}
+/* Save a key where the server reads it: config.php when it can be written, else the database. */
+function key_save(PDO $pdo, string $name, string $value): string {
+    if (config_write($name, $value)) { secret_set($pdo, $name, ''); return 'config'; }
+    if (secret_source($name) === 'config') return '';   // config.php has a key we couldn't replace
+    secret_set($pdo, $name, $value); return $value === '' ? '' : 'setup';
+}
+
 /* Check a key before saving it, so a typo shows right away instead of the next time a price is read. */
 function key_test(string $name, string $key): array {
     if ($name === 'APIFY_TOKEN') {

@@ -59,7 +59,7 @@ Open the site and sign in with the office password. Go to **Setup → Backup & i
 Each person then picks their initials under **Logging as** at the top, the same as before.
 
 ### 6. Turn on Claude for product links and photos
-At [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**), add a payment method, and paste the key in the site under **Setup → Data collection → Claude API key** (or put it in `config.php` as `ANTHROPIC_API_KEY`). The site checks the key before saving it. Cost is per use, typically a few cents per product page read.
+At [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**), add a payment method, and paste the key in the site under **Setup → Data collection → Claude API key** (or put it in `config.php` as `ANTHROPIC_API_KEY`). The site checks the key, then writes it into `config.php` for you. Cost is per use, typically a few cents per product page read.
 
 With the key set, these work again: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
 
@@ -68,7 +68,7 @@ The server reads product pages without signing in to your supplier accounts, so 
 **Importing invoices and screenshots.** Under **Add item → Add from an invoice or screenshot**, or **On order → Receive from invoice**, pick photos, screenshots or PDFs of an invoice, packing slip, order confirmation, quote or supplier page (up to 8 files). Claude reads every product line and matches it to your items. You check the matches, then choose whether to mark them received, mark them ordered, or only update prices; new products can be added in the same step. A screenshot of a supplier page you're signed in to brings in your account price. Each import costs a few cents (more for long PDFs).
 
 ### 6b. Amazon links (optional)
-Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and paste it in the site under **Setup → Data collection → Apify API key**. Or add it to `config.php`:
+Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and paste it in the site under **Setup → Data collection → Apify API key**; Save writes it into `config.php`. Or add it to `config.php` yourself:
 
 ```php
 define('APIFY_TOKEN', 'apify_api_…');

@@ -7552,32 +7552,32 @@ function supSiteBlock(name){
   return `<div class="sitebox"><div class="sitehead"><span class="slight ${L.c}" aria-hidden="true"></span><b>Website data collection</b> <small class="muted">${esc(h)}</small>${readOnly ? "" : `<button class="btn sm" type="button" data-siteprobe="${esc(name)}">Check site</button>`}</div>
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
-let keyInfo = null, keyInfoAt = 0;
+let keyInfo = null, keyInfoAt = 0, keyCfgOk = true;
 async function loadKeys(force){
   if (!window.TDC?.keys || (!force && keyInfoAt && Date.now() - keyInfoAt < 60e3)) return;
   keyInfoAt = Date.now();
-  try { keyInfo = (await TDC.keys()).keys || null; } catch { keyInfo = null; }
+  try { const r = await TDC.keys(); keyInfo = r.keys || null; keyCfgOk = r.configWritable !== false; } catch { keyInfo = null; }
 }
 function dataSec(){
   if (!window.TDC?.keys) return "";
   if (!keyInfoAt) loadKeys().then(() => { if (tab === "setup") render(); });
   if (window.TDC?.siteProfiles && !siteProfAt) loadSiteProfiles().then(() => { if (tab === "setup") render(); });
   const K = keyInfo || {};
-  const state = n => { const k = K[n]; if (!keyInfo) return `<span class="hint">Checking…</span>`; if (!k || !k.set) return `<span class="keyst off">Not set</span>`; return `<span class="keyst on">Set${k.tail ? ` · …${esc(k.tail)}` : ""}${k.source === "config" ? " · in config.php" : ""}</span>`; };
-  const keyRow = (n, title, help, ph) => { const k = K[n] || {}, locked = k.source === "config";
-    return `<div class="setrow keyrow"><div><b>${title}</b> ${state(n)}<p class="hint">${help}</p></div>${readOnly || locked ? "" : `<form class="keyform" data-keyform="${n}"><input type="password" autocomplete="off" spellcheck="false" placeholder="${esc(ph)}" aria-label="Paste ${esc(title)}"><button class="btn pri" type="submit">Save</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="${n}">Remove</button>` : ""}</form>`}</div>`; };
+  const state = n => { const k = K[n]; if (!keyInfo) return `<span class="hint">Checking…</span>`; if (!k || !k.set) return `<span class="keyst off">Not set</span>`; return `<span class="keyst on">Set${k.tail ? ` · …${esc(k.tail)}` : ""}${k.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>`; };
+  const keyRow = (n, title, help, ph) => { const k = K[n] || {};
+    return `<div class="setrow keyrow"><div><b>${title}</b> ${state(n)}<p class="hint">${help}</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="${n}"><input type="password" autocomplete="off" spellcheck="false" placeholder="${esc(k.set ? "Paste a new key to replace it" : ph)}" aria-label="Paste ${esc(title)}"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="${n}">Remove</button>` : ""}</form>`}</div>`; };
   const sups = orderedSuppliers().map(g => g.name).filter(n => siteHost(n));
   const cnt = { green: 0, orange: 0, red: 0, grey: 0 }; sups.forEach(n => { const L = siteLight(n); if (L) cnt[L.c]++; });
   const meter = siteMeter.filter(m => m.month === new Date().toISOString().slice(0, 7));
   const runs = meter.reduce((a, m) => a + m.runs, 0);
   const mcp = K.MCP_KEY || {};
   return `<div class="sechead" id="sec-data"><h2>Data collection</h2></div>
-  <p class="secnote">The keys that let the Supply Room look up products and read prices on its own. Paste them here when you set up your own copy of the site; they're kept on your server and never shown again (only their last 4 characters). Each supplier's light, under Suppliers, shows how its website is read.</p>
+  <p class="secnote">The keys that let the Supply Room look up products and read prices on its own. Paste a key and press Save: it's checked, then written into the server's config.php (or the database, if config.php can't be changed from the site). Keys are never shown again, only their last 4 characters. Each supplier's light, under Suppliers, shows how its website is read.${keyInfo && !keyCfgOk ? `<br><b>config.php can't be changed from the site on this server</b>, so keys you paste here are kept in the database instead (keys already in config.php still win).` : ""}</p>
   <div class="list">
     <div class="setrow legendrow"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with Apify <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span></div>
     ${keyRow("APIFY_TOKEN", "Apify API key", `Reads stores that turn servers away and searches the web for products. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
     ${keyRow("ANTHROPIC_API_KEY", "Claude API key", `Reads product links, photos, price lists and documents, and finds substitutes. Get it at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com › API keys</a>.`, "sk-ant-…")}
-    <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · in config.php" : ""}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}${mcp.source === "config" ? "" : `<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}`}</span>`}</div>
+    <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
     <div class="setrow two"><span>Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? `<br><small class="muted">${meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ")}</small>` : ""}<span id="apifyOut" class="hint" style="display:block"></span></span>${readOnly || !(K.APIFY_TOKEN || {}).set ? "" : `<button class="btn" type="button" id="apifyBill">What Apify billed</button>`}</div>
   </div>`;
 }
@@ -7598,7 +7598,7 @@ function wireSites(){
     const n = f.dataset.keyform, inp = f.querySelector("input"), v = clean(inp.value), btn = f.querySelector("button[type=submit]");
     if (!v) { toast("Paste the key first"); inp.focus(); return; }
     btn.disabled = true; btn.textContent = "Checking…";
-    try { const r = await TDC.setKey(n, v); inp.value = ""; logIt("Setup", null, "Saved the " + label(n)); toast(label(n) + " works and is saved" + (r.who ? " (" + r.who + ")" : "")); await loadKeys(true); render(); }
+    try { const r = await TDC.setKey(n, v); inp.value = ""; logIt("Setup", null, "Saved the " + label(n)); toast(label(n) + " works and is saved in " + (r.where === "config" ? "config.php" : "the database") + (r.who ? " (" + r.who + ")" : "")); await loadKeys(true); render(); }
     catch(err) { toast(err.message || "Couldn't save that key"); btn.disabled = false; btn.textContent = "Save"; }
   });
   document.querySelectorAll("[data-keyclear]").forEach(b => b.onclick = async () => {
