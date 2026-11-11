@@ -7537,6 +7537,7 @@ async function uploadLogo(file){
    grey   = not checked yet */
 function siteLight(name){
   if (!siteHost(name)) return null;
+  if (/(^|\.)amazon\./i.test(siteHost(name))) return { c: "orange", t: "Works, using Apify's Amazon reader (Amazon turns everything else away)" };
   const p = profOf(name);
   if (!p || (!p.search && !p.page) || (!p.builtIn && !p.checkedAt && !p.learnedAt)) return { c: "grey", t: "Website not checked yet. Open the supplier and press Check site." };
   if (p.page === "signin" || p.page === "blocked") return { c: "red", t: p.page === "signin" ? "Prices need a sign-in: Claude reads them in your browser" : "The site blocks servers: Claude reads it in your browser, or use a price list" };
@@ -7556,7 +7557,7 @@ function supSiteBlock(name){
   if (!h) return `<div class="sitebox"><b>Website data collection</b><span class="hint">Add the ordering website above, then Check site works out how to read it.</span></div>`;
   const p = profOf(name) || {}, L = siteLight(name);
   return `<div class="sitebox"><div class="sitehead"><span class="slight ${L.c}" aria-hidden="true"></span><b>Website data collection</b> <small class="muted">${esc(h)}</small>${readOnly ? "" : `<button class="btn sm" type="button" data-siteprobe="${esc(name)}">Check site</button>`}</div>
-    <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
+    <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.via && (p.page === "proxy" || p.page === "browser") ? ` (${esc({ brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }[p.via] || p.via)} worked last)` : ""}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
 let keyInfo = null, keyInfoAt = 0, keyCfgOk = true, keySvcs = [], keyPrio = "balanced";
 async function loadKeys(force){
@@ -7598,7 +7599,7 @@ function dataSec(){
 let checkAllRun = null;
 async function checkAllSites(){
   if (checkAllRun) { checkAllRun.stop = true; return; }
-  const names = orderedSuppliers().map(g => g.name).filter(n => siteHost(n));
+  const names = orderedSuppliers().map(g => g.name).filter(n => siteHost(n) && !/(^|\.)amazon\./i.test(siteHost(n)));   // Amazon always uses Apify's Amazon reader
   const seen = new Set(), list = names.filter(n => { const h = siteHost(n); if (seen.has(h)) return false; seen.add(h); return true; });
   if (!list.length) { toast("No supplier has a website yet"); return; }
   if (!confirm(`Check all ${list.length} supplier websites? It takes about half a minute each, and stores that turn the server away can use a few Apify runs each. Keep this page open; you can stop it any time.`)) return;

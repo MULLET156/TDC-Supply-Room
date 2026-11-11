@@ -254,7 +254,7 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
     if ($found) { $prof['search'] = $found['mode']; $prof['searchUrl'] = $found['tpl']; $prof['link'] = $found['re']; }
     elseif ($blockedHome || empty($cur['searchUrl'])) $prof['search'] = 'web';
     else $say('Kept the way it was already searched (' . ($cur['search'] ?? 'web') . '), since the test couldn\'t confirm a better one.');
-    // 3. a product page: free server read, else Apify's quick proxy, else its browser
+    // 3. a product page: free server read, else a paid page service's plain read, else its real browser
     $sample = $found['urls'][0] ?? '';
     if ($sample === '' && apify_ready()) { $r = apify_serp($term . ' site:' . $host, 5); foreach ((array)($r['results'] ?? []) as $c) if (site_host((string)parse_url($c['url'], PHP_URL_HOST)) === $host && !preg_match('#/(search|category|c|catalog)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) { $sample = $c['url']; break; } }
     if (!str_starts_with($sample, 'http') && $sample !== '') $sample = $base . $sample;
@@ -265,11 +265,12 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
             $hasLd = preg_match('#"@type"\s*:\s*"Product(Group)?"#', $g['body']) || preg_match('#itemtype="https?://schema\.org/Product"#i', $g['body']);
             $say('Product pages open on the server' . ($hasLd ? ', with product data (name, SKU, price) built in.' : '; Claude reads the page text for price and SKU.'));
         } elseif (page_service_ready()) {
-            $r = apify_page_run($sample, 'raw-http', 40, true);
-            if ($r['ok'] && !bot_wall($r['html'])) { $prof['page'] = 'proxy'; $say('Product pages turn the server away but open through Apify\'s quick proxy (cheap).'); }
-            else { $b = apify_page_run($sample, 'browser-playwright', 90, true);
-                if ($b['ok'] && !bot_wall($b['html'])) { $prof['page'] = 'browser'; $say('Product pages only open in Apify\'s full browser (the most expensive kind of read).'); }
-                else { $prof['page'] = 'blocked'; $prof['blockedAt'] = time(); $say('Product pages turn away the server and Apify. Prices for this store come from Claude reading it in your browser, or from a price list.'); } }
+            $sn = fn($x) => PAGE_SERVICE_NAMES[$x['via'] ?? ''] ?? 'a page service';
+            $r = apify_page_run($sample, 'raw-http', 15, true);
+            if ($r['ok'] && !bot_wall($r['html'])) { $prof['page'] = 'proxy'; $prof['via'] = $r['via'] ?? ''; $say('Product pages turn the server away but open with a plain read through ' . $sn($r) . ' (cheap).'); }
+            else { $b = apify_page_run($sample, 'browser-playwright', 45, true);
+                if ($b['ok'] && !bot_wall($b['html'])) { $prof['page'] = 'browser'; $prof['via'] = $b['via'] ?? ''; $say('Product pages only open in a real browser, through ' . $sn($b) . ' (the most expensive kind of read).'); }
+                else { $prof['page'] = 'blocked'; $prof['blockedAt'] = time(); $say('Product pages turn away the server and every page service. Prices for this store come from Claude reading it in your browser, or from a price list.'); } }
         } else { $prof['page'] = $blk ? 'blocked' : 'server'; }
     } else $say('Couldn\'t find a product page to test.');
     if ($blockedHome && empty($prof['page'])) { $prof['page'] = 'blocked'; $prof['blockedAt'] = time(); }
