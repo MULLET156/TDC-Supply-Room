@@ -95,7 +95,7 @@ function tools(): array {
         ['name' => 'find_price_pages', 'description' => 'Search for an item\'s product pages at the office\'s suppliers (scope "mine") or anywhere online (scope "web"), for price comparison. Returns page addresses; read each with read_product_page, or open it signed in, then save prices with record_price.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'scope' => ['type' => 'string', 'enum' => ['mine', 'web'], 'description' => 'mine = the office\'s suppliers (default); web = other stores']], 'required' => ['id']], 'annotations' => ['readOnlyHint' => true]],
         ['name' => 'record_price', 'description' => 'Save a price found for an item at a supplier (for example one you read from a supplier page you are signed in to). It becomes that supplier\'s current price in the item\'s Prices table and is added to the item\'s price history, so prices can be compared over time. Returns the previous price from the same supplier and the change.',
-         'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Store name (use list_options names for the office\'s suppliers)'), 'price' => $n('Price for one unit as sold'), 'pack' => $s('What one unit is, e.g. Box of 100'), 'url' => $s('Product page address'), 'sku' => $s('The store\'s item number'), 'signed_in' => ['type' => 'boolean', 'description' => 'true if read from a signed-in (account) page'], 'similar' => ['type' => 'boolean', 'description' => 'true if the supplier doesn\'t sell this exact product and this is a similar substitute (different brand, size or version)'], 'product' => $s('The product name on the supplier page (always give it for a similar product)')] + $who, 'required' => ['id', 'supplier', 'price']]],
+         'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Store name (use list_options names for the office\'s suppliers)'), 'price' => $n('Price for one unit as sold'), 'pack' => $s('What one unit is, e.g. Box of 100'), 'url' => $s('Product page address'), 'sku' => $s('The store\'s item number'), 'signed_in' => ['type' => 'boolean', 'description' => 'true only if read from a signed-in (account) page showing the account\'s own price. Signed-out pages show the list price: pass false, and a special price already saved for the account is kept.'], 'list_price' => $n('The list (regular) price, if the page shows it beside a lower account, special or sale price'), 'promo' => $s('If the lower price is a temporary promotion or sale, what it is (e.g. "Buy 2 get 1" or "Sale ends 12/31")'), 'similar' => ['type' => 'boolean', 'description' => 'true if the supplier doesn\'t sell this exact product and this is a similar substitute (different brand, size or version)'], 'product' => $s('The product name on the supplier page (always give it for a similar product)')] + $who, 'required' => ['id', 'supplier', 'price']]],
         ['name' => 'price_history', 'description' => 'An item\'s price history: for each supplier the latest, previous, lowest and highest price and when it was checked, plus every recorded price check, newest first. Prices for similar substitutes are kept apart (similarProduct names the product), since they are not this exact item.',
          'inputSchema' => ['type' => 'object', 'properties' => ['id' => $s('Item id'), 'supplier' => $s('Only this supplier'), 'limit' => $n('Most price checks to list (default 100)')], 'required' => ['id']]],
         ['name' => 'find_by_part_number', 'description' => 'Find a supplier\'s product page for an exact manufacturer part number (the same product): searches that supplier\'s site, reads the candidate pages, and returns only pages that show the part number, with the price read. Leave host empty to search the whole web.',
@@ -324,11 +324,28 @@ function call_tool(PDO $pdo, string $name, array $a): array {
             // Copy any price already on the item into the history first, so the one about to be replaced is kept.
             $hist = sync_history($pdo, $id, $it);
             $prev = null; foreach ($hist as $h) if (strcasecmp((string)($h['src'] ?? ''), $sup) === 0 && hist_similar($h) === !empty($a['similar'])) $prev = $h;
+            $acct = !empty($a['signed_in']); $sim = !empty($a['similar']);
             $offer = ['src' => $sup, 'price' => $pr, 'pack' => trim((string)($a['pack'] ?? '')), 'url' => trim((string)($a['url'] ?? '')), 'sku' => trim((string)($a['sku'] ?? '')),
-                      'kind' => !empty($a['signed_in']) ? 'live' : 'public', 'at' => (int)round(microtime(true) * 1000), 'sure' => empty($a['similar']), 'by' => $w];
+                      'kind' => $acct ? 'live' : 'public', 'at' => (int)round(microtime(true) * 1000), 'sure' => !$sim, 'by' => $w];
             if (trim((string)($a['product'] ?? '')) !== '') $offer['title'] = mb_substr(trim((string)$a['product']), 0, 120);
-            // replaces the earlier price from this supplier (an exact price only replaces an exact one, a similar one only a similar one)
-            $offers = array_values(array_filter((array)($it['offers'] ?? []), fn($o) => !(is_array($o) && strcasecmp((string)($o['src'] ?? ''), $sup) === 0 && ($o['kind'] ?? '') !== 'invoice' && (($o['sure'] ?? true) === false) === !empty($a['similar']))));
+            $lp = numv($a['list_price'] ?? null);
+            if ($lp && $lp > $pr + 0.004) { $offer['listPrice'] = round($lp, 2); $offer['tag'] = trim((string)($a['promo'] ?? '')) !== '' ? 'promo' : 'sp'; if ($offer['tag'] === 'promo') $offer['promo'] = mb_substr(trim((string)$a['promo']), 0, 80); }
+            // Account prices (signed in, price lists, invoices) and website prices are kept apart, as in the Prices table:
+            // a reading only replaces the earlier one of its own kind. A price typed in by the office is never replaced.
+            $grp = fn($k) => in_array($k, ['live', 'list', 'invoice'], true) ? 'acct' : 'web';
+            $sameSup = fn($o) => is_array($o) && strcasecmp((string)($o['src'] ?? ''), $sup) === 0 && (($o['sure'] ?? true) === false) === $sim;
+            $spOld = null; foreach ((array)($it['offers'] ?? []) as $o) if ($sameSup($o) && $grp($o['kind'] ?? '') === 'acct' && in_array($o['tag'] ?? '', ['sp', 'promo'], true) && (!$spOld || ($o['at'] ?? 0) > ($spOld['at'] ?? 0))) $spOld = $o;
+            if ($spOld && $acct && empty($offer['tag'])) {
+                $oldLp = (float)($spOld['listPrice'] ?? 0);
+                if ($oldLp > 0 && abs($pr - $oldLp) <= max(0.01, $oldLp * 0.005)) {
+                    // the "signed-in" reading is the list price: the page was read signed out, or only the list price was found
+                    logit($pdo, 'Price checked', $id, $it['name'] ?? '', $sup . ': list price $' . number_format($pr, 2) . ' seen; special price $' . number_format((float)$spOld['price'], 2) . ' kept', $w);
+                    return text_result(['saved' => false, 'kept' => true, 'id' => $id, 'special' => (float)$spOld['price'], 'listPrice' => $oldLp,
+                        'message' => 'That is the list price; the special price of $' . number_format((float)$spOld['price'], 2) . ' was kept. Sign in to the supplier\'s website to see your account price.']);
+                }
+                if (abs($pr - (float)$spOld['price']) < 0.005) { $offer['tag'] = $spOld['tag']; if ($oldLp > 0) $offer['listPrice'] = $oldLp; if (!empty($spOld['promo'])) $offer['promo'] = $spOld['promo']; }
+            }
+            $offers = array_values(array_filter((array)($it['offers'] ?? []), fn($o) => !($sameSup($o) && ($o['kind'] ?? '') !== 'invoice' && ($o['kind'] ?? '') !== 'typed' && $grp($o['kind'] ?? '') === $grp($offer['kind']))));
             $offers[] = $offer;
             $it['offers'] = array_slice($offers, -20);
             save($pdo, 'items', $id, $it);

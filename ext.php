@@ -62,7 +62,8 @@ if ($op === 'price') {
         $pdo->beginTransaction();
         $res = call_tool($pdo, 'record_price', ['id' => $id, 'supplier' => mb_substr((string)($req['supplier'] ?? ''), 0, 80), 'price' => $pr,
             'pack' => mb_substr((string)($req['pack'] ?? ''), 0, 80), 'url' => mb_substr($url, 0, 500), 'sku' => mb_substr((string)($req['sku'] ?? ''), 0, 60),
-            'product' => mb_substr((string)($req['product'] ?? ''), 0, 120), 'signed_in' => true, 'initials' => 'EXT']);
+            'product' => mb_substr((string)($req['product'] ?? ''), 0, 120), 'signed_in' => !empty($req['signedIn']),
+            'list_price' => is_numeric($req['listPrice'] ?? null) ? (float)$req['listPrice'] : null, 'initials' => 'EXT']);
         $pdo->commit();
         ext_out(200, ['ok' => true] + json_decode((string)($res['content'][0]['text'] ?? '{}'), true));
     } catch (Throwable $e) {

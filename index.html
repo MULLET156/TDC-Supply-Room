@@ -754,6 +754,7 @@ body.on-products .filters{display:none!important}
 .iprice{font-family:var(--f-mono);font-size:16px;font-weight:800;color:var(--fg);white-space:nowrap}
 .iprice small{font-family:var(--f-ui,system-ui);font-size:12px;font-weight:600;color:var(--muted)}
 .sumprice{color:inherit;font-weight:inherit}
+.pnewer{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);padding:6px 0 0}.pnewer svg{width:14px;height:14px;color:#c07a1a;flex:none}.pnewer b{color:inherit}
 .sumsup{display:inline-flex;align-items:center;vertical-align:middle}
 .sumsup .suplogo{height:20px;max-width:60px;padding:1px 3px;margin-right:6px;border-radius:4px}
 .istatus{border-radius:var(--r);padding:10px 12px;font-weight:700;font-size:14.5px;background:var(--sunk);color:var(--fg)}
@@ -2902,7 +2903,7 @@ function orderPriceEdit(it){
   if (!it) return;
   const cur = ordPrice(it);
   openPanel(`<div class="ph"><h2>Price for this order</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p class="hint" style="margin-top:0">${esc(it.name)}${it.units ? ` · per ${esc(it.units)}` : ""}${clean(it.unitCost) ? ` · saved price ${esc(priceTxt(it.unitCost))}` : ""}</p>
+    <p class="hint" style="margin-top:0">${esc(it.name)}${it.units ? ` · per ${esc(it.units)}` : ""}${clean(it.unitCost) ? ` · saved price ${esc(priceTxt(it.unitCost))}${itemSp(it)}` : ""}</p>
     <label class="fld"><span>Price per unit for this order</span><input id="opIn" inputmode="decimal" placeholder="e.g. 42.50" value="${cur != null ? cur.toFixed(2) : ""}"></label>
     <label class="chkline" style="display:flex;gap:8px;align-items:center;margin-top:8px"><input type="checkbox" id="opSave" ${clean(it.unitCost) ? "" : "checked"}> Also make this the product's saved price</label>
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button>${Number(it.orderPrice) > 0 ? `<button class="btn" id="opClear" type="button">Use saved price</button>` : ""}<button class="btn pri grow" id="opGo" type="button">Save</button></div>`);
@@ -2937,9 +2938,9 @@ function grpTotal(rows, intro){
   return intro ? ` (about <b>${money(sum)}</b>${miss ? `, ${miss} without a price` : ""})` : ` · <span class="gtot" title="${tip}">${miss ? "≈ " : ""}${money(sum)}</span>`;
 }
 function xcols(i){
-  if (tab === "need") { const t = lineTotal(i), op = Number(i.orderPrice) > 0, sv = saving(i); return (sv ? `<button type="button" class="xc psv" data-psave="${esc(i.id)}" title="Cheaper at ${esc(sv.at)}: open the price comparison">Save ${esc(money(sv.amt))} at ${esc(sv.at)}</button>` : "") + (readOnly ? (t != null ? `<span class="xc xtot">${money(t)}</span>` : "") : `<button type="button" class="xc xtot${t == null ? " none" : ""}${op ? " custom" : ""}" data-ordprice="${esc(i.id)}" title="${t != null ? `${money(ordPrice(i))} × ${fmtQ(i.orderQty)}${op ? " (price set for this order)" : ""}. Tap to change the price for this order` : "Add a price for this order"}">${t != null ? money(t) : "+ price"}</button>`); }
+  if (tab === "need") { const t = lineTotal(i), op = Number(i.orderPrice) > 0, sv = saving(i); return (sv ? `<button type="button" class="xc psv" data-psave="${esc(i.id)}" title="Cheaper at ${esc(sv.at)}: open the price comparison">Save ${esc(money(sv.amt))} at ${esc(sv.at)}</button>` : "") + (readOnly ? (t != null ? `<span class="xc xtot">${money(t)}${itemSp(i)}</span>` : "") : `<button type="button" class="xc xtot${t == null ? " none" : ""}${op ? " custom" : ""}" data-ordprice="${esc(i.id)}" title="${t != null ? `${money(ordPrice(i))} × ${fmtQ(i.orderQty)}${op ? " (price set for this order)" : ""}. Tap to change the price for this order` : "Add a price for this order"}">${t != null ? money(t) + itemSp(i) : "+ price"}</button>`); }
   if (tab === "ordered" && i.onOrder) { const d = daysSince(i.ordered), c = Number(i.orderedPrice) > 0 ? Number(i.orderedPrice) * (Number(i.orderedQty) || 0) : null; return `${c ? `<span class="xc xcost" title="${money(Number(i.orderedPrice))} × ${fmtQ(i.orderedQty)}">${money(c)}</span>` : ""}${d != null ? `<span class="xc xwait${d >= 10 ? " late" : ""}" title="Ordered ${esc(i.ordered)}">${d === 0 ? "Today" : d === 1 ? "1 day" : d + " days"}</span>` : ""}`; }
-  if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
+  if (tab === "all") return `<span class="xc xprice" title="Price">${clean(i.unitCost) ? esc(priceTxt(i.unitCost)) + itemSp(i) : "—"}</span><span class="xc xrec" title="Last received">${i.lastReceived ? esc(i.lastReceived) : "—"}</span>`;
   return "";
 }
 /* Expiring page row: the date and how long ago / how soon, then the actions (new date, used up, order) */
@@ -3727,7 +3728,8 @@ function spendInner(){
 }
 /* the best known price at one supplier: account prices (invoice, price list, signed in) beat website prices */
 function offerAt(it, sup){
-  const k = keyOf(sup), L = offersFor(it).filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false && (ACCT_KINDS.includes(o.kind) || o.kind === "saved" || o.mpn === true));
+  const k = keyOf(sup), all = offersFor(it), cr = all.find(o => o.cur && keyOf(o.src) === k); if (cr) return cr;
+  const L = all.filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false && (ACCT_KINDS.includes(o.kind) || o.kind === "saved" || o.mpn === true));
   const acct = L.filter(o => ACCT_KINDS.includes(o.kind) || o.kind === "saved").sort((a, b) => (b.at || 0) - (a.at || 0));
   return acct[0] || L.sort((a, b) => (b.at || 0) - (a.at || 0))[0] || null;
 }
@@ -5068,7 +5070,8 @@ function batchSummary(ch){
 document.addEventListener("click", e => { const b = e.target.closest?.("[data-openitem]"); if (!b) return; const it = byId(b.dataset.openitem); if (it) { closePanel(); openItem(it); } });
 function batchReview(it, r, name, head){
   const o = B.opts, pr = num(r.price), f = {
-    name, unitCost: o.price && pr != null ? "$" + pr.toFixed(2) : it.unitCost || "",
+    /* a special price (set for the account) is kept: the server reads pages signed out, so it sees the list price */
+    name, unitCost: o.price && pr != null && !(itemSp(it) && Math.abs(pr - (priceNum(it.unitCost) || 0)) >= .005) ? "$" + pr.toFixed(2) : it.unitCost || "",
     units: o.units && clean(r.units) ? clean(r.units) : it.units || "",
     sku: o.sku && (clean(r.sku) || clean(r.mfrNumber)) ? (clean(r.sku) || clean(r.mfrNumber)) : it.sku || "",
     mfr: clean(it.mfr) || (o.mfr && sku_ok(r.mfrNumber || "") ? clean(r.mfrNumber) : ""),
@@ -5511,7 +5514,7 @@ async function openItem(it, prefill){
   const by = isInit(it.updatedBy) ? it.updatedBy : "";
   const st = itemStatus(it);
   const photoSrc = it.photo ? "blob.php?id=" + it.photo : "";
-  const ordSum = [clean(it.supplier) ? `<span class="sumsup">${supLogo(it.supplier)}${esc(clean(it.supplier))}</span>` : "", clean(it.unitCost) ? `<b class="sumprice">${esc(priceTxt(it.unitCost))}</b>` : "", esc(clean(it.units))].filter(Boolean).join(" · ") || "No supplier yet";
+  const ordSum = [clean(it.supplier) ? `<span class="sumsup">${supLogo(it.supplier)}${esc(clean(it.supplier))}</span>` : "", clean(it.unitCost) ? `<b class="sumprice">${esc(priceTxt(it.unitCost))}${itemSp(it)}</b>` : "", esc(clean(it.units))].filter(Boolean).join(" · ") || "No supplier yet";
   const detSum = [it.cat ? it.cat + (it.sub ? " › " + it.sub : "") : "", it.exp ? "Exp " + it.exp : "", it.countEvery == null || it.countEvery === "" ? "" : String(it.countEvery) === "0" ? "Not counted" : "Count " + cntName(it.countEvery).toLowerCase()].map(clean).filter(Boolean).map(esc).join(" · ") || "Category, location, notes";
   const phSum = it.photo ? "Product photo" + (it.skuPhoto ? " · SKU photo" : "") : (it.skuPhoto ? "SKU photo only" : "No photo yet. Tap to add one");
   /* Ordering starts closed; it stays open only if you had it open (e.g. after a save) */
@@ -5535,7 +5538,7 @@ async function openItem(it, prefill){
     <div class="exprow" id="expRow" hidden><label for="expNew">New expiration date</label><input type="date" id="expNew"><button type="button" class="btn sm pri" id="expSave">Save</button><button type="button" class="btn sm" id="expNone">No date</button><button type="button" class="btn sm" id="expCancel">Cancel</button></div>`;
   openPanel(`<div class="ph ihead">
       <button type="button" class="ithumb" id="thumbBtn" aria-label="${it.photo ? "Product photo" : "Add a photo"}">${photoSrc ? `<img src="${esc(photoSrc)}" alt="" onerror="this.replaceWith('📷')">` : "📷"}</button>
-      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc || clean(it.unitCost) ? `<div class="iloc">${it.loc ? `<span>${ic("pin")}${esc(it.loc)}</span>` : ""}${clean(it.unitCost) ? `<span class="iprice" title="Price${it.supplier ? " at " + esc(it.supplier) : ""}">${esc(priceTxt(it.unitCost))}${it.units ? `<small> / ${esc(it.units)}</small>` : ""}</span>` : ""}</div>` : ""}</div>
+      <div class="ititle"><h2>${esc(it.name)}</h2>${it.loc || clean(it.unitCost) ? `<div class="iloc">${it.loc ? `<span>${ic("pin")}${esc(it.loc)}</span>` : ""}${clean(it.unitCost) ? `<span class="iprice" title="Price${it.supplier ? " at " + esc(it.supplier) : ""}">${esc(priceTxt(it.unitCost))}${itemSp(it)}${it.units ? `<small> / ${esc(it.units)}</small>` : ""}</span>` : ""}</div>` : ""}</div>
       <span class="phbtns"><button class="iconbtn" data-close type="button">Close</button></span>
     </div>
     ${prefill?.note ? `<p class="hint">${esc(prefill.note)}</p>` : ""}
@@ -5691,14 +5694,20 @@ function offersFor(it){
   let L = []; (Array.isArray(it.offers) ? it.offers : []).filter(o => o && o.src).forEach(o => { L = upsertOffer(L, o, "show"); });
   const cur = priceNum(it.unitCost);
   if (cur != null && it.supplier) {
-    /* the price saved on the product (typed in Ordering, or set by Use this) is the current price at its supplier:
-       when it was set after that supplier's other prices, it replaces them here (invoices still show under What you've paid) */
-    const k = keyOf(it.supplier), mineK = L.filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false);
+    /* The product's own price (what the header, lists and order totals show) is always its current supplier's row, so
+       every place agrees. It keeps the special-price tag of the reading it came from. A different, newer reading from that
+       supplier is attached as "newer" (shown under the row with a Use button) instead of silently replacing it; a public
+       website reading never displaces a special price (signed-out pages show the list price). */
+    const k = keyOf(it.supplier), isSp = o => { const t = offerTag(o); return t && t !== "list"; };
+    const mineK = L.filter(o => keyOf(o.src) === k && Number(o.price) > 0 && o.sure !== false && o.kind !== "invoice");
+    const same = o => Math.abs(Number(o.price) - cur) < .005;
+    const base = mineK.filter(o => same(o) && isSp(o)).sort((a, b) => (+b.at || 0) - (+a.at || 0))[0] || mineK.filter(same).sort((a, b) => (+b.at || 0) - (+a.at || 0))[0] || null;
     const setAt = Array.isArray(it.priceHist) && it.priceHist.length ? +it.priceHist[it.priceHist.length - 1].at || 0 : 0;
-    if (!mineK.some(o => Math.abs(Number(o.price) - cur) < .005)) {
-      const newest = Math.max(0, ...mineK.map(o => +o.at || 0));
-      if (!mineK.length || setAt > newest) { L = L.filter(o => !(keyOf(o.src) === k && o.sure !== false && (+o.at || 0) < setAt)); L.push({ src: it.supplier, price: cur, pack: it.units || "", kind: "saved", at: setAt || it.updatedAt || 0, sure: true, mine: true, url: it.link || "" }); }
-    }
+    const since = Math.max(+base?.at || 0, setAt);
+    const spAt = mineK.find(o => same(o) && isSp(o));
+    const newer = mineK.filter(o => !same(o) && (+o.at || 0) > since && !(spAt && offerGrp(o.kind) !== "acct") && !(spAt && offerList(spAt) && Math.abs(Number(o.price) - offerList(spAt)) < .01)).sort((a, b) => (+b.at || 0) - (+a.at || 0))[0] || null;
+    L = L.filter(o => !(keyOf(o.src) === k && o.sure !== false && o.kind !== "invoice"));
+    L.push(Object.assign({}, base || {}, { src: it.supplier, price: cur, pack: it.units || base?.pack || "", kind: base ? base.kind : "saved", at: base ? base.at : (setAt || it.updatedAt || 0), sure: true, mine: true, url: base?.url || it.link || "", cur: true }, newer ? { newer } : {}));
   }
   return L;
 }
@@ -5734,10 +5743,12 @@ function priceBox(it){
     const isCur = o === curRow, isBest = best && o === best;
     const when = o.at && o.kind !== "saved" ? shortDate(o.at) : "";
     const kind = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website") + (when ? " · " + when : "");
+    const nw = o.newer, nwLine = nw ? `<div class="pnewer">${ic("alert")}<span>${esc(KIND_LBL[nw.kind] || "Website")}${nw.at ? " " + esc(shortDate(nw.at)) : ""}: <b>${esc(money(Number(nw.price)))}</b>${spBadge(nw)}${nw.pack && keyOf(nw.pack) !== keyOf(o.pack || "") ? " / " + esc(nw.pack) : ""}${offerGrp(nw.kind) === "acct" ? "" : " (may be the list price if no one was signed in)"}</span>${readOnly ? "" : `<button type="button" class="btn sm" data-usenewer="1">Use this price</button>`}</div>` : "";
     return `<div class="prow${isBest ? " best" : ""}">
       <div class="pw">${o.mine !== false ? supLogo(o.src) : ""}<b>${esc(o.src)}</b>${isCur ? `<span class="pcur">current</span>` : ""}${isBest ? `<span class="pbadge">best</span>` : ""}${o.sure === false && o.title ? `<small class="ptitle">${esc(o.title)}</small>` : ""}</div>
       <div class="pp"><b>${esc(money(Number(o.price)))}${spBadge(o)}</b>${o.pack || (offerTag(o) && offerList(o)) ? `<small>${o.pack ? "/ " + esc(o.pack) : ""}${offerTag(o) && offerList(o) ? `${o.pack ? " · " : ""}list <s>${esc(money(offerList(o)))}</s>` : ""}</small>` : ""}</div>
       <div class="pk"><small>${esc(kind)}</small>${o.url ? `<a href="${esc(webHref(o.url))}" target="_blank" rel="noopener" title="Open this page">${ic("ext")}</a>` : ""}${!isCur && o.url && !readOnly ? `<button type="button" class="btn sm" data-useoffer="${esc(L.indexOf(o))}">Use this</button>` : ""}</div>
+      ${nwLine}
     </div>`;
   };
   /* one row per supplier: a price you typed or a price list first, then your saved price, then the newest reading
@@ -5746,7 +5757,7 @@ function priceBox(it){
   const onePer = list => { const by = new Map(); for (const o of list) { const k = keyOf(o.src), b = by.get(k);
       if (!b || rank(o) > rank(b) || (rank(o) === rank(b) && (+o.at || 0) > (+b.at || 0))) by.set(k, o); } return [...by.values()]; };
   const mine = onePer(L.filter(o => priced(o) && o.sure !== false && o.mine !== false)).sort(byVal);
-  curRow = mine.find(o => keyOf(o.src) === keyOf(it.supplier)) || null;
+  curRow = mine.find(o => o.cur) || mine.find(o => keyOf(o.src) === keyOf(it.supplier)) || null;
   const similar = onePer(L.filter(o => priced(o) && o.sure === false && !mine.some(m => keyOf(m.src) === keyOf(o.src)))).sort(byVal);
   const web = onePer(L.filter(o => priced(o) && o.sure !== false && o.mine === false)).sort(byVal);
   /* stores that had the product but showed no price: one line, not a row each */
@@ -5848,6 +5859,11 @@ function wirePriceBox(it){
     try { await write(it.id, { altSources: alt }); it.altSources = alt; b.closest(".prow").remove(); toast("Backup removed"); } catch(e) { toast(dbErr(e)); }
   });
   box.querySelectorAll("[data-useoffer]").forEach(b => b.onclick = () => useOffer(it, offersFor(it)[+b.dataset.useoffer]));
+  box.querySelectorAll("[data-usenewer]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const fresh = byId(it.id) || it, nw = offersFor(fresh).find(o => o.cur)?.newer; if (!nw) return;
+    try { await write(it.id, { unitCost: "$" + Number(nw.price).toFixed(2) }); logIt("Edited", it, `price ${fresh.unitCost || "–"} → ${money(Number(nw.price))} (${(KIND_LBL[nw.kind] || "website").toLowerCase()} reading)`); toast("Price updated"); openItem(byId(it.id) || fresh); render(); }
+    catch(e) { toast(dbErr(e)); }
+  });
 }
 function refreshPriceBox(it){
   const cur = byId(it.id) || it, box = $("#priceBox"); if (!box) return;
@@ -5969,6 +5985,8 @@ function spBadge(o){
   const tip = (t === "promo" ? `Promotion${o.promo ? ": " + o.promo : ""} (temporary)` : "Special price for your account") + (lp ? ` · list ${money(lp)}${off > 0 ? ` (${off}% off)` : ""}` : "");
   return `<span class="spb ${t === "promo" ? "promo" : ""}" title="${esc(tip)}">${t === "promo" ? "Promo" : "SP"}</span>`;
 }
+/* the special-price badge for a product's own price (its current supplier), for lists, headers and order totals */
+function itemSp(it){ if (!it || Number(it.orderPrice) > 0) return ""; const c = offersFor(it).find(o => o.cur); return c ? spBadge(c) : ""; }
 /* ---------- substitutes: cheaper products that do the same job, mostly suppliers' house brands ---------- */
 const HOUSE_DEFAULT = { "henry schein": "Henry Schein", "safco dental supply": "Safco", "safco": "Safco", "net32": "House Brand", "dental city": "Dental City", "frontier dental": "HSB - House Brand Dentistry" };
 const houseBrand = sup => { const v = infoOf(sup).houseBrand; return v != null ? v : (HOUSE_DEFAULT[keyOf(sup)] || ""); };
@@ -6171,7 +6189,7 @@ async function findAlternatives(it){
   if (!window.TDC?.priceSearch) { toast("Finding alternatives runs on the Supply Room website"); return; }
   const fresh = byId(it.id) || it;
   openPanel(`<div class="ph"><h2>Alternatives</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p class="hint">Products at your suppliers that could stand in for <b>${esc(fresh.name)}</b>${fresh.unitCost ? ` (now ${esc(money(priceNum(fresh.unitCost)))}${fresh.units ? " / " + esc(fresh.units) : ""}${fresh.supplier ? " at " + esc(fresh.supplier) : ""})` : ""}. Save one as a backup, or replace this product with it.</p>
+    <p class="hint">Products at your suppliers that could stand in for <b>${esc(fresh.name)}</b>${fresh.unitCost ? ` (now ${esc(money(priceNum(fresh.unitCost)))}${itemSp(fresh)}${fresh.units ? " / " + esc(fresh.units) : ""}${fresh.supplier ? " at " + esc(fresh.supplier) : ""})` : ""}. Save one as a backup, or replace this product with it.</p>
     <div class="bstat" id="altStat">Searching your suppliers for similar products…</div>
     <div class="altlist" id="altList"></div>
     <div class="actions savebar"><button class="btn pri grow" id="altDone" type="button">Done</button></div>`);

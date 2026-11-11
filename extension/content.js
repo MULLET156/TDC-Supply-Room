@@ -8,7 +8,7 @@
   const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
 
   function readPage() {
-    const page = { url: location.href.split("#")[0], title: "", price: null, pack: "", sku: "", codes: [] };
+    const page = { url: location.href.split("#")[0], title: "", price: null, pack: "", sku: "", codes: [], listPrice: null, accountPrice: false, signedIn: null };
     // 1. structured product data (schema.org JSON-LD and microdata)
     for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
       let j; try { j = JSON.parse(s.textContent); } catch { continue; }
@@ -39,12 +39,26 @@
     const pick = labelled.find(x => /your price|sale|net price|special|contract|our price/i.test(x.t + " " + (x.el.className || "")))
       || labelled.find(x => !/list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
     if (pick) { const v = money(pick.t); if (v && (!page.price || /your price|sale|net|special|contract/i.test(pick.t))) page.price = v; }
+    if (pick && /your price|net price|special|contract|our price/i.test(pick.t + " " + (pick.el.className || ""))) page.accountPrice = true;
+    const lst = labelled.find(x => x !== pick && /list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
+    if (lst) { const v = money(lst.t); if (v && page.price && v > page.price + 0.004) page.listPrice = v; }
+    page.signedIn = signedIn(body);
     const pk = body.match(/\b(\d+\s*(?:\/|per)\s*(?:box|bx|pk|pack|case|cs|bag|bg|ea|each|bottle|btl|tube|kit|roll|syringe|jar|vial))\b/i) || body.match(/\b((?:box|pack|case|bag|package) of \d+)\b/i);
     if (pk) page.pack = pk[1];
     page.codes = [...new Set(page.codes.map(c => String(c).trim()).filter(Boolean))].slice(0, 40);
     return page;
   }
 
+  /* Is the person signed in to this store? Signed-out pages show the list price, not the account's special price.
+     true: a sign-out link or a "Hi, name" greeting is showing; false: a sign-in link (or "sign in to see your price") with no sign-out; null: can't tell. */
+  function signedIn(body) {
+    const links = [...document.querySelectorAll('a,button,[role="button"],[role="menuitem"]')].filter(visible).map(e => text(e).toLowerCase()).filter(t => t && t.length < 40);
+    const out = links.some(t => /^(sign|log)\s?(out|off)\b|^(hi|hello|welcome),?\s+\w/.test(t));
+    const inn = links.some(t => /^(sign|log)\s?in\b|^login\b|^sign in\s*(\/|or)\s*(register|create)/.test(t)) || /\b(sign|log)\s?in (to|for) (see|view|get)? ?(your )?(price|pricing)\b|login for pricing/i.test(body);
+    if (out && !/\b(sign|log)\s?in (to|for) (see|view)? ?(your )?(price|pricing)\b/i.test(body)) return true;
+    if (inn) return false;
+    return null;
+  }
   /* a small note in the corner: which Supply Room product this is, and the price saved */
   let host = null;
   function note(html, buttons) {
@@ -72,15 +86,19 @@
       if (!r.ok) { if (/paired/i.test(r.message || "")) return; return note(`<span class="d w"></span><div><b>Supply Room</b><small>${esc(r.message)}</small></div>`); }
       if (!r.item) return;
       const what = `<b>${esc(r.item.name)}</b><small>${esc(r.supplier)} · matched by ${esc(r.how)}</small>`;
-      if (r.saved) {
+      if (r.signedOut) {
+        note(`<span class="d w"></span><div>${what}<small>You're not signed in to ${esc(r.supplier)}, so this page shows the list price (${fmt(page.price)}). Sign in to save your account price; nothing was saved.</small></div>`);
+      } else if (r.saved && r.saved.kept) {
+        note(`<span class="d"></span><div>${what}<small>Special price ${fmt(r.saved.special)} kept. This page shows the list price ${fmt(page.price)}: sign in to see your account price.</small></div>`);
+      } else if (r.saved) {
         const ch = r.saved.change; const chg = ch == null ? "" : ch === 0 ? " · unchanged" : ` · ${ch > 0 ? "up" : "down"} ${fmt(Math.abs(ch))}`;
-        note(`<span class="d"></span><div>${what}<small>Saved ${fmt(r.saved.price)}${esc(page.pack ? " / " + page.pack : "")}${esc(chg)}</small></div>`);
+        note(`<span class="d"></span><div>${what}<small>Saved ${fmt(r.saved.price)}${esc(page.pack ? " / " + page.pack : "")}${page.listPrice ? ` <b>SP</b> · list ${fmt(page.listPrice)}` : ""}${esc(chg)}</small></div>`);
       } else if (r.already) {
         note(`<span class="d"></span><div>${what}<small>${fmt(page.price)} already saved</small></div>`);
         setTimeout(() => host && host.remove(), 4000);
       } else if (page.price) {
-        note(`<span class="d w"></span><div>${what}<small>Price on this page: ${fmt(page.price)}</small><button class="s">Save to Supply Room</button></div>`,
-          [[".s", () => chrome.runtime.sendMessage({ type: "save", id: r.item.id, page }, x => note(x && x.ok ? `<span class="d"></span><div>${what}<small>Saved ${fmt(page.price)}</small></div>` : `<span class="d w"></span><div><b>Not saved</b><small>${esc(x?.message || "")}</small></div>`))]]);
+        note(`<span class="d w"></span><div>${what}<small>Price on this page: ${fmt(page.price)}${r.unsure ? ". Couldn't tell whether you're signed in: save only if this is your account price." : ""}</small><button class="s">Save to Supply Room</button></div>`,
+          [[".s", () => chrome.runtime.sendMessage({ type: "save", id: r.item.id, page: Object.assign({}, page, { signedIn: page.signedIn === false ? false : true }) }, x => note(x && x.ok && x.saved?.kept ? `<span class="d"></span><div>${what}<small>Special price ${fmt(x.saved.special)} kept; ${fmt(page.price)} is the list price.</small></div>` : x && x.ok ? `<span class="d"></span><div>${what}<small>Saved ${fmt(page.price)}</small></div>` : `<span class="d w"></span><div><b>Not saved</b><small>${esc(x?.message || "")}</small></div>`))]]);
       } else note(`<span class="d w"></span><div>${what}<small>No price shown on this page (signed in?)</small></div>`);
     });
   }

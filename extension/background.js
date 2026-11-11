@@ -63,7 +63,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const seenKey = "seen:" + m.item.id + ":" + sup;
         const seen = (await get([seenKey]))[seenKey];
         if (msg.page.price && seen && Math.abs(seen.price - msg.page.price) < 0.005 && Date.now() - seen.at < 7 * 86400e3) res.already = seen;
-        else if (msg.page.price && auto) res.saved = await save(m.item, sup, msg.page);
+        else if (msg.page.price && msg.page.signedIn === false) res.signedOut = true;    // a signed-out page shows the list price: never saved
+        else if (msg.page.price && auto && (msg.page.signedIn === true || msg.page.accountPrice)) res.saved = await save(m.item, sup, msg.page);
+        else if (msg.page.price) res.unsure = msg.page.signedIn == null;
         return reply(res);
       }
       if (msg.type === "save") {
@@ -93,8 +95,10 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 });
 
 async function save(item, sup, page) {
-  const r = await api("price", { id: item.id, supplier: sup, price: page.price, pack: page.pack || "", url: page.url, sku: page.sku || "", product: page.title || "" });
+  const r = await api("price", { id: item.id, supplier: sup, price: page.price, pack: page.pack || "", url: page.url, sku: page.sku || "", product: page.title || "",
+    signedIn: page.signedIn === true || !!page.accountPrice, listPrice: page.listPrice || null });
   const seenKey = "seen:" + item.id + ":" + sup;
+  if (r.kept) { await set({ [seenKey]: { price: page.price, at: Date.now() } }); return { kept: true, special: r.special, listPrice: r.listPrice }; }
   await set({ [seenKey]: { price: page.price, at: Date.now() } });
   const { log = [] } = await get(["log"]);
   log.unshift({ at: Date.now(), name: item.name, sup, price: page.price, change: r.change ?? null });
