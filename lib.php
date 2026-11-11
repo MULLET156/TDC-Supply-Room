@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -884,8 +884,12 @@ function amazon_facts(string $url): array {
 /* Robot checks served with a normal "200 OK" (Cloudflare, Akamai, Amazon and similar). */
 function bot_wall(string $html): bool {
     if (strlen($html) > 400000) return false;
-    $markers = ['cf-browser-verification', 'challenge-platform', 'Just a moment...', 'Attention Required! | Cloudflare', 'Access Denied</title>', '/_Incapsula_Resource', 'px-captcha', 'Robot or human?', 'Request unsuccessful. Incapsula', 'Type the characters you see in this image', 'api-services-support@amazon.com', 'Continue shopping'];
+    // Markers only a robot-check page shows. ('Continue shopping' used to be here for Amazon, but every Shopify store
+    // page has it, so it made SprintRay, Blue Sky Bio and others look blocked when they weren't.)
+    $markers = ['Just a moment...', 'Attention Required! | Cloudflare', 'Access Denied</title>', '/_Incapsula_Resource', 'px-captcha', 'Robot or human?', 'Request unsuccessful. Incapsula', 'Type the characters you see in this image', 'api-services-support@amazon.com'];
     foreach ($markers as $m) if (stripos($html, $m) !== false) return stripos($html, 'productTitle') === false;
+    // Cloudflare adds its challenge script to ordinary pages too, so it only counts on a page too small to be the product.
+    if (strlen($html) < 40000) foreach (['cf-browser-verification', 'challenge-platform', 'cf_chl_opt'] as $m) if (stripos($html, $m) !== false) return true;
     return false;
 }
 
@@ -894,37 +898,70 @@ function apify_page(string $url, bool $quick = false, string $start = 'proxy'): 
     // First a quick plain fetch through Apify's proxies (a few seconds); only if that is
     // blocked too, a full browser (slower, 30-60 seconds, more credit). $quick skips the browser.
     // A site known to need the browser ($start = 'browser') skips the quick fetch it would fail.
+    // 'Most reliable' goes straight to a real browser on sites not yet known to work with a plain read.
+    if (page_priority() === 'reliable' && !$quick && (site_profile(site_host((string)parse_url($url, PHP_URL_HOST)))['page'] ?? '') !== 'proxy') $start = 'browser';
     if ($start !== 'browser') {
-        $r = apify_page_run($url, 'raw-http', 40, true);
+        $r = apify_page_run($url, 'raw-http', 15, true);
         if ($r['ok'] && !bot_wall((string)($r['html'] ?? ''))) return $r + ['tool' => 'proxy'];
         if ($quick) return $r['ok'] ? ['ok' => false, 'error' => 'blocked', 'message' => 'The page showed a robot check.'] : $r;
     } elseif ($quick) return ['ok' => false, 'error' => 'blocked', 'message' => 'This site needs the full browser.'];
-    $b = apify_page_run($url, 'browser-playwright', 110, true);
+    $b = apify_page_run($url, 'browser-playwright', 45, true);
     if ($b['ok'] && !bot_wall((string)($b['html'] ?? ''))) return $b + ['tool' => 'browser'];
     return ['ok' => false, 'error' => 'blocked', 'message' => $b['message'] ?? 'The supplier\'s site blocked the server, and the page service couldn\'t get past it either.'];
 }
 /* Pages that turn the server away are read through a paid page service: Bright Data Web Unlocker, ScrapingBee or Apify,
  * whichever keys are saved in Setup › Data collection. PAGE_SERVICE picks the one tried first ('auto' = Bright Data,
  * then ScrapingBee, then Apify); if it fails, the others are tried. $tool 'raw-http' = a plain read, else a real browser. */
-function page_services(): array {
+/* Order the services are tried in, from the office's priority (Setup › Data collection › What matters most).
+ * From tests on 17 supplier sites (Nov 2026):
+ *   plain reads of a blocked store: Bright Data fastest (about 2 s), ScrapingBee next (1 credit, or 10 if it needs a
+ *     home-internet address, about 8 s), Apify slowest (about 8 s) and its pages lose the store's product data;
+ *   real-browser reads: ScrapingBee fastest and most reliable (about 11-17 s, 25 credits), Bright Data slower (18-45 s)
+ *     but flat priced, Apify cheapest to start but failed most often.
+ * Whatever reads a site first time is remembered for that site and tried first next time. */
+const PAGE_ORDERS = [
+    'balanced' => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
+    'speed'    => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
+    'cost'     => ['raw-http' => ['scrapingbee', 'brightdata', 'apify'], 'browser' => ['brightdata', 'scrapingbee', 'apify']],
+    'reliable' => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
+];
+function page_priority(): string { $p = (string)cfg('PAGE_PRIORITY', 'balanced'); return isset(PAGE_ORDERS[$p]) ? $p : 'balanced'; }
+function page_services(string $tool = 'raw-http', string $host = ''): array {
     $have = [];
     if (trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '') $have[] = 'brightdata';
     if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
-    $first = (string)cfg('PAGE_SERVICE', 'auto');
+    $order = PAGE_ORDERS[page_priority()][$tool === 'raw-http' ? 'raw-http' : 'browser'];
+    $have = array_values(array_intersect($order, $have));
+    $first = (string)cfg('PAGE_SERVICE', 'auto');                    // the office picked one to try first
     if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
+    if ($host !== '' && function_exists('site_profile')) {          // the one that read this site last time goes first
+        $w = (string)(site_profile(site_host($host))['via'] ?? '');
+        if (in_array($w, $have, true)) $have = array_values(array_unique(array_merge([$w], $have)));
+    }
     return $have;
 }
 function page_service_ready(): bool { return page_services() !== []; }
 const PAGE_SERVICE_NAMES = ['brightdata' => 'Bright Data', 'scrapingbee' => 'ScrapingBee', 'apify' => 'Apify'];
+function page_time_left(): float {   // the host ends a request after about 60 s; keep 8 s for reading the page afterwards
+    if (!isset($GLOBALS['tdc_page_deadline'])) $GLOBALS['tdc_page_deadline'] = ($_SERVER['REQUEST_TIME_FLOAT'] ?? microtime(true)) + 52;
+    return $GLOBALS['tdc_page_deadline'] - microtime(true);
+}
 function apify_page_run(string $url, string $tool, int $secs, bool $residential = false, ?string $only = null): array {
     $last = ['ok' => false, 'error' => 'no_service', 'message' => 'No page service is set up. Add a Bright Data, ScrapingBee or Apify key in Setup › Data collection.'];
-    foreach ($only !== null ? [$only] : page_services() as $svc) {
+    $host = (string)parse_url($url, PHP_URL_HOST);
+    foreach ($only !== null ? [$only] : page_services($tool, $host) as $svc) {
+        $left = page_time_left();
+        if ($left < 8) { $last = ['ok' => false, 'error' => 'timeout', 'message' => $last['message'] . ' (Stopped trying other services: the server\'s time ran out.)']; break; }
+        $secs = (int)max(6, min($secs, $left - 4));
         $t0 = microtime(true);
         $r = $svc === 'brightdata' ? brightdata_page($url, $tool, $secs) : ($svc === 'scrapingbee' ? scrapingbee_page($url, $tool, $secs) : apify_page_run_raw($url, $tool, $secs, $residential));
         $r['via'] = $svc; $r['secs'] = round(microtime(true) - $t0, 1);
         if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'page-' . $tool, (string)parse_url($url, PHP_URL_HOST), !empty($r['ok']));
-        if (!empty($r['ok'])) return $r;
+        if (!empty($r['ok'])) {
+            if ($only === null && function_exists('site_learn') && $host !== '' && (site_profile(site_host($host))['via'] ?? '') !== $svc) site_learn(site_host($host), ['via' => $svc]);
+            return $r;
+        }
         $last = $r;
     }
     return $last;
@@ -941,11 +978,11 @@ function brightdata_page(string $url, string $tool, int $secs): array {
     $body = ['zone' => (string)cfg('BRIGHTDATA_ZONE'), 'url' => $url, 'format' => 'raw', 'country' => 'us'];
     if ($tool !== 'raw-http') $body['render'] = 'true';
     $ch = curl_init('https://api.brightdata.com/request');
-    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs, CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_HEADER => true,
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('BRIGHTDATA_KEY')]]);
     $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $hs = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); $err = curl_error($ch); curl_close($ch);
-    if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Bright Data (' . $err . ').'];
+    if ($res === false) return ['ok' => false, 'error' => stripos($err, 'timed out') !== false ? 'slow' : 'unreachable', 'message' => stripos($err, 'timed out') !== false ? 'Bright Data took too long on this page.' : 'Couldn\'t reach Bright Data (' . $err . ').'];
     $head = substr($res, 0, $hs); $html = substr($res, $hs);
     $m = preg_match('/^x-brd-error:\s*(.+)$/mi', $head, $mm) ? trim($mm[1]) : '';
     if ($code !== 200) { $j = json_decode($html, true); error_log("tdc brightdata page: $code $m"); return page_fail('brightdata', $code, $m ?: (string)($j['error'] ?? '')); }
@@ -957,13 +994,14 @@ function scrapingbee_page(string $url, string $tool, int $secs): array {
     // the cheapest read first (1 credit), then a home-internet address (10 credits; 25 with a browser)
     $tries = $tool === 'raw-http' ? [['render_js' => 'false'], ['render_js' => 'false', 'premium_proxy' => 'true']] : [['render_js' => 'true', 'premium_proxy' => 'true']];
     $last = page_fail('scrapingbee', 0);
-    foreach ($tries as $opt) {
+    foreach ($tries as $i => $opt) {
+        $t = $i === 0 && count($tries) > 1 ? (int)min(12, $secs) : (int)max(6, min(45, page_time_left() - 4));
         $q = http_build_query(['url' => $url, 'block_resources' => 'true'] + $opt + (isset($opt['premium_proxy']) ? ['country_code' => 'us'] : []));
         $ch = curl_init('https://app.scrapingbee.com/api/v1/?' . $q);
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $t, CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . cfg('SCRAPINGBEE_KEY')]]);
         $html = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
-        if ($html === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach ScrapingBee (' . $err . ').'];
+        if ($html === false) { if (stripos($err, 'timed out') !== false) { $last = ['ok' => false, 'error' => 'slow', 'message' => 'ScrapingBee took too long on this page.']; continue; } return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach ScrapingBee (' . $err . ').']; }
         if ($code === 200 && $html !== '' && !bot_wall((string)$html)) return ['ok' => true, 'html' => (string)$html, 'url' => $url];
         if (in_array($code, [400, 401, 402, 403], true)) { $j = json_decode((string)$html, true); error_log("tdc scrapingbee page: $code"); return page_fail('scrapingbee', $code, is_array($j) ? (string)($j['message'] ?? $j['error'] ?? '') : ''); }
         $last = page_fail('scrapingbee', $code, $code === 200 ? 'it got a robot check' : 'status ' . $code);
@@ -977,9 +1015,9 @@ function apify_page_run_raw(string $url, string $tool, int $secs, bool $resident
               'htmlTransformer' => 'none', 'removeCookieWarnings' => true, 'maxRequestRetries' => 1,
               'proxyConfiguration' => $residential ? ['useApifyProxy' => true, 'apifyProxyGroups' => ['RESIDENTIAL'], 'apifyProxyCountry' => 'US'] : ['useApifyProxy' => true]];
     if ($tool !== 'raw-http') $input['dynamicContentWaitSecs'] = 5;
-    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=' . $secs . '&format=json&clean=true');
+    $ch = curl_init('https://api.apify.com/v2/acts/' . rawurlencode($actor) . '/run-sync-get-dataset-items?timeout=' . max(5, $secs - 3) . '&format=json&clean=true');
     curl_setopt_array($ch, [
-        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 2, CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_POSTFIELDS => json_encode($input, JSON_UNESCAPED_SLASHES),
         CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('APIFY_TOKEN')],
     ]);

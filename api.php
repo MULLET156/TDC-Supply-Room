@@ -222,13 +222,18 @@ try {
         }
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
-            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE'], true);
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY'], true);
                 $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
-            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services()]);
+            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority()]);
         }
         case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup: written into config.php (database if it can't be)
             $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
+            if ($n === 'PAGE_PRIORITY') {  // what matters most when reading blocked stores (not a secret)
+                if (!in_array($v, ['balanced', 'speed', 'cost', 'reliable'], true)) fail(400, 'bad_key', 'Unknown choice.');
+                $where = key_save($pdo, 'PAGE_PRIORITY', $v === 'balanced' ? '' : $v);
+                out(200, ['ok' => true, 'where' => $where]);
+            }
             if ($n === 'PAGE_SERVICE') {   // which page service is tried first (not a secret)
                 if (!in_array($v, ['auto', 'brightdata', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown page service.');
                 $where = key_save($pdo, 'PAGE_SERVICE', $v === 'auto' ? '' : $v);
@@ -274,10 +279,10 @@ try {
                     $t0 = microtime(true); $g = http_get($url); $ok = $g['ok'] && !bot_wall((string)$g['body']);
                     $r = $ok ? ['ok' => true, 'html' => (string)$g['body']] : ['ok' => false, 'message' => $g['ok'] ? 'Got a robot check' : ('Status ' . ($g['code'] ?? '?') . ($g['error'] ? ': ' . $g['error'] : ''))];
                     $r['secs'] = round(microtime(true) - $t0, 1); $mode = 'plain';
-                } elseif ($want === 'browser') { $r = apify_page_run($url, 'browser-playwright', 90, true, $sv); $mode = 'browser'; }
+                } elseif ($want === 'browser') { $r = apify_page_run($url, 'browser-playwright', 45, true, $sv); $mode = 'browser'; }
                 else {
-                    $r = apify_page_run($url, 'raw-http', 40, true, $sv); $mode = 'plain';
-                    if ($want === 'auto' && empty($r['ok']) && !in_array($r['error'] ?? '', ['key', 'credits', 'unreachable'], true)) { $r2 = apify_page_run($url, 'browser-playwright', 90, true, $sv); $r2['secs'] = ($r['secs'] ?? 0) + ($r2['secs'] ?? 0); $r = $r2; $mode = 'browser'; }
+                    $r = apify_page_run($url, 'raw-http', 15, true, $sv); $mode = 'plain';
+                    if ($want === 'auto' && empty($r['ok']) && !in_array($r['error'] ?? '', ['key', 'credits', 'unreachable'], true)) { $r2 = apify_page_run($url, 'browser-playwright', 45, true, $sv); $r2['secs'] = ($r['secs'] ?? 0) + ($r2['secs'] ?? 0); $r = $r2; $mode = 'browser'; }
                 }
                 $row = ['service' => $sv, 'name' => $sv === 'server' ? 'Server (free)' : (PAGE_SERVICE_NAMES[$sv] ?? $sv), 'ok' => !empty($r['ok']), 'mode' => $mode, 'secs' => $r['secs'] ?? null, 'message' => $r['message'] ?? ''];
                 if (!empty($r['ok'])) { $h = (string)$r['html']; $f = page_facts($h, $url, '');
@@ -288,7 +293,9 @@ try {
             out(200, ['ok' => true, 'url' => $url, 'results' => $rows]);
         }
         case 'serviceusage': {   // what each paid page service has used: ScrapingBee credits and Bright Data balance (Apify has its own 'apifyusage')
-            out(200, ['ok' => true, 'scrapingbee' => scrapingbee_usage(), 'brightdata' => brightdata_usage()]);
+            $bd = brightdata_usage();
+            if ($bd !== null) { $n = 0; foreach (apify_meter_summary() as $m) if ($m['month'] === date('Y-m') && str_starts_with($m['kind'], 'brightdata-')) $n += $m['runs'] - $m['failed']; $bd += ['reads' => $n, 'estUsd' => round($n * 0.0015, 2)]; }
+            out(200, ['ok' => true, 'scrapingbee' => scrapingbee_usage(), 'brightdata' => $bd]);
         }
         case 'apifyusage': {     // what Apify billed per actor, from the account's run history
             out(200, apify_account_usage(max(1, min(90, (int)($req['days'] ?? 30)))));
