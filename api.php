@@ -222,13 +222,18 @@ try {
         }
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
-            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY'], true);
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE'], true);
                 $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
-            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority()]);
+            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority(), 'searchServices' => serp_services()]);
         }
         case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup: written into config.php (database if it can't be)
             $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
+            if ($n === 'SEARCH_SERVICE') { // which service runs web searches (not a secret)
+                if (!in_array($v, ['auto', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown search service.');
+                $where = key_save($pdo, 'SEARCH_SERVICE', $v === 'auto' ? '' : $v);
+                out(200, ['ok' => true, 'where' => $where]);
+            }
             if ($n === 'PAGE_PRIORITY') {  // what matters most when reading blocked stores (not a secret)
                 if (!in_array($v, ['balanced', 'speed', 'cost', 'reliable'], true)) fail(400, 'bad_key', 'Unknown choice.');
                 $where = key_save($pdo, 'PAGE_PRIORITY', $v === 'balanced' ? '' : $v);
@@ -266,6 +271,14 @@ try {
                 if ($do === 'off' && $where === '' && secret_source('MCP_KEY') === 'config') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site, so the connector is still on.');
             }
             out(200, ['ok' => true, 'key' => $k]);
+        }
+        case 'serptest': {       // compare the web search services on one query (Setup › Data collection)
+            $q = trim((string)($req['query'] ?? '')); if ($q === '') fail(400, 'bad_query', 'Type something to search for.');
+            $svc = (string)($req['service'] ?? '');
+            $t0 = microtime(true);
+            $r = $svc === 'scrapingbee' ? scrapingbee_serp($q, 10) : ($svc === 'apify' ? apify_serp_raw($q, 10) : fail(400, 'bad_service', 'Pick a service.'));
+            if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'google', '', !empty($r['ok']));
+            out(200, ['ok' => true, 'service' => $svc, 'secs' => round(microtime(true) - $t0, 1), 'found' => !empty($r['ok']), 'message' => $r['message'] ?? '', 'results' => array_slice((array)($r['results'] ?? []), 0, 10)]);
         }
         case 'pagetest': {       // Setup › Data collection: read one product page through each page service, to compare them
             $url = trim((string)($req['url'] ?? ''));

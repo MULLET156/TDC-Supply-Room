@@ -256,7 +256,7 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
     else $say('Kept the way it was already searched (' . ($cur['search'] ?? 'web') . '), since the test couldn\'t confirm a better one.');
     // 3. a product page: free server read, else a paid page service's plain read, else its real browser
     $sample = $found['urls'][0] ?? '';
-    if ($sample === '' && apify_ready()) { $r = apify_serp($term . ' site:' . $host, 5); foreach ((array)($r['results'] ?? []) as $c) if (site_host((string)parse_url($c['url'], PHP_URL_HOST)) === $host && !preg_match('#/(search|category|c|catalog)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) { $sample = $c['url']; break; } }
+    if ($sample === '' && serp_ready()) { $r = apify_serp($term . ' site:' . $host, 5); foreach ((array)($r['results'] ?? []) as $c) if (site_host((string)parse_url($c['url'], PHP_URL_HOST)) === $host && !preg_match('#/(search|category|c|catalog)(/|\?|$)#i', (string)parse_url($c['url'], PHP_URL_PATH))) { $sample = $c['url']; break; } }
     if (!str_starts_with($sample, 'http') && $sample !== '') $sample = $base . $sample;
     if ($sample !== '') {
         $g = http_get($sample, 4194304, 20); $blk = !$g['ok'] ? in_array($g['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($g['body']);

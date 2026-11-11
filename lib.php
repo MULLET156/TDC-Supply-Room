@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -1307,7 +1307,7 @@ function find_product_page(array $q, array $ctx = []): array {
             : ($cat['done'] ? 'Item ' . $sku . ' isn\'t listed anywhere on ' . $site . ' (' . $cat['pages'] . ' pages checked).'
             : 'Item ' . $sku . ' wasn\'t on the ' . $cat['pages'] . ' pages of ' . $site . ' checked so far; run it again to keep looking.');
     }
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => $catMsg !== '' ? $catMsg . ' Or add the product\'s web link.' : 'Looking products up online needs an Apify key (Setup › Data collection). Add the product\'s web link instead.'];
+    if (!serp_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => $catMsg !== '' ? $catMsg . ' Or add the product\'s web link.' : 'Looking products up online needs an Apify or ScrapingBee key (Setup › Data collection). Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.
     $bare = preg_replace('/[\s\-\.\/_]+/', '', $sku);
@@ -1359,7 +1359,7 @@ function supplier_site_search(string $host, string $q, bool $allowBrowser = true
     return site_search($host, $q, $allowBrowser) ?? [];
 }
 function mpn_search(string $mpn, string $host, array $skip = [], string $name = ''): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify key (Setup › Data collection).'];
+    if (!serp_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify or ScrapingBee key (Setup › Data collection).'];
     $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
     // Same part number at the same store searched in the last 30 days (14 when nothing was found): reuse it.
@@ -1410,10 +1410,41 @@ function mpn_search_live(string $mpn, string $host, array $skip = [], string $na
 function apify_serp(string $query, int $max = 10): array {
     // the same Google search within two weeks is answered from the cache (prices aren't in these results, only pages)
     if (function_exists('cache_get') && ($c = cache_get('serp', $query . '|' . $max, 14)) !== null) return $c;
-    $r = apify_serp_raw($query, $max);
+    $r = ['ok' => false, 'message' => 'Searching the web needs an Apify or ScrapingBee key (Setup › Data collection).'];
+    foreach (serp_services() as $svc) {
+        $r = $svc === 'scrapingbee' ? scrapingbee_serp($query, $max) : apify_serp_raw($query, $max);
+        $r['via'] = $svc;
+        if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
+        if (!empty($r['ok'])) break;
+    }
     if (!empty($r['ok']) && function_exists('cache_put')) cache_put('serp', $query . '|' . $max, $r);
-    if (function_exists('apify_meter')) apify_meter('google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
     return $r;
+}
+/* Google searches: ScrapingBee's Fast Search (10 credits, about $0.001-0.002 on a paid plan, 1-3 s) or Apify's
+ * Google Search Scraper (about $0.0024, 5-10 s). SEARCH_SERVICE picks; 'auto' = ScrapingBee when it has a key. */
+function serp_services(): array {
+    $have = [];
+    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
+    if (apify_ready()) $have[] = 'apify';
+    $first = (string)cfg('SEARCH_SERVICE', 'auto');
+    if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
+    return $have;
+}
+function serp_ready(): bool { return serp_services() !== []; }
+function scrapingbee_serp(string $query, int $max = 10): array {
+    $ch = curl_init('https://app.scrapingbee.com/api/v1/fast_search?' . http_build_query(['search' => $query, 'country_code' => 'us', 'language' => 'en']));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 25, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . cfg('SCRAPINGBEE_KEY')]]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+    if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach ScrapingBee (' . $err . ').'];
+    $j = json_decode((string)$res, true);
+    if ($code !== 200 || !is_array($j)) { error_log("tdc scrapingbee serp: $code " . substr((string)$res, 0, 200)); return ['ok' => false, 'message' => $code === 401 ? 'ScrapingBee is out of credit.' : 'The web search didn\'t work (' . $code . ').']; }
+    $out = []; $seen = [];
+    foreach ((array)($j['organic'] ?? $j['organic_results'] ?? []) as $o) {
+        $u = (string)($o['link'] ?? $o['url'] ?? ''); if (!preg_match('#^https?://#i', $u) || isset($seen[$u])) continue; $seen[$u] = 1;
+        $out[] = ['url' => $u, 'title' => mb_substr((string)($o['title'] ?? ''), 0, 200), 'description' => mb_substr((string)($o['description'] ?? ''), 0, 300)];
+        if (count($out) >= $max) break;
+    }
+    return ['ok' => true, 'results' => $out];
 }
 function apify_serp_raw(string $query, int $max = 10): array {
     @set_time_limit(120);
@@ -1484,7 +1515,7 @@ function apify_search_raw(string $query, int $max = 5): array {
 // $q: name, sku, mfr, units, supplier; $sites: [['name' => supplier, 'site' => host]]; $scope: 'mine' | 'web'.
 // Returns candidate product pages (url, supplier, title, sure). The page reads (price, pack) are done one by one by the caller.
 function price_search(array $q, array $sites, string $scope = 'mine', array $skip = []): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching the web needs an Apify key (Setup › Data collection).'];
+    if (!serp_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching the web needs an Apify or ScrapingBee key (Setup › Data collection).'];
     $name = trim((string)($q['name'] ?? '')); $mfr = trim((string)($q['mfr'] ?? '')); $sku = trim((string)($q['sku'] ?? ''));
     if ($name === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The item needs a name.'];
     $hosts = [];
@@ -1824,7 +1855,7 @@ function store_search(string $host, string $q): ?array {
 }
 // $s: ['sup' => name, 'site' => host, 'brand' => house brand]; returns up to 2 product pages at that supplier
 function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip = []): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify key (Setup › Data collection).'];
+    if (!serp_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify or ScrapingBee key (Setup › Data collection).'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($s['site'] ?? '')))); $host = explode('/', $host)[0];
     if ($host === '') return ['ok' => true, 'candidates' => [], 'message' => 'No website saved for this supplier.'];
     $brand = trim((string)($s['brand'] ?? '')); $phrase = trim((string)($plan['phrase'] ?? $p['name'] ?? ''));
