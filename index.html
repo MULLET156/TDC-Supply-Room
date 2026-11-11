@@ -231,6 +231,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
 .sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
 .sitebox .sitehead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sitebox .sitehead .btn{margin-left:auto}
+.secnote .slight{width:9px;height:9px;margin:0 2px 0 4px}.secnote [data-checkall]{margin-left:6px;vertical-align:middle}
+.legendrow.two{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .lightkey{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}.lightkey>span{display:inline-flex;align-items:center;gap:7px}
 .setrow.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:start}.keyrow p.hint{margin:4px 0 0}
 .keyform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.keyform input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;width:230px;max-width:100%;font-family:var(--f-mono)}
@@ -7174,7 +7176,7 @@ function setupHtml(){
     <div class="list">${[["low","Below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
-  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
+  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list. The light by a name shows how its website is read: <span class="slight green"></span> free, <span class="slight orange"></span> with Apify, <span class="slight red"></span> needs a sign-in (Claude reads it in your browser), <span class="slight grey"></span> not checked.${readOnly || !window.TDC?.siteProbe ? "" : ` <button class="btn sm" type="button" data-checkall>Check all suppliers</button>`}</p>
     <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button>${openSups.has(keyOf(g.name)) ? `<span class="slight none" aria-hidden="true"></span>` : siteLightHtml(g.name)}</span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these products">${g.n} product${g.n>1?"s":""} ›</button>` : "0 products"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
@@ -7574,14 +7576,42 @@ function dataSec(){
   return `<div class="sechead" id="sec-data"><h2>Data collection</h2></div>
   <p class="secnote">The keys that let the Supply Room look up products and read prices on its own. Paste a key and press Save: it's checked, then written into the server's config.php (or the database, if config.php can't be changed from the site). Keys are never shown again, only their last 4 characters. Each supplier's light, under Suppliers, shows how its website is read.${keyInfo && !keyCfgOk ? `<br><b>config.php can't be changed from the site on this server</b>, so keys you paste here are kept in the database instead (keys already in config.php still win).` : ""}</p>
   <div class="list">
-    <div class="setrow legendrow"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with Apify <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span></div>
+    <div class="setrow legendrow two"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with Apify <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span>${readOnly ? "" : `<button class="btn" type="button" data-checkall>Check all suppliers</button>`}</div>
     ${keyRow("APIFY_TOKEN", "Apify API key", `Reads stores that turn servers away and searches the web for products. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
     ${keyRow("ANTHROPIC_API_KEY", "Claude API key", `Reads product links, photos, price lists and documents, and finds substitutes. Get it at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com › API keys</a>.`, "sk-ant-…")}
     <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
     <div class="setrow two"><span>Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? `<br><small class="muted">${meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ")}</small>` : ""}<span id="apifyOut" class="hint" style="display:block"></span></span>${readOnly || !(K.APIFY_TOKEN || {}).set ? "" : `<button class="btn" type="button" id="apifyBill">What Apify billed</button>`}</div>
   </div>`;
 }
+let checkAllRun = null;
+async function checkAllSites(){
+  if (checkAllRun) { checkAllRun.stop = true; return; }
+  const names = orderedSuppliers().map(g => g.name).filter(n => siteHost(n));
+  const seen = new Set(), list = names.filter(n => { const h = siteHost(n); if (seen.has(h)) return false; seen.add(h); return true; });
+  if (!list.length) { toast("No supplier has a website yet"); return; }
+  if (!confirm(`Check all ${list.length} supplier websites? It takes about half a minute each, and stores that turn the server away can use a few Apify runs each. Keep this page open; you can stop it any time.`)) return;
+  checkAllRun = { stop: false, done: 0, n: list.length, cur: "" };
+  const paint = () => document.querySelectorAll("[data-checkall]").forEach(b => { b.textContent = checkAllRun ? `Checking ${checkAllRun.done + 1} of ${checkAllRun.n}: ${checkAllRun.cur} · Stop` : "Check all suppliers"; b.classList.toggle("pri", !!checkAllRun); });
+  const res = { green: 0, orange: 0, red: 0, grey: 0, failed: [] };
+  for (const n of list) {
+    if (checkAllRun.stop) break;
+    checkAllRun.cur = n; paint();
+    const mpn = clean(items.find(i => keyOf(i.supplier) === keyOf(n) && clean(i.mfr))?.mfr || "");
+    try { await TDC.siteProbe(siteHost(n), mpn); } catch(e) { res.failed.push(n); }
+    checkAllRun.done++;
+  }
+  const stopped = checkAllRun.stop, done = checkAllRun.done; checkAllRun = null;
+  await loadSiteProfiles(true);
+  list.forEach(n => { const L = siteLight(n); if (L) res[L.c]++; });
+  logIt("Setup", null, `Checked ${done} supplier website${done === 1 ? "" : "s"}`);
+  toast(`${stopped ? "Stopped after " + done + " of " + list.length : "Checked " + done} websites: ${res.green} free, ${res.orange} with Apify, ${res.red} need a sign-in${res.grey ? ", " + res.grey + " not checked" : ""}${res.failed.length ? ". Couldn't open: " + res.failed.join(", ") : ""}`);
+  if (tab === "setup") render(); else paint();
+}
 function wireSites(){
+  document.querySelectorAll("[data-checkall]").forEach(b => {
+    b.onclick = () => { if (!needMe()) return; checkAllSites(); };
+    if (checkAllRun) { b.textContent = `Checking ${checkAllRun.done + 1} of ${checkAllRun.n}: ${checkAllRun.cur} · Stop`; b.classList.add("pri"); }
+  });
   document.querySelectorAll("[data-siteprobe]").forEach(b => b.onclick = async () => {
     if (!needMe()) return; const n = b.dataset.siteprobe, h = siteHost(n); b.disabled = true; b.textContent = "Checking…";
     const mpn = clean(items.find(i => keyOf(i.supplier) === keyOf(n) && clean(i.mfr))?.mfr || items.find(i => clean(i.mfr))?.mfr || "");
