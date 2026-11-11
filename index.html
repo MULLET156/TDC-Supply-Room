@@ -5991,6 +5991,7 @@ function subBest(it){
   let best = null; for (const x of it.subs?.list || []) { if (x.fit === "no") continue; const c = subCalc(it, x); if (c.save != null && c.save > 0.005 && (!best || c.save > best.save)) best = { ...c, x }; }
   return best;
 }
+const unitN = (n, unit) => { const u = String(unit || "each"); return `${fmtQ(n)} ${Number(n) === 1 || /^each$/i.test(u) || /s$/i.test(u) ? u : u + "s"}`; };
 const perU = (v, unit) => v == null ? "" : (v < 1 ? (v * 100).toFixed(v * 100 < 10 ? 1 : 0) + "¢" : money(v)) + "/" + esc(unit || "each");
 let subOpen = new Set(), subShowNo = new Set();
 function subsHtml(){
@@ -6022,7 +6023,7 @@ function subsHtml(){
         <button type="button" class="swx" data-subexp="${esc(it.id)}|${k}" aria-expanded="${open}" aria-label="Details">${ic("chev")}</button>
         <span class="swfit f-${esc(x.fit || "maybe")}" title="${x.fit === "good" ? "Good match" : x.fit === "no" ? "Not a match" : "Check it"}">${x.fit === "good" ? "Match" : x.fit === "no" ? "No" : "Check"}</span>
         <span class="swsup">${supLogo(x.sup)}<span>${esc(x.sup)}</span></span>
-        <span class="swname"><a href="${esc(webHref(x.url))}" target="_blank" rel="noopener">${esc(x.title)}</a><small>${x.price ? `${esc(money(x.price))} / ${esc(x.pack || "?")}` : "No price shown"} · <button type="button" class="linkbtn" data-subcnt="${esc(it.id)}|${k}" title="How many ${esc(unit)}s are in this package">${x.count ? `${fmtQ(x.count)} ${esc(unit)}s` : "set count"}</button></small></span>
+        <span class="swname"><a href="${esc(webHref(x.url))}" target="_blank" rel="noopener">${esc(x.title)}</a><small>${x.price ? `${esc(money(x.price))} / ${esc(x.pack || "?")}` : "No price shown"} · <button type="button" class="linkbtn" data-subcnt="${esc(it.id)}|${k}" title="How many ${esc(unit)}s are in this package">${x.count ? `${esc(unitN(x.count, unit))}` : "set count"}</button></small></span>
         <span class="swpu">${c.pu != null ? perU(c.pu, unit) : "–"}</span>
         <span class="swvs">${c.pct != null ? `<i class="${c.per > 0 ? "lo" : "hi"}" style="width:${pctW}%"></i><b>${c.per > 0 ? "−" : "+"}${Math.abs(c.pct)}%</b>` : ""}</span>
         <span class="swsave">${cheaper && x.fit !== "no" ? `<b>${esc(money(c.save))}</b><small>${c.yearly ? "a year" : "this order"}</small>` : ""}</span>
@@ -6038,7 +6039,7 @@ function subsHtml(){
       <header class="swhead">${can ? `<input type="checkbox" class="cmpchk" data-subsel="${esc(it.id)}" ${subSel.has(it.id) ? "checked" : ""} aria-label="Tick ${esc(it.name)}">` : ""}
         ${it.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(it.photo)}" onerror="this.remove()">` : `<span class="thumb"></span>`}
         <div class="subme"><button type="button" class="cnb" data-subopen="${esc(it.id)}">${esc(it.name)}</button>
-          <small>${it.supplier ? `${supLogo(it.supplier)}${esc(it.supplier)} · ` : ""}${m.p ? `<b>${esc(money(m.p))}</b> / ${esc(it.units || "?")}` : "no price saved"}${m.pu != null ? ` · <b>${perU(m.pu, unit)}</b>` : ""}${S && !readOnly ? ` · <button type="button" class="linkbtn" data-submc="${esc(it.id)}" title="How many ${esc(unit)}s are in your package">${m.c ? `${fmtQ(m.c)} ${esc(unit)}s` : "set count"}</button>` : ""}</small>
+          <small>${it.supplier ? `${supLogo(it.supplier)}${esc(it.supplier)} · ` : ""}${m.p ? `<b>${esc(money(m.p))}</b> / ${esc(it.units || "?")}` : "no price saved"}${m.pu != null ? ` · <b>${perU(m.pu, unit)}</b>` : ""}${S && !readOnly ? ` · <button type="button" class="linkbtn" data-submc="${esc(it.id)}" title="How many ${esc(unit)}s are in your package">${m.c ? `${esc(unitN(m.c, unit))}` : "set count"}</button>` : ""}</small>
           ${S?.specs?.length ? `<small class="subspecs">Must match: ${S.specs.map(esc).join(" · ")}${S.strict ? " (exactly)" : ""}</small>` : ""}</div>
         <div class="swwin">${best ? `<span class="swbig">Save ${esc(money(best.save))}</span><small>${best.yearly ? "a year" : "on this order"} with ${esc(best.x.sup)}</small>` : S ? `<span class="swnone">${fits.length ? "No cheaper match" : "Nothing found"}</span>` : ""}
           <span class="swwhen">${busyHere ? `<span class="hint">${esc(run.msg || "Searching…")}</span>` : S ? `Checked ${esc(shortDate(S.at))}` : "Not searched yet"}${can && !run ? ` <button type="button" class="linkbtn" data-subgo="${esc(it.id)}">${S ? "Search again" : "Find substitutes"}</button>` : ""}</span></div>
