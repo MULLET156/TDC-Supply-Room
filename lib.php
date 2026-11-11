@@ -920,19 +920,28 @@ function apify_page(string $url, bool $quick = false, string $start = 'proxy'): 
  *     but flat priced, Apify cheapest to start but failed most often.
  * Whatever reads a site first time is remembered for that site and tried first next time. */
 const PAGE_ORDERS = [
+    'auto'     => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
     'balanced' => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
     'speed'    => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
     'cost'     => ['raw-http' => ['scrapingbee', 'brightdata', 'apify'], 'browser' => ['brightdata', 'scrapingbee', 'apify']],
     'reliable' => ['raw-http' => ['brightdata', 'scrapingbee', 'apify'], 'browser' => ['scrapingbee', 'brightdata', 'apify']],
 ];
-function page_priority(): string { $p = (string)cfg('PAGE_PRIORITY', 'balanced'); return isset(PAGE_ORDERS[$p]) ? $p : 'balanced'; }
+function page_priority(): string { $p = (string)cfg('PAGE_PRIORITY', 'auto'); return isset(PAGE_ORDERS[$p]) && $p !== 'balanced' ? $p : 'auto'; }
+/* A service that turned its key away or ran out of credit is skipped for 6 hours, so every read doesn't wait on it. */
+function service_down(string $svc): ?array { $v = function_exists('cache_get') ? cache_get('svcdown', $svc, 1) : null; return $v && ($v['at'] ?? 0) > time() - 6 * 3600 ? $v : null; }
+function service_mark(string $svc, array $r): void {
+    if (!function_exists('cache_put')) return;
+    if (in_array($r['error'] ?? '', ['key', 'credits'], true) || preg_match('/out of credit|rejected its key/i', (string)($r['message'] ?? ''))) cache_put('svcdown', $svc, ['at' => time(), 'why' => (string)($r['message'] ?? '')]);
+}
+function service_up(string $svc): void { if (function_exists('cache_put') && service_down($svc)) cache_put('svcdown', $svc, ['at' => 0]); }
+function skip_down(array $list): array { $up = array_values(array_filter($list, fn($x) => !service_down($x))); return $up ?: $list; }
 function page_services(string $tool = 'raw-http', string $host = ''): array {
     $have = [];
     if (trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '') $have[] = 'brightdata';
     if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
     $order = PAGE_ORDERS[page_priority()][$tool === 'raw-http' ? 'raw-http' : 'browser'];
-    $have = array_values(array_intersect($order, $have));
+    $have = skip_down(array_values(array_intersect($order, $have)));
     $first = (string)cfg('PAGE_SERVICE', 'auto');                    // the office picked one to try first
     if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
     if ($host !== '' && function_exists('site_profile')) {          // the one that read this site last time goes first
@@ -958,6 +967,7 @@ function apify_page_run(string $url, string $tool, int $secs, bool $residential 
         $r = $svc === 'brightdata' ? brightdata_page($url, $tool, $secs) : ($svc === 'scrapingbee' ? scrapingbee_page($url, $tool, $secs) : apify_page_run_raw($url, $tool, $secs, $residential));
         $r['via'] = $svc; $r['secs'] = round(microtime(true) - $t0, 1);
         if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'page-' . $tool, (string)parse_url($url, PHP_URL_HOST), !empty($r['ok']));
+        if (empty($r['ok'])) service_mark($svc, $r); else service_up($svc);
         if (!empty($r['ok'])) {
             if ($only === null && function_exists('site_learn') && $host !== '' && (site_profile(site_host($host))['via'] ?? '') !== $svc) site_learn(site_host($host), ['via' => $svc]);
             return $r;
@@ -1414,6 +1424,7 @@ function apify_serp(string $query, int $max = 10): array {
     foreach (serp_services() as $svc) {
         $r = $svc === 'scrapingbee' ? scrapingbee_serp($query, $max) : apify_serp_raw($query, $max);
         $r['via'] = $svc;
+        if (empty($r['ok'])) service_mark($svc, $r + ['error' => preg_match('/out of credit/i', (string)($r['message'] ?? '')) ? 'credits' : '']); else service_up($svc);
         if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
         if (!empty($r['ok'])) break;
     }
@@ -1426,6 +1437,7 @@ function serp_services(): array {
     $have = [];
     if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
+    $have = skip_down($have);
     $first = (string)cfg('SEARCH_SERVICE', 'auto');
     if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
     return $have;
@@ -2008,6 +2020,69 @@ function brightdata_usage(): ?array {
     $j = json_decode((string)$b, true);
     if ($code !== 200 || !is_array($j)) return ['ok' => false, 'message' => 'Bright Data didn\'t share the balance (' . ($code ?: 'no answer') . ').'];
     return ['ok' => true, 'balance' => isset($j['balance']) ? (float)$j['balance'] : null, 'pending' => isset($j['pending_costs']) ? (float)$j['pending_costs'] : (isset($j['pending_balance']) ? (float)$j['pending_balance'] : null), 'raw' => $j];
+}
+
+/* Setup › Data collection › Recommendations: what each job will use, in order, and what would make it better.
+ * Built from the keys that are saved, what the stores need (their profiles), this month's counts and ScrapingBee's credit. */
+function service_advice(PDO $pdo): array {
+    $N = PAGE_SERVICE_NAMES; $nm = fn(array $l) => array_map(fn($x) => $N[$x] ?? $x, $l);
+    $has = ['apify' => apify_ready(), 'scrapingbee' => trim((string)cfg('SCRAPINGBEE_KEY')) !== '',
+            'brightdata' => trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '',
+            'claude' => trim((string)cfg('ANTHROPIC_API_KEY')) !== '', 'ext' => trim((string)cfg('EXT_KEY')) !== '', 'mcp' => trim((string)cfg('MCP_KEY')) !== ''];
+    // what the office's stores need
+    $items = all_docs($pdo, 'items'); $hosts = []; $amazon = 0;
+    foreach ($items as $it) { if (!empty($it['archived'])) continue; foreach (array_merge([$it['link'] ?? ''], array_map(fn($l) => is_array($l) ? ($l['url'] ?? '') : '', (array)($it['links'] ?? []))) as $u) { $h = site_host((string)parse_url((string)$u, PHP_URL_HOST)); if ($h === '') continue; $hosts[$h] = ($hosts[$h] ?? 0) + 1; if (preg_match('/(^|\.)amazon\./', $h)) $amazon++; } }
+    $need = ['proxy' => [], 'browser' => [], 'signin' => [], 'blocked' => [], 'search' => 0]; $via = [];
+    $seen = [];
+    foreach (array_keys($hosts) as $h) {
+        if (preg_match('/(^|\.)amazon\./', $h)) continue;
+        $p = site_profile($h);
+        if (empty($p['builtIn']) && empty($p['learnedAt'])) continue;   // only stores the Supply Room knows (built in or checked)
+        if (isset($seen[$p['host']])) continue; $seen[$p['host']] = 1; $h = $p['host'];
+        $pg = (string)($p['page'] ?? 'server');
+        if (isset($need[$pg])) $need[$pg][] = $h;
+        if (in_array($p['search'] ?? '', ['web', 'browser'], true)) $need['search']++;
+        if (!empty($p['via'])) $via[$p['via']][] = $h;
+    }
+    $sb = $has['scrapingbee'] ? (cache_get('sbusage', 'x', 1) ?? null) : null;
+    if ($has['scrapingbee'] && !$sb) { $u = scrapingbee_usage(); if ($u && !empty($u['ok'])) { $sb = $u + ['at' => time()]; cache_put('sbusage', 'x', $sb); } }
+    $sbLeft = $sb ? max(0, (int)$sb['max'] - (int)$sb['used']) : null;
+    $runs = []; foreach (apify_meter_summary() as $m) if ($m['month'] === date('Y-m')) { $svc = preg_match('/^(scrapingbee|brightdata)-/', $m['kind'], $mm) ? $mm[1] : 'apify'; $runs[$svc] = ($runs[$svc] ?? 0) + $m['runs']; }
+
+    $plan = [
+        ['job' => 'Finding products by part number or name', 'use' => $nm(serp_services()), 'empty' => 'Not set up: add ScrapingBee or Apify'],
+        ['job' => 'Stores that turn the server away', 'use' => $nm(page_services('raw-http')), 'empty' => count($need['proxy']) ? 'Not set up: ' . count($need['proxy']) . ' of your stores need this' : 'Not needed by your stores right now'],
+        ['job' => 'Stores that need a real browser', 'use' => $nm(page_services('browser')), 'empty' => 'Not set up'],
+        ['job' => 'Amazon links', 'use' => $has['apify'] ? ['Apify'] : [], 'empty' => $amazon ? 'Not set up: ' . $amazon . ' Amazon links' : 'Not needed'],
+        ['job' => 'Reading pages, photos and invoices', 'use' => $has['claude'] ? ['Claude'] : [], 'empty' => 'Not set up: add a Claude API key'],
+        ['job' => 'Signed-in prices (' . (count($need['signin']) ? implode(', ', array_map(fn($h) => preg_replace('/\.(com|net|org)$/', '', $h), $need['signin'])) : 'none of your stores') . ')', 'use' => array_values(array_filter([$has['ext'] ? 'Browser extension' : '', $has['mcp'] ? 'Claude in your browser' : ''])), 'empty' => count($need['signin']) ? 'Not set up: turn on the browser extension' : 'Not needed'],
+    ];
+    foreach ($plan as &$pp) { foreach ($pp['use'] as $i => $u) { $k = array_search($u, $N, true); if ($k && ($d = service_down($k))) $pp['use'][$i] = $u . ' (paused: ' . rtrim((string)$d['why'], '.') . ')'; } } unset($pp);
+
+    $tips = [];
+    $add = function (string $level, string $text, string $act = '') use (&$tips) { $tips[] = ['level' => $level, 'text' => $text] + ($act !== '' ? ['act' => $act] : []); };
+    if (!$has['claude']) $add('bad', 'Add a Claude API key. Without it the Supply Room can\'t read product pages, photos or invoices, or find substitutes.', 'ANTHROPIC_API_KEY');
+    if (!$has['scrapingbee'] && !$has['apify']) $add('bad', 'Add a ScrapingBee or Apify key so products can be found by part number. ScrapingBee is about 10 times faster.', 'SCRAPINGBEE_KEY');
+    elseif (!$has['scrapingbee'] && $need['search'] > 3) $add('tip', "Searches run on Apify (8–35 seconds each). A ScrapingBee key would make them about 10 times faster for {$need['search']} of your stores.", 'SCRAPINGBEE_KEY');
+    if (count($need['proxy']) + count($need['browser']) && !$has['scrapingbee'] && !$has['brightdata'] && !$has['apify']) $add('bad', count($need['proxy']) + count($need['browser']) . ' of your stores turn the server away (' . implode(', ', array_slice(array_merge($need['proxy'], $need['browser']), 0, 4)) . '). Add ScrapingBee to read them.', 'SCRAPINGBEE_KEY');
+    if (count($need['browser']) && !$has['scrapingbee'] && ($has['brightdata'] || $has['apify'])) $add('tip', implode(', ', $need['browser']) . ' only open in a real browser, where ScrapingBee was fastest and failed least in testing (Bright Data took 45 seconds; Apify failed).', 'SCRAPINGBEE_KEY');
+    if ($has['brightdata'] && $has['scrapingbee']) {
+        $bdOnly = count($via['brightdata'] ?? []);
+        $add('tip', 'Bright Data and ScrapingBee overlap. Bright Data is quicker on ' . ($bdOnly ? implode(', ', $via['brightdata']) : 'a few stores') . ' (about 2 seconds against 8), but ScrapingBee can read them too. Removing Bright Data leaves one bill for page reading.', 'BRIGHTDATA_KEY');
+    }
+    if ($has['apify'] && $has['scrapingbee'] && !$amazon) $add('tip', 'Apify is now only a backup: ScrapingBee does the searches and page reads. You have no Amazon links, so Apify could be removed.', 'APIFY_TOKEN');
+    elseif ($has['apify'] && $has['scrapingbee']) $add('ok', "Apify is kept for your $amazon Amazon link" . ($amazon === 1 ? '' : 's') . ' and as a backup. Its free monthly credit should cover that.');
+    if ($amazon && !$has['apify']) $add('tip', "You have $amazon Amazon link" . ($amazon === 1 ? '' : 's') . ', which only Apify can read. Its free plan covers that.', 'APIFY_TOKEN');
+    if ($sbLeft !== null && $sb['max'] > 0) {
+        $pct = $sbLeft / max(1, $sb['max']);
+        if ($sbLeft === 0) $add('bad', 'ScrapingBee is out of credit' . (!empty($sb['renews']) ? ' until ' . date('M j', strtotime($sb['renews'])) : '') . '. Searches and page reads are using ' . ($has['apify'] ? 'Apify' : ($has['brightdata'] ? 'Bright Data' : 'nothing')) . ' instead.');
+        elseif ($pct < 0.2) $add('warn', 'ScrapingBee has ' . number_format($sbLeft) . ' credits left (' . (int)round($pct * 100) . '%)' . (!empty($sb['renews']) ? ', renewing ' . date('M j', strtotime($sb['renews'])) : '') . '. A search costs 10 credits.');
+        else $add('ok', 'ScrapingBee has ' . number_format($sbLeft) . ' of ' . number_format((int)$sb['max']) . ' credits left' . (!empty($sb['renews']) ? ', renewing ' . date('M j', strtotime($sb['renews'])) : '') . '.');
+    }
+    if (count($need['signin']) && !$has['ext']) $add('tip', 'Turn on the browser extension: it saves your account prices from ' . implode(', ', $need['signin']) . ' whenever staff open a product page there.', 'EXT_KEY');
+    if (count($need['blocked'])) $add('warn', implode(', ', $need['blocked']) . ' turned every service away. Their prices come from the browser extension, Claude in your browser, or a price list.');
+    if (!$tips) $add('ok', 'Everything your stores need is covered.');
+    return ['plan' => $plan, 'tips' => $tips, 'runs' => $runs, 'stores' => ['free' => count($seen) - count($need['proxy']) - count($need['browser']) - count($need['signin']) - count($need['blocked']), 'proxy' => $need['proxy'], 'browser' => $need['browser'], 'signin' => $need['signin'], 'blocked' => $need['blocked']]];
 }
 
 require_once __DIR__ . '/sites.php';

@@ -235,8 +235,8 @@ try {
                 out(200, ['ok' => true, 'where' => $where]);
             }
             if ($n === 'PAGE_PRIORITY') {  // what matters most when reading blocked stores (not a secret)
-                if (!in_array($v, ['balanced', 'speed', 'cost', 'reliable'], true)) fail(400, 'bad_key', 'Unknown choice.');
-                $where = key_save($pdo, 'PAGE_PRIORITY', $v === 'balanced' ? '' : $v);
+                if (!in_array($v, ['auto', 'balanced', 'speed', 'cost', 'reliable'], true)) fail(400, 'bad_key', 'Unknown choice.');
+                $where = key_save($pdo, 'PAGE_PRIORITY', in_array($v, ['auto', 'balanced'], true) ? '' : $v);
                 out(200, ['ok' => true, 'where' => $where]);
             }
             if ($n === 'PAGE_SERVICE') {   // which page service is tried first (not a secret)
@@ -280,6 +280,9 @@ try {
                 if ($do === 'off' && $where === '' && secret_source('MCP_KEY') === 'config') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site, so the connector is still on.');
             }
             out(200, ['ok' => true, 'key' => $k]);
+        }
+        case 'advice': {         // Setup › Data collection › Recommendations
+            out(200, ['ok' => true] + service_advice($pdo));
         }
         case 'serptest': {       // compare the web search services on one query (Setup › Data collection)
             $q = trim((string)($req['query'] ?? '')); if ($q === '') fail(400, 'bad_query', 'Type something to search for.');
