@@ -2055,7 +2055,7 @@ function service_advice(PDO $pdo): array {
         ['job' => 'Stores that need a real browser', 'use' => $nm(page_services('browser')), 'empty' => 'Not set up'],
         ['job' => 'Amazon links', 'use' => $has['apify'] ? ['Apify'] : [], 'empty' => $amazon ? 'Not set up: ' . $amazon . ' Amazon links' : 'Not needed'],
         ['job' => 'Reading pages, photos and invoices', 'use' => $has['claude'] ? ['Claude'] : [], 'empty' => 'Not set up: add a Claude API key'],
-        ['job' => 'Signed-in prices (' . (count($need['signin']) ? implode(', ', array_map(fn($h) => preg_replace('/\.(com|net|org)$/', '', $h), $need['signin'])) : 'none of your stores') . ')', 'use' => array_values(array_filter([$has['ext'] ? 'Browser extension' : '', $has['mcp'] ? 'Claude in your browser' : ''])), 'empty' => count($need['signin']) ? 'Not set up: turn on the browser extension' : 'Not needed'],
+        ['job' => 'Signed-in prices (' . (count($need['signin']) ? implode(', ', $need['signin']) : 'none of your stores') . ')', 'use' => array_values(array_filter([$has['ext'] ? 'Browser extension' : '', $has['mcp'] ? 'Claude in your browser' : ''])), 'empty' => count($need['signin']) ? 'Not set up: turn on the browser extension' : 'Not needed'],
     ];
     foreach ($plan as &$pp) { foreach ($pp['use'] as $i => $u) { $k = array_search($u, $N, true); if ($k && ($d = service_down($k))) $pp['use'][$i] = $u . ' (paused: ' . rtrim((string)$d['why'], '.') . ')'; } } unset($pp);
 
