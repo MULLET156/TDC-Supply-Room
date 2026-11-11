@@ -2013,9 +2013,10 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .swwhen{font-size:12px;color:var(--muted)}
 .ladder{margin:14px 6px 4px;padding:26px 0 18px}
 .ltrack{position:relative;height:6px;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--ok) 55%,transparent),var(--sunk) 50%,color-mix(in srgb,var(--warn) 45%,transparent))}
-.lcheap,.ldear{position:absolute;top:14px;font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.lcheap,.ldear{position:absolute;top:16px;font-size:11px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .lcheap{left:0}.ldear{right:0}
 .lyou{position:absolute;top:-24px;bottom:-6px;width:2px;background:var(--fg);transform:translateX(-1px)}
+.lyou.r b{left:auto;right:-1px;transform:none;border-bottom-right-radius:0}.lyou.l b{left:-1px;transform:none;border-bottom-left-radius:0}
 .lyou b{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11.5px;font-family:var(--f-mono);background:var(--fg);color:var(--surface);padding:2px 7px;border-radius:6px}
 .ldot{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:2px solid var(--surface);display:grid;place-items:center;cursor:pointer;padding:0;font:700 9.5px/1 var(--f-ui);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
 .ldot:hover,.ldot:focus-visible{transform:scale(1.25);z-index:2}
@@ -5991,10 +5992,10 @@ function subsHtml(){
     const pts = opts.filter(o => o.c.pu != null && o.x.fit !== "no");
     if (m.pu == null || !pts.length) return "";
     const all = [m.pu, ...pts.map(o => o.c.pu)], lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || hi || 1;
-    const X = v => 4 + (v - lo) / span * 92;
+    const X = v => 10 + (v - lo) / span * 80, xy = X(m.pu), side = xy > 78 ? "r" : xy < 22 ? "l" : "";
     const dots = pts.map(o => `<button type="button" class="ldot ${o.c.per > 0.0001 ? "cheap" : "dear"} f-${esc(o.x.fit || "maybe")}${o.best ? " best" : ""}" style="left:${X(o.c.pu).toFixed(2)}%" data-subexp="${esc(it.id)}|${o.k}" title="${esc(o.x.sup)}: ${esc(perU(o.c.pu, unit))}${o.c.pct != null ? ` (${o.c.per > 0 ? o.c.pct + "% less" : -o.c.pct + "% more"})` : ""}" aria-label="${esc(o.x.sup)} at ${esc(perU(o.c.pu, unit))}"><span>${esc((o.x.sup || "?").replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span></button>`).join("");
     return `<div class="ladder" aria-hidden="false"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span>
-      <div class="lyou" style="left:${X(m.pu).toFixed(2)}%"><b>You · ${perU(m.pu, unit)}</b></div>${dots}</div></div>`;
+      <div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${perU(m.pu, unit)}</b></div>${dots}</div></div>`;
   };
   const card = it => {
     const S = it.subs, m = subMine(it), unit = S?.unit || "each";
@@ -6043,7 +6044,7 @@ function subsHtml(){
   const yearly = wins.filter(w => w.b.yearly).reduce((a, w) => a + w.b.save, 0), order = wins.filter(w => !w.b.yearly).reduce((a, w) => a + w.b.save, 0);
   const top = wins.sort((a, b) => b.b.save - a.b.save)[0];
   return `<div class="swhero">
-      <div><span class="swk">Possible savings</span><b class="swbig">${esc(money(yearly))}<small> a year</small></b>${order > 0.005 ? `<small>+ ${esc(money(order))} on current orders</small>` : ""}</div>
+      <div><span class="swk">Possible savings</span>${yearly > 0.005 ? `<b class="swbig">${esc(money(yearly))}<small> a year</small></b>${order > 0.005 ? `<small>+ ${esc(money(order))} on current orders</small>` : ""}` : `<b class="swbig">${esc(money(order))}<small> on current orders</small></b><small>Yearly savings show once the Supply Room has a few weeks of usage for a product.</small>`}</div>
       <div><span class="swk">Products with a cheaper match</span><b class="swbig">${wins.length}<small> of ${rows.length}</small></b></div>
       <div class="swtop"><span class="swk">Biggest win</span>${top ? `<button type="button" class="linkbtn" data-subjump="${esc(top.i.id)}">${esc(top.i.name)}</button><small>${esc(money(top.b.save))} ${top.b.yearly ? "a year" : "this order"} with ${esc(top.b.x.sup)}</small>` : `<small class="hint">Search some products to see savings.</small>`}</div>
     </div>
