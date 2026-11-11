@@ -1921,4 +1921,24 @@ function key_test(string $name, string $key): array {
     return ['ok' => false, 'message' => 'Unknown key.'];
 }
 
+/* Usage of the other page services, for Setup › Data collection › What the services billed. */
+function scrapingbee_usage(): ?array {
+    $k = trim((string)cfg('SCRAPINGBEE_KEY')); if ($k === '') return null;
+    $ch = curl_init('https://app.scrapingbee.com/api/v1/usage?api_key=' . rawurlencode($k));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
+    $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+    $j = json_decode((string)$b, true);
+    if ($code !== 200 || !is_array($j)) return ['ok' => false, 'message' => 'ScrapingBee didn\'t answer (' . ($code ?: 'no answer') . ').'];
+    return ['ok' => true, 'max' => (int)($j['max_api_credit'] ?? 0), 'used' => (int)($j['used_api_credit'] ?? 0), 'renews' => (string)($j['renewal_subscription_date'] ?? ''), 'concurrency' => (int)($j['max_concurrency'] ?? 0)];
+}
+function brightdata_usage(): ?array {
+    $k = trim((string)cfg('BRIGHTDATA_KEY')); if ($k === '') return null;
+    $ch = curl_init('https://api.brightdata.com/customer/balance');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $k]]);
+    $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+    $j = json_decode((string)$b, true);
+    if ($code !== 200 || !is_array($j)) return ['ok' => false, 'message' => 'Bright Data didn\'t share the balance (' . ($code ?: 'no answer') . ').'];
+    return ['ok' => true, 'balance' => isset($j['balance']) ? (float)$j['balance'] : null, 'pending' => isset($j['pending_costs']) ? (float)$j['pending_costs'] : (isset($j['pending_balance']) ? (float)$j['pending_balance'] : null), 'raw' => $j];
+}
+
 require_once __DIR__ . '/sites.php';

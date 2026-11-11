@@ -266,19 +266,29 @@ try {
             $url = trim((string)($req['url'] ?? ''));
             if (!preg_match('#^https?://#i', $url)) fail(400, 'bad_url', 'Paste a full product link, starting with https://');
             @set_time_limit(600);
-            $svc = (string)($req['service'] ?? '');
-            $list = $svc !== '' ? array_values(array_intersect([$svc], page_services())) : page_services();
+            $svc = (string)($req['service'] ?? ''); $want = (string)($req['mode'] ?? 'auto');   // mode: auto (plain, then browser), plain, browser
+            $list = $svc === 'server' ? ['server'] : ($svc !== '' ? array_values(array_intersect([$svc], page_services())) : page_services());
             $rows = [];
             foreach ($list as $sv) {
-                $r = apify_page_run($url, 'raw-http', 40, true, $sv); $mode = 'plain';
-                if (empty($r['ok']) && !in_array($r['error'] ?? '', ['key', 'credits', 'unreachable'], true)) { $r2 = apify_page_run($url, 'browser-playwright', 90, true, $sv); $r2['secs'] = ($r['secs'] ?? 0) + ($r2['secs'] ?? 0); $r = $r2; $mode = 'browser'; }
-                $row = ['service' => $sv, 'name' => PAGE_SERVICE_NAMES[$sv] ?? $sv, 'ok' => !empty($r['ok']), 'mode' => $mode, 'secs' => $r['secs'] ?? null, 'message' => $r['message'] ?? ''];
+                if ($sv === 'server') {   // the free read from the web server itself, for comparison
+                    $t0 = microtime(true); $g = http_get($url); $ok = $g['ok'] && !bot_wall((string)$g['body']);
+                    $r = $ok ? ['ok' => true, 'html' => (string)$g['body']] : ['ok' => false, 'message' => $g['ok'] ? 'Got a robot check' : ('Status ' . ($g['code'] ?? '?') . ($g['error'] ? ': ' . $g['error'] : ''))];
+                    $r['secs'] = round(microtime(true) - $t0, 1); $mode = 'plain';
+                } elseif ($want === 'browser') { $r = apify_page_run($url, 'browser-playwright', 90, true, $sv); $mode = 'browser'; }
+                else {
+                    $r = apify_page_run($url, 'raw-http', 40, true, $sv); $mode = 'plain';
+                    if ($want === 'auto' && empty($r['ok']) && !in_array($r['error'] ?? '', ['key', 'credits', 'unreachable'], true)) { $r2 = apify_page_run($url, 'browser-playwright', 90, true, $sv); $r2['secs'] = ($r['secs'] ?? 0) + ($r2['secs'] ?? 0); $r = $r2; $mode = 'browser'; }
+                }
+                $row = ['service' => $sv, 'name' => $sv === 'server' ? 'Server (free)' : (PAGE_SERVICE_NAMES[$sv] ?? $sv), 'ok' => !empty($r['ok']), 'mode' => $mode, 'secs' => $r['secs'] ?? null, 'message' => $r['message'] ?? ''];
                 if (!empty($r['ok'])) { $h = (string)$r['html']; $f = page_facts($h, $url, '');
                     $price = preg_match('/"price"\s*:\s*"?\$?([0-9]+(?:\.[0-9]{1,2})?)/', $h, $pm) ? (float)$pm[1] : (preg_match('/itemprop=["\']price["\'][^>]*content=["\']([0-9.]+)/i', $h, $pm) ? (float)$pm[1] : null);
                     $row += ['kb' => (int)round(strlen($h) / 1024), 'title' => mb_substr((string)($f['title'] ?? ''), 0, 120), 'price' => $price, 'product' => (bool)preg_match('#"@type"\s*:\s*"Product(Group)?"#', $h)]; }
                 $rows[] = $row;
             }
             out(200, ['ok' => true, 'url' => $url, 'results' => $rows]);
+        }
+        case 'serviceusage': {   // what each paid page service has used: ScrapingBee credits and Bright Data balance (Apify has its own 'apifyusage')
+            out(200, ['ok' => true, 'scrapingbee' => scrapingbee_usage(), 'brightdata' => brightdata_usage()]);
         }
         case 'apifyusage': {     // what Apify billed per actor, from the account's run history
             out(200, apify_account_usage(max(1, min(90, (int)($req['days'] ?? 30)))));
