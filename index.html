@@ -226,6 +226,17 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .addline input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px}
 .listpad{padding:12px}
 .setrow.sup{grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto auto}
+.slight{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;vertical-align:middle;box-shadow:0 0 0 2px var(--surface),0 0 0 3px color-mix(in srgb,currentColor 35%,transparent)}
+.slight.none{visibility:hidden}.setrow.sup>.actions .slight{align-self:center;margin-left:2px}
+.slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
+.sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
+.sitebox .sitehead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sitebox .sitehead .btn{margin-left:auto}
+.lightkey{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}.lightkey>span{display:inline-flex;align-items:center;gap:7px}
+.setrow.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:start}.keyrow p.hint{margin:4px 0 0}
+.keyform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.keyform input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;width:230px;max-width:100%;font-family:var(--f-mono)}
+.keyst{font-size:12px;padding:2px 8px;border-radius:99px;margin-left:6px;white-space:nowrap}.keyst.on{background:color-mix(in srgb,#2fa84f 18%,transparent);color:#1f7a39}.keyst.off{background:var(--sunk);color:var(--muted)}
+.mcpout .linkrow{display:flex;gap:6px;margin-top:8px}.mcpout input{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;font-family:var(--f-mono);font-size:12px}
+@media (max-width:560px){.setrow.keyrow{grid-template-columns:minmax(0,1fr)}.keyform input{flex:1;width:auto}}
 .grip{border:1px solid transparent;background:transparent;border-radius:6px;width:36px;height:40px;font-size:20px;line-height:1;color:var(--muted);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .grip:hover,.grip:focus-visible{border-color:var(--line);background:var(--sunk);color:var(--accent)}
 .setrow.dragging{position:relative;z-index:2;background:var(--accent-soft);box-shadow:0 6px 18px rgba(0,0,0,.18);border-radius:8px}
@@ -2283,12 +2294,15 @@ window.TDC = (function(){
   async function siteProfiles(hosts){ return call("siteprofiles", { hosts: hosts || [] }); }
   async function siteProbe(host, mpn){ return call("siteprobe", { host, mpn: mpn || "" }); }
   async function apifyUsage(days){ return call("apifyusage", { days: days || 30 }); }
+  async function keys(){ return call("keys"); }
+  async function setKey(name, value){ const r = await call("setkey", { name, value }); try { status = await call("status"); } catch {} return r; }
+  async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, keys, setKey, mcpKey, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -7161,7 +7175,7 @@ function setupHtml(){
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
   const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list.</p>
-    <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these products">${g.n} product${g.n>1?"s":""} ›</button>` : "0 products"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
+    <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button>${openSups.has(keyOf(g.name)) ? `<span class="slight none" aria-hidden="true"></span>` : siteLightHtml(g.name)}</span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these products">${g.n} product${g.n>1?"s":""} ›</button>` : "0 products"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
     <div class="list" id="locList">${gs.map((g, ix) => `<div class="setrow locrow" data-loc="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix + 1}</span><button type="button" class="grip" data-lgrip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button></span><input data-ren="${field}" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="${title} name"><span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="${field}" data-v="${esc(keyOf(g.name))}" title="Show these products">${g.n} product${g.n>1?"s":""} ›</button>` : "0 products"}</span><button type="button" class="rmbtn" data-rmloc="${esc(g.name)}" data-n="${g.n}" aria-label="Remove location ${esc(g.name)}">Remove</button></div>`).join("")}</div><form class="addrow" id="locAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newLoc" placeholder="New location name" autocomplete="off" aria-label="New storage location name"><button class="btn pri" type="submit">Add location</button></form>`; };
@@ -7194,8 +7208,8 @@ function setupHtml(){
       <div class="f full"><label for="rt-${esc(r.id)}">Notes</label><input id="rt-${esc(r.id)}" data-rf="notes" value="${esc(r.notes)}" placeholder="Best time to call, ordering cutoff, free shipping minimum…"></div>
     </div><div class="actions"><div class="supchips"><span class="hint">Supplier${sups.length === 1 ? "" : "s"}:</span>${sups.map(([k, nm]) => `<span class="chip">${esc(nm)}<button type="button" data-unassign="${esc(k)}" aria-label="Remove ${esc(nm)} from ${esc(r.name)}">×</button></span>`).join("")}<select data-assign="${esc(r.id)}" aria-label="Add a supplier for ${esc(r.name)}"><option value="">+ Add supplier…</option>${allSups.filter(g => supReps[keyOf(g.name)] !== r.id).map(g => { const cur = repOf(g.name); return `<option value="${esc(keyOf(g.name))}">${esc(g.name)}${cur ? " (now " + esc(cur.name) + ")" : ""}</option>`; }).join("")}</select></div><button class="btn danger" type="button" data-rdel="${esc(r.id)}">Remove</button></div></div>`; }).join("") || '<div class="empty">No reps yet. Add your first one below.</div>'}
     <form class="addline" id="repForm"><div class="f"><label for="newRepName">Name</label><input id="newRepName" autocomplete="off"></div><div class="f"><label for="newRepCo">Company</label><input id="newRepCo" autocomplete="off"></div><div class="f"><label for="newRepPhone">Cell phone</label><input id="newRepPhone" type="tel" autocomplete="off"></div><div class="f"><label for="newRepEmail">Email</label><input id="newRepEmail" type="email" autocomplete="off"></div><div class="f"><label for="newRepSup">Supplier</label><select id="newRepSup" style="border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px"><option value="">None yet</option>${allSups.map(g => `<option value="${esc(keyOf(g.name))}">${esc(g.name)}</option>`).join("")}</select></div><button class="btn pri" type="submit">Add rep</button></form></div>`;
-  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="sites">Supplier websites</button><button type="button" data-jump="logo">Logo</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button></nav>`;
-  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${sitesSec()}${brandSec()}${backup}${power}</div>`;
+  const jump = `<nav class="jump" aria-label="Setup sections"><span>Jump to</span><button type="button" class="hot" data-jump="reps">Reps list</button><button type="button" class="hot" data-jump="suppliers">Suppliers list</button><button type="button" data-jump="team">Team</button><button type="button" data-jump="alerts">Alerts</button><button type="button" data-jump="loc">Storage locations</button><button type="button" data-jump="cat">Categories</button><button type="button" class="hot" data-jump="merge">Merge</button><button type="button" data-jump="logo">Logo</button><button type="button" data-jump="backup">Backup &amp; import</button><button type="button" data-jump="power">Power tools</button><button type="button" data-jump="data">Data collection</button></nav>`;
+  return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${jump}${teamSec}${ruleSec}${supSec}${listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs.")}${catSec()}${repSec}${mergeSec()}${brandSec()}${backup}${power}${dataSec()}</div>`;
 }
 let pendingMerge = null;
 const editReps = new Set();
@@ -7454,6 +7468,7 @@ function supDetail(name){
     <div class="f"><label for="ip-${id}">Login password</label><div class="pwrow"><input id="ip-${id}" data-inf="password" type="password" value="${esc(inf.password)}" autocomplete="new-password" spellcheck="false"><button type="button" class="btn cpy" data-copy="ip-${id}">Copy</button></div>
       <label class="showpw"><input type="checkbox" data-showpw="ip-${id}"> Show password</label></div>
   </div><label class="hbrand">House brand <input type="text" data-hbrand="${esc(name)}" value="${esc(houseBrand(name))}" placeholder="e.g. ${esc(name.split(" ")[0])}" maxlength="40"> <span class="hint">(its own-label products, for Spending › Substitutes)</span></label><label class="showpw cartopt"><input type="checkbox" data-nocmp="${esc(name)}" ${noCompareSup(name) ? "checked" : ""}> No price comparison on products bought from this supplier <span class="hint">(manufacturers and products sold only here)</span></label>${window.HOSTED ? "" : `<label class="showpw cartopt"><input type="checkbox" data-cartopt="${esc(name)}" ${cartOn(name) ? "checked" : ""}> Show the Add to cart icon on the Order list</label>`}${inf.website ? `<a class="hint" href="${esc(webHref(inf.website))}" target="_blank" rel="noopener">Open ${esc(name)} website ↗</a>` : ""}
+  ${supSiteBlock(name)}
   <span class="lockline">Only people this page is shared with as Contributor or above can see these. Changes save when you leave a field.</span></div>`;
 }
 async function renameAll(field, from, to, label){
@@ -7509,19 +7524,62 @@ async function uploadLogo(file){
   } catch {}
   return assets.upload(blob, { type: blob.type || "image/png" });
 }
+/* Data collection status of each supplier's website, from its profile (sites.php):
+   green  = found and read on the server for free
+   orange = works, but needs Apify (paid) for searching or reading pages
+   red    = prices need a sign-in or the site blocks servers: Claude reads them in your browser
+   grey   = not checked yet */
+function siteLight(name){
+  if (!siteHost(name)) return null;
+  const p = profOf(name);
+  if (!p || (!p.search && !p.page) || (!p.builtIn && !p.checkedAt && !p.learnedAt)) return { c: "grey", t: "Website not checked yet. Open the supplier and press Check site." };
+  if (p.page === "signin" || p.page === "blocked") return { c: "red", t: p.page === "signin" ? "Prices need a sign-in: Claude reads them in your browser" : "The site blocks servers: Claude reads it in your browser, or use a price list" };
+  if (p.search === "browser" || p.search === "web" || p.page === "proxy" || p.page === "browser") return { c: "orange", t: "Works, using Apify (paid) for " + [p.search === "browser" || p.search === "web" ? "searching" : "", p.page === "proxy" || p.page === "browser" ? "reading pages" : ""].filter(Boolean).join(" and ") };
+  return { c: "green", t: "Works on its own: searched and read on the server for free" };
+}
+function siteLightHtml(name){
+  if (window.TDC?.siteProfiles && !siteProfAt) loadSiteProfiles().then(() => { if (tab === "setup") render(); });
+  const L = siteLight(name); if (!L) return `<span class="slight none" aria-hidden="true"></span>`;
+  return `<span class="slight ${L.c}" role="img" title="${esc(L.t)}" aria-label="Data collection: ${esc(L.t)}"></span>`;
+}
 const SEARCH_WORDS = { server: "Its own search, read on the server (free)", browser: "Google first; its own search in a real browser only if Google misses (Apify)", web: "Google results for the site (a cheap Apify run)", none: "Not searched" };
 const PAGE_WORDS = { server: "Read on the server (free)", proxy: "Apify's quick proxy (cheap)", browser: "Apify's full browser (most credit)", blocked: "Blocked: Claude reads it in your browser, or a price list", signin: "Prices need sign-in: Claude reads them in your browser" };
-function sitesSec(){
+function supSiteBlock(name){
   if (!window.TDC?.siteProfiles) return "";
-  if (!siteProfAt) loadSiteProfiles().then(() => { if (tab === "setup") render(); });
-  const names = [...new Set([...compareSups(), ...COMPARE_MORE.map(s => canonSup(s) || s), ...supplierSites().filter(s => s.site).map(s => s.name)])];
-  const rows = names.map(n => ({ n, h: siteHost(n), p: profOf(n) })).filter(r => r.h).sort((a, b) => a.n.localeCompare(b.n));
+  const h = siteHost(name);
+  if (!h) return `<div class="sitebox"><b>Website data collection</b><span class="hint">Add the ordering website above, then Check site works out how to read it.</span></div>`;
+  const p = profOf(name) || {}, L = siteLight(name);
+  return `<div class="sitebox"><div class="sitehead"><span class="slight ${L.c}" aria-hidden="true"></span><b>Website data collection</b> <small class="muted">${esc(h)}</small>${readOnly ? "" : `<button class="btn sm" type="button" data-siteprobe="${esc(name)}">Check site</button>`}</div>
+    <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
+}
+let keyInfo = null, keyInfoAt = 0;
+async function loadKeys(force){
+  if (!window.TDC?.keys || (!force && keyInfoAt && Date.now() - keyInfoAt < 60e3)) return;
+  keyInfoAt = Date.now();
+  try { keyInfo = (await TDC.keys()).keys || null; } catch { keyInfo = null; }
+}
+function dataSec(){
+  if (!window.TDC?.keys) return "";
+  if (!keyInfoAt) loadKeys().then(() => { if (tab === "setup") render(); });
+  if (window.TDC?.siteProfiles && !siteProfAt) loadSiteProfiles().then(() => { if (tab === "setup") render(); });
+  const K = keyInfo || {};
+  const state = n => { const k = K[n]; if (!keyInfo) return `<span class="hint">Checking…</span>`; if (!k || !k.set) return `<span class="keyst off">Not set</span>`; return `<span class="keyst on">Set${k.tail ? ` · …${esc(k.tail)}` : ""}${k.source === "config" ? " · in config.php" : ""}</span>`; };
+  const keyRow = (n, title, help, ph) => { const k = K[n] || {}, locked = k.source === "config";
+    return `<div class="setrow keyrow"><div><b>${title}</b> ${state(n)}<p class="hint">${help}</p></div>${readOnly || locked ? "" : `<form class="keyform" data-keyform="${n}"><input type="password" autocomplete="off" spellcheck="false" placeholder="${esc(ph)}" aria-label="Paste ${esc(title)}"><button class="btn pri" type="submit">Save</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="${n}">Remove</button>` : ""}</form>`}</div>`; };
+  const sups = orderedSuppliers().map(g => g.name).filter(n => siteHost(n));
+  const cnt = { green: 0, orange: 0, red: 0, grey: 0 }; sups.forEach(n => { const L = siteLight(n); if (L) cnt[L.c]++; });
   const meter = siteMeter.filter(m => m.month === new Date().toISOString().slice(0, 7));
   const runs = meter.reduce((a, m) => a + m.runs, 0);
-  return `<div class="sechead" id="sec-sites"><h2>Supplier websites</h2><span class="hint">${rows.length}</span></div>
-  <p class="secnote">How the Supply Room finds products and reads prices at each store. It always uses the cheapest way that works, learns when a site changes (a site that starts blocking is skipped for a week instead of paying Apify to fail), and Check site works out a new store by itself. Only public pages are read, the same ones you see.</p>
-  <div class="list">${rows.map(r => { const p = r.p || {}; return `<div class="setrow two siterow"><span><b>${esc(r.n)}</b> <small class="muted">${esc(r.h)}</small><br><small>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></span>${readOnly ? "" : `<button class="btn" type="button" data-siteprobe="${esc(r.n)}">Check site</button>`}</div>`; }).join("")}</div>
-  <p class="secnote">Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? " · " + meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ") : ""}. ${readOnly ? "" : `<button class="linkbtn" type="button" id="apifyBill">What Apify billed</button>`}</p><div id="apifyOut" class="hint"></div>`;
+  const mcp = K.MCP_KEY || {};
+  return `<div class="sechead" id="sec-data"><h2>Data collection</h2></div>
+  <p class="secnote">The keys that let the Supply Room look up products and read prices on its own. Paste them here when you set up your own copy of the site; they're kept on your server and never shown again (only their last 4 characters). Each supplier's light, under Suppliers, shows how its website is read.</p>
+  <div class="list">
+    <div class="setrow legendrow"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with Apify <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span></div>
+    ${keyRow("APIFY_TOKEN", "Apify API key", `Reads stores that turn servers away and searches the web for products. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
+    ${keyRow("ANTHROPIC_API_KEY", "Claude API key", `Reads product links, photos, price lists and documents, and finds substitutes. Get it at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com › API keys</a>.`, "sk-ant-…")}
+    <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · in config.php" : ""}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}${mcp.source === "config" ? "" : `<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}`}</span>`}</div>
+    <div class="setrow two"><span>Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? `<br><small class="muted">${meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ")}</small>` : ""}<span id="apifyOut" class="hint" style="display:block"></span></span>${readOnly || !(K.APIFY_TOKEN || {}).set ? "" : `<button class="btn" type="button" id="apifyBill">What Apify billed</button>`}</div>
+  </div>`;
 }
 function wireSites(){
   document.querySelectorAll("[data-siteprobe]").forEach(b => b.onclick = async () => {
@@ -7534,6 +7592,34 @@ function wireSites(){
     try { const r = await TDC.apifyUsage(30); if (!r.ok) { o.textContent = r.message || "Apify didn't answer"; return; }
       o.innerHTML = `Last ${r.days} days: <b>$${r.usd.toFixed(2)}</b> over ${r.runs} runs. ` + r.actors.map(a => `${esc(a.name)}: $${a.usd.toFixed(2)} (${a.runs} runs${a.failed ? `, ${a.failed} failed` : ""})`).join(" · "); }
     catch(e) { o.textContent = e.message || "Apify didn't answer"; } };
+  const label = n => n === "APIFY_TOKEN" ? "Apify key" : "Claude key";
+  document.querySelectorAll("[data-keyform]").forEach(f => f.onsubmit = async e => {
+    e.preventDefault(); if (!needMe()) return;
+    const n = f.dataset.keyform, inp = f.querySelector("input"), v = clean(inp.value), btn = f.querySelector("button[type=submit]");
+    if (!v) { toast("Paste the key first"); inp.focus(); return; }
+    btn.disabled = true; btn.textContent = "Checking…";
+    try { const r = await TDC.setKey(n, v); inp.value = ""; logIt("Setup", null, "Saved the " + label(n)); toast(label(n) + " works and is saved" + (r.who ? " (" + r.who + ")" : "")); await loadKeys(true); render(); }
+    catch(err) { toast(err.message || "Couldn't save that key"); btn.disabled = false; btn.textContent = "Save"; }
+  });
+  document.querySelectorAll("[data-keyclear]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const n = b.dataset.keyclear;
+    if (!confirm("Remove the " + label(n) + "? Features that use it stop working until a new key is saved.")) return;
+    try { await TDC.setKey(n, ""); logIt("Setup", null, "Removed the " + label(n)); toast(label(n) + " removed"); await loadKeys(true); render(); } catch(err) { toast(err.message || "Couldn't remove it"); }
+  });
+  document.querySelectorAll("[data-mcp]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const what = b.dataset.mcp, o = $("#mcpOut");
+    if (what === "new" && (keyInfo?.MCP_KEY || {}).set && !confirm("Make a new connector link? The old link stops working, so Claude will need the new one.")) return;
+    if (what === "off" && !confirm("Turn the Claude connector off? Claude loses access until you turn it on again.")) return;
+    try { const r = await TDC.mcpKey(what);
+      if (what !== "show") { logIt("Setup", null, what === "off" ? "Turned the Claude connector off" : "Made a new Claude connector link"); await loadKeys(true); render(); }
+      const out = $("#mcpOut"); if (!out) return;
+      if (!r.key) { out.textContent = ""; toast("Claude connector is off"); return; }
+      const url = new URL("mcp.php?key=" + encodeURIComponent(r.key), location.href).href;
+      out.innerHTML = `<div class="linkrow"><input id="mcpUrl" readonly value="${esc(url)}" aria-label="Claude connector link"><button class="btn" type="button" id="mcpCopy">Copy</button><button class="btn ghost" type="button" id="mcpHide">Hide</button></div>`;
+      $("#mcpCopy").onclick = async () => { try { await navigator.clipboard.writeText(url); toast("Connector link copied"); } catch { $("#mcpUrl").select(); } };
+      $("#mcpHide").onclick = () => { out.innerHTML = ""; };
+    } catch(err) { toast(err.message || "Couldn't do that"); }
+  });
 }
 function brandSec(){
   const prev = (id, dark) => id ? `<img src="blob.php?id=${esc(id)}" alt="" style="height:44px;width:auto;max-width:220px;display:block">` : `<span class="hint">${dark ? "Uses the main logo" : "Built-in logo"}</span>`;

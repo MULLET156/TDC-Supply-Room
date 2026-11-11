@@ -59,7 +59,7 @@ Open the site and sign in with the office password. Go to **Setup → Backup & i
 Each person then picks their initials under **Logging as** at the top, the same as before.
 
 ### 6. Turn on Claude for product links and photos
-At [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**), add a payment method, and put the key in `config.php` as `ANTHROPIC_API_KEY`. Cost is per use, typically a few cents per product page read.
+At [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**), add a payment method, and paste the key in the site under **Setup → Data collection → Claude API key** (or put it in `config.php` as `ANTHROPIC_API_KEY`). The site checks the key before saving it. Cost is per use, typically a few cents per product page read.
 
 With the key set, these work again: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
 
@@ -68,7 +68,7 @@ The server reads product pages without signing in to your supplier accounts, so 
 **Importing invoices and screenshots.** Under **Add item → Add from an invoice or screenshot**, or **On order → Receive from invoice**, pick photos, screenshots or PDFs of an invoice, packing slip, order confirmation, quote or supplier page (up to 8 files). Claude reads every product line and matches it to your items. You check the matches, then choose whether to mark them received, mark them ordered, or only update prices; new products can be added in the same step. A screenshot of a supplier page you're signed in to brings in your account price. Each import costs a few cents (more for long PDFs).
 
 ### 6b. Amazon links (optional)
-Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and add it to `config.php`:
+Amazon blocks servers from reading its product pages, so Amazon links go through [Apify](https://apify.com) and its Amazon Product Scraper (`junglee/amazon-crawler`). Create a free Apify account, copy the token from **Settings → API & Integrations → Personal API token**, and paste it in the site under **Setup → Data collection → Apify API key**. Or add it to `config.php`:
 
 ```php
 define('APIFY_TOKEN', 'apify_api_…');
@@ -82,12 +82,14 @@ The same token is the fallback for any other supplier site that blocks the serve
 
 **Items without a link (added from an invoice or packing slip).** **Update from supplier pages** first looks for the item's SKU on the supplier's own store: the server walks the store's pages, notes every item number and which page lists it, and keeps that index for a week per site (the first item from a supplier can take about a minute; the rest are quick). This finds products on stores that list a whole size range in one table, like Blue Sky Bio, which web search can't. It uses the website saved for the supplier under Setup, or the built-in address for well-known suppliers (Blue Sky Bio, Henry Schein, Net32, Benco, Patterson, Darby, Safco). Only if the SKU isn't on the store does it fall back to a web search (needs APIFY_TOKEN). A result whose page doesn't show the item's SKU is flagged as possibly a different product. Approving a match saves its link, so later updates go straight to the page.
 
+**Supplier lights.** Under **Setup → Suppliers**, each supplier with a website gets a light: green means its products are found and read on the server for free, orange means it works but uses Apify (paid), red means prices need a sign-in or the site blocks servers, so Claude reads them in your browser, and grey means it hasn't been checked yet. Open a supplier to see how its website is read and press **Check site** to work it out again.
+
 ### 7. Connect Claude (optional)
-1. Put a long random key in `config.php` as `MCP_KEY` (40 or more letters and numbers; a password manager's generator works).
-2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: `https://<your site>/mcp.php?key=<your MCP_KEY>`.
+1. In the site, open **Setup → Data collection → Claude connector** and press **Turn on**, then **Show link** and **Copy**. (Or put a long random key in `config.php` as `MCP_KEY` and build the link yourself: `https://<your site>/mcp.php?key=<your MCP_KEY>`.)
+2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: the link you copied.
 3. In a chat, turn the connector on and ask things like "What's on our Order list?", "We got the glove order, mark it received" or "Add this to the supply room: <product link>".
 
-Anyone with the full connector URL can read and change the inventory, so keep it private. To disconnect everything, change or empty `MCP_KEY`.
+Anyone with the full connector URL can read and change the inventory, so keep it private. To disconnect everything, press **New link** or **Turn off** in Setup → Data collection (or change or empty `MCP_KEY` in `config.php`).
 
 What Claude can do through the connector: search items, see one item, list suppliers/categories/locations, add an item (with a photo from a link), change an item, record a count, put something on the order list, mark items ordered or received, read a product page, find an item's pages at your suppliers, record a price found at a supplier, and show an item's price history. Every recorded price is kept (in the `prices` collection, one entry per check), so Claude can tell you how a supplier's price has changed over time and which supplier is cheapest now. Every change shows in the Activity log with the initials given (or `CL` for Claude).
 

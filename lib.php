@@ -40,7 +40,43 @@ function load_config(): void {
     }
     date_default_timezone_set((string)cfg('TIMEZONE', 'America/Los_Angeles'));
 }
-function cfg(string $name, $default = '') { return defined($name) ? constant($name) : $default; }
+function cfg(string $name, $default = '') {
+    $v = defined($name) ? constant($name) : null;
+    // API keys can also be pasted in Setup › Data collection; config.php wins when it has one.
+    if (in_array($name, SECRET_NAMES, true) && trim((string)$v) === '') { $s = secret_get($name); return $s !== '' ? $s : ($v ?? $default); }
+    return $v ?? $default;
+}
+
+/* ---------- keys pasted in Setup › Data collection ----------
+ * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
+ * learns whether a key is set and its last 4 characters. */
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY'];
+function secret_pdo(): ?PDO {
+    if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
+    static $p = null; if ($p) return $p;
+    if (!defined('DB_HOST') && cfg('DB_DRIVER') !== 'sqlite') return null;
+    try { $p = connect(); } catch (Throwable $e) { return null; }
+    return $p;
+}
+function secret_get(string $name): string {
+    static $cache = null;
+    if (isset($GLOBALS['tdc_secrets_dirty'])) { $cache = null; unset($GLOBALS['tdc_secrets_dirty']); }
+    if ($cache === null) {
+        $cache = []; $pdo = secret_pdo();
+        if ($pdo) { try { foreach ($pdo->query('SELECT k, v FROM sr_secrets') as $r) $cache[$r['k']] = (string)$r['v']; } catch (Throwable $e) {} }
+    }
+    return $cache[$name] ?? '';
+}
+function secret_set(PDO $pdo, string $name, string $value): void {
+    if (!in_array($name, SECRET_NAMES, true)) return;
+    $pdo->prepare('DELETE FROM sr_secrets WHERE k = ?')->execute([$name]);
+    if ($value !== '') $pdo->prepare('INSERT INTO sr_secrets (k, v) VALUES (?, ?)')->execute([$name, $value]);
+    $GLOBALS['tdc_secrets_dirty'] = true;
+}
+function secret_source(string $name): string {
+    if (defined($name) && trim((string)constant($name)) !== '') return 'config';
+    return secret_get($name) !== '' ? 'setup' : '';
+}
 
 /* ---------- database ---------- */
 // Shared hosting limits how many database connections can be open at once, so a
@@ -100,6 +136,10 @@ function ensure_schema(PDO $pdo): void {
     $pdo->exec("CREATE TABLE IF NOT EXISTS sr_fails (
         ip VARCHAR(64) NOT NULL,
         ts BIGINT NOT NULL
+    )$cs");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS sr_secrets (
+        k VARCHAR(64) NOT NULL PRIMARY KEY,
+        v TEXT NOT NULL
     )$cs");
     $pdo->exec("CREATE TABLE IF NOT EXISTS sr_blobs (
         id CHAR(32) NOT NULL PRIMARY KEY,
@@ -313,7 +353,7 @@ function ai_ready(): bool { return trim((string)cfg('ANTHROPIC_API_KEY')) !== ''
 // $images: list of ['type' => mime, 'data' => base64]; PDFs ('application/pdf') are sent as documents
 // $opt: maxFiles (default 4), maxTokens (default 4096), timeout in seconds (default 90)
 function ai_json(string $prompt, array $images = [], string $tier = '', array $opt = []): array {
-    if (!ai_ready()) return ['ok' => false, 'error' => 'no_key', 'message' => 'Claude isn\'t set up on this server yet: add ANTHROPIC_API_KEY to config.php.'];
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_key', 'message' => 'Claude isn\'t set up yet: add a Claude API key in Setup › Data collection.'];
     $model = $tier === 'quick' ? (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5') : (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
     $content = [];
     foreach (array_slice($images, 0, (int)($opt['maxFiles'] ?? 4)) as $im) {
@@ -344,7 +384,7 @@ function ai_json(string $prompt, array $images = [], string $tier = '', array $o
     if ($code !== 200 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc ai: $code $m");
-        $map = [401 => 'Claude rejected the API key in config.php.', 429 => 'Claude is busy right now. Try again in a minute.', 529 => 'Claude is busy right now. Try again in a minute.'];
+        $map = [401 => 'Claude rejected the API key (Setup › Data collection).', 429 => 'Claude is busy right now. Try again in a minute.', 529 => 'Claude is busy right now. Try again in a minute.'];
         return ['ok' => false, 'error' => $code === 429 || $code === 529 ? 'rate_limited' : 'unavailable', 'message' => $map[$code] ?? ('Claude couldn\'t answer' . ($m ? ": $m" : '.'))];
     }
     $text = '';
@@ -589,7 +629,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             return ['ok' => false, 'error' => $looksBlocked ? 'blocked' : 'unreachable',
                     'message' => $looksBlocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
         } elseif ($looksBlocked) {
-            return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site showed a robot check instead of the product. Add APIFY_TOKEN to config.php to read sites like this.'];
+            return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site showed a robot check instead of the product. Add an Apify key in Setup › Data collection to read sites like this.'];
         }
         if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
             return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
@@ -815,7 +855,7 @@ function amazon_facts(string $url): array {
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify: $code $m");
-        $msg = $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
+        $msg = $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).'
              : ($code === 402 || stripos($m, 'credit') !== false || stripos($m, 'usage') !== false ? 'Apify refused the run (' . $code . ($m ? ': ' . $m : '') . ').'
              : ($code === 408 ? 'Amazon took too long to answer. Try again.' : 'Apify couldn\'t read that Amazon page' . ($m ? ": $m" : '.')));
         return ['ok' => false, 'error' => 'unavailable', 'message' => $msg];
@@ -890,7 +930,7 @@ function apify_page_run_raw(string $url, string $tool, int $secs, bool $resident
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify page ($tool): $code $m");
-        return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.'
+        return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).'
             : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
     }
     $it = array_is_list($j) ? ($j[0] ?? null) : $j;
@@ -1167,7 +1207,7 @@ function find_product_page(array $q, array $ctx = []): array {
             : ($cat['done'] ? 'Item ' . $sku . ' isn\'t listed anywhere on ' . $site . ' (' . $cat['pages'] . ' pages checked).'
             : 'Item ' . $sku . ' wasn\'t on the ' . $cat['pages'] . ' pages of ' . $site . ' checked so far; run it again to keep looking.');
     }
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => $catMsg !== '' ? $catMsg . ' Or add the product\'s web link.' : 'Looking products up online needs APIFY_TOKEN in config.php. Add the product\'s web link instead.'];
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_match', 'message' => $catMsg !== '' ? $catMsg . ' Or add the product\'s web link.' : 'Looking products up online needs an Apify key (Setup › Data collection). Add the product\'s web link instead.'];
     // Suppliers write the same number differently (123-4567, 1234567, 123 4567), so also search without the separators,
     // then without quotes, and finally by name alone.
     $bare = preg_replace('/[\s\-\.\/_]+/', '', $sku);
@@ -1219,7 +1259,7 @@ function supplier_site_search(string $host, string $q, bool $allowBrowser = true
     return site_search($host, $q, $allowBrowser) ?? [];
 }
 function mpn_search(string $mpn, string $host, array $skip = [], string $name = ''): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify key (Setup › Data collection).'];
     $mpn = trim($mpn); if (strlen(sku_norm($mpn)) < 3) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The manufacturer part number is too short to search for.'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim($host))); $host = explode('/', $host)[0];
     // Same part number at the same store searched in the last 30 days (14 when nothing was found): reuse it.
@@ -1327,7 +1367,7 @@ function apify_search_raw(string $query, int $max = 5): array {
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify search: $code $m");
-        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the APIFY_TOKEN in config.php.' : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
+        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).' : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
     }
     $out = [];
     foreach ((array_is_list($j) ? $j : [$j]) as $it) {
@@ -1344,7 +1384,7 @@ function apify_search_raw(string $query, int $max = 5): array {
 // $q: name, sku, mfr, units, supplier; $sites: [['name' => supplier, 'site' => host]]; $scope: 'mine' | 'web'.
 // Returns candidate product pages (url, supplier, title, sure). The page reads (price, pack) are done one by one by the caller.
 function price_search(array $q, array $sites, string $scope = 'mine', array $skip = []): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching the web needs APIFY_TOKEN in config.php.'];
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching the web needs an Apify key (Setup › Data collection).'];
     $name = trim((string)($q['name'] ?? '')); $mfr = trim((string)($q['mfr'] ?? '')); $sku = trim((string)($q['sku'] ?? ''));
     if ($name === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The item needs a name.'];
     $hosts = [];
@@ -1387,7 +1427,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'No product pages turned up.'];
     if ($scope === 'alt') {
-        if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs Claude (ANTHROPIC_API_KEY in config.php).'];
+        if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs Claude (a Claude API key in Setup › Data collection).'];
         $list = implode("\n", array_map(fn($i, $c) => "$i: [{$c['supplier']}] {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
         $a = ai_json("A dental office uses \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . " and wants alternatives: other products that do the same job and could replace it (another brand, or the same brand's equivalent).\nSearch results from their suppliers:\n$list\n\n"
             . "Pick product pages (not category, search or article pages) from US stores that are good substitutes. Leave out the exact same product. Prefer the same size, shade or strength. Up to 8, best first, at most 2 per store. For each, say in a few words how it differs (brand, size, pack).\n"
@@ -1636,7 +1676,7 @@ function sub_desc(array $p): string {
     return $d;
 }
 function sub_plan(array $p): array {
-    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs Claude (ANTHROPIC_API_KEY in config.php).'];
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs Claude (a Claude API key in Setup › Data collection).'];
     if (trim((string)($p['name'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The product needs a name.'];
     $a = ai_json("A dental office buys " . sub_desc($p) . " and wants cheaper substitutes from other brands, mostly suppliers' house brands.\n"
         . "1. phrase: a short generic search phrase for this kind of product, without brand or part numbers (e.g. \"nitrile exam gloves powder free medium\"); broad: the same in 2-3 words (e.g. \"nitrile exam gloves\").\n"
@@ -1684,7 +1724,7 @@ function store_search(string $host, string $q): ?array {
 }
 // $s: ['sup' => name, 'site' => host, 'brand' => house brand]; returns up to 2 product pages at that supplier
 function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip = []): array {
-    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs APIFY_TOKEN in config.php.'];
+    if (!apify_ready()) return ['ok' => false, 'error' => 'no_search', 'message' => 'Searching needs an Apify key (Setup › Data collection).'];
     $host = strtolower(preg_replace('#^(https?://)?(www\.)?#i', '', trim((string)($s['site'] ?? '')))); $host = explode('/', $host)[0];
     if ($host === '') return ['ok' => true, 'candidates' => [], 'message' => 'No website saved for this supplier.'];
     $brand = trim((string)($s['brand'] ?? '')); $phrase = trim((string)($plan['phrase'] ?? $p['name'] ?? ''));
@@ -1742,6 +1782,27 @@ function sub_compare(array $p, array $plan, array $subs): array {
         'diff' => array_slice(array_map(fn($x) => mb_substr((string)$x, 0, 50), (array)($s['diff'] ?? [])), 0, 3),
         'fit' => in_array($s['fit'] ?? '', ['good', 'maybe', 'no'], true) ? $s['fit'] : 'maybe'];
     return ['ok' => true, 'mine' => ['count' => $num($a['value']['mine']['count'] ?? null)], 'subs' => $out];
+}
+
+/* Check a key before saving it, so a typo shows right away instead of the next time a price is read. */
+function key_test(string $name, string $key): array {
+    if ($name === 'APIFY_TOKEN') {
+        $ch = curl_init('https://api.apify.com/v2/users/me');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $key]]);
+        $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code === 200) { $j = json_decode((string)$b, true); return ['ok' => true, 'who' => (string)($j['data']['username'] ?? '')]; }
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Apify didn\'t accept that key. Copy it again from apify.com › Settings › API & Integrations.'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach Apify to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    if ($name === 'ANTHROPIC_API_KEY') {
+        $ch = curl_init('https://api.anthropic.com/v1/models?limit=1');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['anthropic-version: 2023-06-01', 'x-api-key: ' . $key]]);
+        curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code === 200) return ['ok' => true];
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Claude didn\'t accept that key. Copy it again from console.anthropic.com › API keys.'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach Claude to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    return ['ok' => false, 'message' => 'Unknown key.'];
 }
 
 require_once __DIR__ . '/sites.php';

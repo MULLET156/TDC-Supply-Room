@@ -220,6 +220,31 @@ try {
             if (!$r['ok']) fail(502, 'probe', $r['message']);
             out(200, $r);
         }
+        case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
+            $o = [];
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' ? '' : substr($v, -4)]; }
+            out(200, ['ok' => true, 'keys' => $o]);
+        }
+        case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup; config.php keys can't be overwritten here
+            $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
+            if (!in_array($n, ['APIFY_TOKEN', 'ANTHROPIC_API_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
+            if (secret_source($n) === 'config') fail(409, 'in_config', 'This key is set in config.php on the server; change it there.');
+            if (strlen($v) > 300 || preg_match('/\s/', $v)) fail(400, 'bad_key', 'That doesn\'t look like a key. Paste just the key, with no spaces.');
+            if ($v !== '') {
+                $t = key_test($n, $v);
+                if (!$t['ok']) fail(400, 'key_rejected', $t['message']);
+            }
+            secret_set($pdo, $n, $v);
+            out(200, ['ok' => true, 'tail' => $v === '' ? '' : substr($v, -4), 'who' => $t['who'] ?? '']);
+        }
+        case 'mcpkey': {         // the Claude connector link: show it, make a new one (old links stop working), or turn it off
+            $do = (string)($req['do'] ?? 'show');
+            if (secret_source('MCP_KEY') === 'config' && $do !== 'show') fail(409, 'in_config', 'The connector key is set in config.php on the server; change it there.');
+            if ($do === 'new') secret_set($pdo, 'MCP_KEY', bin2hex(random_bytes(24)));
+            elseif ($do === 'off') secret_set($pdo, 'MCP_KEY', '');
+            $k = (string)cfg('MCP_KEY');
+            out(200, ['ok' => true, 'key' => $k]);
+        }
         case 'apifyusage': {     // what Apify billed per actor, from the account's run history
             out(200, apify_account_usage(max(1, min(90, (int)($req['days'] ?? 30)))));
         }
