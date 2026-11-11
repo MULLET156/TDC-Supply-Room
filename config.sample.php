@@ -40,3 +40,10 @@ define('MCP_KEY', '');
 
 // Dates written by the server (ordered / received) use this time zone.
 define('TIMEZONE', 'America/Los_Angeles');
+
+// Other services for reading stores that turn servers away (optional; any one is enough).
+// Paste them in Setup › Data collection, or fill them in here.
+define('SCRAPINGBEE_KEY', '');   // app.scrapingbee.com › API key
+define('BRIGHTDATA_KEY', '');    // Bright Data › Account settings › API keys
+define('BRIGHTDATA_ZONE', '');   // your Web Unlocker zone name, e.g. web_unlocker1
+define('PAGE_SERVICE', '');      // tried first: brightdata, scrapingbee or apify ('' = automatic)

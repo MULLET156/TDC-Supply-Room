@@ -222,19 +222,32 @@ try {
         }
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
-            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' ? '' : substr($v, -4)]; }
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE'], true);
+                $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
-            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__)]);
+            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services()]);
         }
         case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup: written into config.php (database if it can't be)
             $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
-            if (!in_array($n, ['APIFY_TOKEN', 'ANTHROPIC_API_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
+            if ($n === 'PAGE_SERVICE') {   // which page service is tried first (not a secret)
+                if (!in_array($v, ['auto', 'brightdata', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown page service.');
+                $where = key_save($pdo, 'PAGE_SERVICE', $v === 'auto' ? '' : $v);
+                out(200, ['ok' => true, 'where' => $where]);
+            }
+            if (!in_array($n, ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
+            $zone = trim((string)($req['zone'] ?? ''));
+            if ($n === 'BRIGHTDATA_KEY' && $v !== '') {
+                if ($zone === '') $zone = (string)cfg('BRIGHTDATA_ZONE');
+                if (!preg_match('/^[A-Za-z0-9_\-]{1,60}$/', $zone)) fail(400, 'bad_key', 'Fill in the Web Unlocker zone name (letters, numbers, - and _ only), such as web_unlocker1.');
+                $GLOBALS['tdc_test_zone'] = $zone;
+            }
             if (strlen($v) > 300 || preg_match('/[\s\'"\\\\]/', $v)) fail(400, 'bad_key', 'That doesn\'t look like a key. Paste just the key, with no spaces or quotes.');
             if ($v !== '') {
                 $t = key_test($n, $v);
                 if (!$t['ok']) fail(400, 'key_rejected', $t['message']);
             }
             $where = key_save($pdo, $n, $v);
+            if ($n === 'BRIGHTDATA_KEY') key_save($pdo, 'BRIGHTDATA_ZONE', $v === '' ? '' : $zone);
             if ($where === '' && $v !== '') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site. Ask whoever runs the server to make it writable, or edit it in the hosting File Manager.');
             out(200, ['ok' => true, 'where' => $where, 'tail' => $v === '' ? '' : substr($v, -4), 'who' => $t['who'] ?? '']);
         }
@@ -248,6 +261,24 @@ try {
                 if ($do === 'off' && $where === '' && secret_source('MCP_KEY') === 'config') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site, so the connector is still on.');
             }
             out(200, ['ok' => true, 'key' => $k]);
+        }
+        case 'pagetest': {       // Setup › Data collection: read one product page through each page service, to compare them
+            $url = trim((string)($req['url'] ?? ''));
+            if (!preg_match('#^https?://#i', $url)) fail(400, 'bad_url', 'Paste a full product link, starting with https://');
+            @set_time_limit(600);
+            $svc = (string)($req['service'] ?? '');
+            $list = $svc !== '' ? array_values(array_intersect([$svc], page_services())) : page_services();
+            $rows = [];
+            foreach ($list as $sv) {
+                $r = apify_page_run($url, 'raw-http', 40, true, $sv); $mode = 'plain';
+                if (empty($r['ok']) && !in_array($r['error'] ?? '', ['key', 'credits', 'unreachable'], true)) { $r2 = apify_page_run($url, 'browser-playwright', 90, true, $sv); $r2['secs'] = ($r['secs'] ?? 0) + ($r2['secs'] ?? 0); $r = $r2; $mode = 'browser'; }
+                $row = ['service' => $sv, 'name' => PAGE_SERVICE_NAMES[$sv] ?? $sv, 'ok' => !empty($r['ok']), 'mode' => $mode, 'secs' => $r['secs'] ?? null, 'message' => $r['message'] ?? ''];
+                if (!empty($r['ok'])) { $h = (string)$r['html']; $f = page_facts($h, $url, '');
+                    $price = preg_match('/"price"\s*:\s*"?\$?([0-9]+(?:\.[0-9]{1,2})?)/', $h, $pm) ? (float)$pm[1] : (preg_match('/itemprop=["\']price["\'][^>]*content=["\']([0-9.]+)/i', $h, $pm) ? (float)$pm[1] : null);
+                    $row += ['kb' => (int)round(strlen($h) / 1024), 'title' => mb_substr((string)($f['title'] ?? ''), 0, 120), 'price' => $price, 'product' => (bool)preg_match('#"@type"\s*:\s*"Product(Group)?"#', $h)]; }
+                $rows[] = $row;
+            }
+            out(200, ['ok' => true, 'url' => $url, 'results' => $rows]);
         }
         case 'apifyusage': {     // what Apify billed per actor, from the account's run history
             out(200, apify_account_usage(max(1, min(90, (int)($req['days'] ?? 30)))));

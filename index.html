@@ -236,6 +236,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .lightkey{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}.lightkey>span{display:inline-flex;align-items:center;gap:7px}
 .setrow.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:start}.keyrow p.hint{margin:4px 0 0}
 .keyform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.keyform input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;width:230px;max-width:100%;font-family:var(--f-mono)}
+.keyform input.zone{width:170px;font-family:var(--f-mono)}#pageSvc{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;max-width:100%}
+.ptest{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}.ptest th,.ptest td{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}.ptest th{font-size:12px;color:var(--muted);font-weight:600}
 .keyst{font-size:12px;padding:2px 8px;border-radius:99px;margin-left:6px;white-space:nowrap}.keyst.on{background:color-mix(in srgb,#2fa84f 18%,transparent);color:#1f7a39}.keyst.off{background:var(--sunk);color:var(--muted)}
 .mcpout .linkrow{display:flex;gap:6px;margin-top:8px}.mcpout input{flex:1;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;font-family:var(--f-mono);font-size:12px}
 @media (max-width:560px){.setrow.keyrow{grid-template-columns:minmax(0,1fr)}.keyform input{flex:1;width:auto}}
@@ -2297,14 +2299,15 @@ window.TDC = (function(){
   async function siteProbe(host, mpn){ return call("siteprobe", { host, mpn: mpn || "" }); }
   async function apifyUsage(days){ return call("apifyusage", { days: days || 30 }); }
   async function keys(){ return call("keys"); }
-  async function setKey(name, value){ const r = await call("setkey", { name, value }); try { status = await call("status"); } catch {} return r; }
+  async function setKey(name, value, extra){ const r = await call("setkey", Object.assign({ name, value }, extra || {})); try { status = await call("status"); } catch {} return r; }
+  async function pageTest(url, service){ return call("pagetest", { url, service: service || "" }); }
   async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, keys, setKey, mcpKey, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, keys, setKey, mcpKey, pageTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -7176,7 +7179,7 @@ function setupHtml(){
     <div class="list">${[["low","Below desired reserve"],["e911","At or below 911"]].map(([k, l]) => `<div class="setrow two colrow"><label for="col-${k}"><span class="swatch" style="background:${C[k]}"></span>${l}</label><span class="actions"><input type="color" id="col-${k}" data-col="${k}" value="${C[k]}" aria-label="${l} color"></span></div>`).join("")}
     <div class="setrow two"><span class="hint">Dark mode uses a deeper version of each color automatically.</span><button type="button" class="btn" id="colReset">Reset to default</button></div></div>`;
   const sup = orderedSuppliers();
-  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list. The light by a name shows how its website is read: <span class="slight green"></span> free, <span class="slight orange"></span> with Apify, <span class="slight red"></span> needs a sign-in (Claude reads it in your browser), <span class="slight grey"></span> not checked.${readOnly || !window.TDC?.siteProbe ? "" : ` <button class="btn sm" type="button" data-checkall>Check all suppliers</button>`}</p>
+  const supSec = `<div class="sechead" id="sec-suppliers"><h2>Suppliers</h2><span class="hint">${sup.length}</span></div><p class="secnote">Drag the ⠿ handle to set the order suppliers appear in: the Order list, On the way and copied order lists. Rename to fix spelling; typing a name that already exists merges the two. Tap Account on a supplier for its account number, ordering website and login. Each supplier's rep shows here. To assign one, pick the supplier on that rep's card under Reps list. The light by a name shows how its website is read: <span class="slight green"></span> free, <span class="slight orange"></span> with a paid service, <span class="slight red"></span> needs a sign-in (Claude reads it in your browser), <span class="slight grey"></span> not checked.${readOnly || !window.TDC?.siteProbe ? "" : ` <button class="btn sm" type="button" data-checkall>Check all suppliers</button>`}</p>
     <div class="list" id="supList">${sup.map((g, ix) => `<div class="setrow sup" data-sup="${esc(g.name)}"><span class="actions" style="gap:6px;flex-wrap:nowrap"><span class="rank">${ix+1}</span><button type="button" class="grip" data-grip="${esc(g.name)}" aria-label="Reorder ${esc(g.name)}: drag, or use the up and down arrow keys">⠿</button>${openSups.has(keyOf(g.name)) ? `<span class="slight none" aria-hidden="true"></span>` : siteLightHtml(g.name)}</span><input data-ren="supplier" data-from="${esc(g.name)}" value="${esc(g.name)}" aria-label="Supplier name">${(() => { const r = repOf(g.name); const ph = r && (r.cell || r.phone); return r ? `<span class="rep repname">Rep: <b>${esc(r.name)}</b>${ph ? ` · <a href="${esc(telHref(ph))}">${esc(ph)}</a>` : ""}</span>` : `<span class="rep repname none"></span>`; })()}<span class="cnt">${g.n ? `<button type="button" class="cntlink" data-goto="supplier" data-v="${esc(keyOf(g.name))}" title="Show these products">${g.n} product${g.n>1?"s":""} ›</button>` : "0 products"}<button type="button" class="detbtn" data-det="${esc(g.name)}" aria-expanded="${openSups.has(keyOf(g.name))}">${infoOf(g.name).username || infoOf(g.name).account ? "Account ✓" : "Account"} ${openSups.has(keyOf(g.name)) ? "▴" : "▾"}</button></span><button type="button" class="rmbtn" data-rmsup="${esc(g.name)}" data-n="${g.n}" aria-label="Remove ${esc(g.name)}">Remove</button>${openSups.has(keyOf(g.name)) ? supDetail(g.name) : ""}</div>`).join("")}</div>
     <form class="addrow" id="supAdd" style="border:1px dashed var(--line);border-radius:var(--r)"><input id="newSup" placeholder="New supplier name" autocomplete="off" aria-label="New supplier name"><button class="btn pri" type="submit">Add supplier</button></form>`;
   const listSec = (field, title, note) => { const gs = orderedLocs(); return `<div class="sechead" id="sec-${field}"><h2>${title}</h2><span class="hint">${gs.length}</span></div><p class="secnote">${note}</p>
@@ -7536,7 +7539,7 @@ function siteLight(name){
   const p = profOf(name);
   if (!p || (!p.search && !p.page) || (!p.builtIn && !p.checkedAt && !p.learnedAt)) return { c: "grey", t: "Website not checked yet. Open the supplier and press Check site." };
   if (p.page === "signin" || p.page === "blocked") return { c: "red", t: p.page === "signin" ? "Prices need a sign-in: Claude reads them in your browser" : "The site blocks servers: Claude reads it in your browser, or use a price list" };
-  if (p.search === "browser" || p.search === "web" || p.page === "proxy" || p.page === "browser") return { c: "orange", t: "Works, using Apify (paid) for " + [p.search === "browser" || p.search === "web" ? "searching" : "", p.page === "proxy" || p.page === "browser" ? "reading pages" : ""].filter(Boolean).join(" and ") };
+  if (p.search === "browser" || p.search === "web" || p.page === "proxy" || p.page === "browser") return { c: "orange", t: "Works, using a paid page service for " + [p.search === "browser" || p.search === "web" ? "searching" : "", p.page === "proxy" || p.page === "browser" ? "reading pages" : ""].filter(Boolean).join(" and ") };
   return { c: "green", t: "Works on its own: searched and read on the server for free" };
 }
 function siteLightHtml(name){
@@ -7544,8 +7547,8 @@ function siteLightHtml(name){
   const L = siteLight(name); if (!L) return `<span class="slight none" aria-hidden="true"></span>`;
   return `<span class="slight ${L.c}" role="img" title="${esc(L.t)}" aria-label="Data collection: ${esc(L.t)}"></span>`;
 }
-const SEARCH_WORDS = { server: "Its own search, read on the server (free)", browser: "Google first; its own search in a real browser only if Google misses (Apify)", web: "Google results for the site (a cheap Apify run)", none: "Not searched" };
-const PAGE_WORDS = { server: "Read on the server (free)", proxy: "Apify's quick proxy (cheap)", browser: "Apify's full browser (most credit)", blocked: "Blocked: Claude reads it in your browser, or a price list", signin: "Prices need sign-in: Claude reads them in your browser" };
+const SEARCH_WORDS = { server: "Its own search, read on the server (free)", browser: "Google first; its own search in a real browser only if Google misses (paid page service)", web: "Google results for the site (a cheap Apify run)", none: "Not searched" };
+const PAGE_WORDS = { server: "Read on the server (free)", proxy: "A paid page service, plain read (cheap)", browser: "A paid page service with a real browser (costs the most)", blocked: "Blocked: Claude reads it in your browser, or a price list", signin: "Prices need sign-in: Claude reads them in your browser" };
 function supSiteBlock(name){
   if (!window.TDC?.siteProfiles) return "";
   const h = siteHost(name);
@@ -7554,11 +7557,11 @@ function supSiteBlock(name){
   return `<div class="sitebox"><div class="sitehead"><span class="slight ${L.c}" aria-hidden="true"></span><b>Website data collection</b> <small class="muted">${esc(h)}</small>${readOnly ? "" : `<button class="btn sm" type="button" data-siteprobe="${esc(name)}">Check site</button>`}</div>
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
-let keyInfo = null, keyInfoAt = 0, keyCfgOk = true;
+let keyInfo = null, keyInfoAt = 0, keyCfgOk = true, keySvcs = [];
 async function loadKeys(force){
   if (!window.TDC?.keys || (!force && keyInfoAt && Date.now() - keyInfoAt < 60e3)) return;
   keyInfoAt = Date.now();
-  try { const r = await TDC.keys(); keyInfo = r.keys || null; keyCfgOk = r.configWritable !== false; } catch { keyInfo = null; }
+  try { const r = await TDC.keys(); keyInfo = r.keys || null; keyCfgOk = r.configWritable !== false; keySvcs = r.services || []; } catch { keyInfo = null; }
 }
 function dataSec(){
   if (!window.TDC?.keys) return "";
@@ -7576,11 +7579,17 @@ function dataSec(){
   return `<div class="sechead" id="sec-data"><h2>Data collection</h2></div>
   <p class="secnote">The keys that let the Supply Room look up products and read prices on its own. Paste a key and press Save: it's checked, then written into the server's config.php (or the database, if config.php can't be changed from the site). Keys are never shown again, only their last 4 characters. Each supplier's light, under Suppliers, shows how its website is read.${keyInfo && !keyCfgOk ? `<br><b>config.php can't be changed from the site on this server</b>, so keys you paste here are kept in the database instead (keys already in config.php still win).` : ""}</p>
   <div class="list">
-    <div class="setrow legendrow two"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with Apify <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span>${readOnly ? "" : `<button class="btn" type="button" data-checkall>Check all suppliers</button>`}</div>
-    ${keyRow("APIFY_TOKEN", "Apify API key", `Reads stores that turn servers away and searches the web for products. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
+    <div class="setrow legendrow two"><span class="lightkey"><span><span class="slight green"></span>Works on its own (free) <b>${cnt.green}</b></span><span><span class="slight orange"></span>Works with a paid service <b>${cnt.orange}</b></span><span><span class="slight red"></span>Needs a sign-in, read by Claude <b>${cnt.red}</b></span><span><span class="slight grey"></span>Not checked <b>${cnt.grey}</b></span></span>${readOnly ? "" : `<button class="btn" type="button" data-checkall>Check all suppliers</button>`}</div>
+    ${keyRow("APIFY_TOKEN", "Apify API key", `Reads Amazon links, searches the web for products, and reads stores that turn servers away. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
+    ${keyRow("SCRAPINGBEE_KEY", "ScrapingBee API key", `Another way to read stores that turn servers away: one key, monthly credits (a plain read costs 1 credit, a home-internet address 10, a real browser 25). Get it at <a href="https://app.scrapingbee.com/" target="_blank" rel="noopener">app.scrapingbee.com</a> (Dashboard › API key).`, "ScrapingBee key")}
+    ${(() => { const k = K.BRIGHTDATA_KEY || {}, z = (K.BRIGHTDATA_ZONE || {}).value || "";
+      return `<div class="setrow keyrow"><div><b>Bright Data Web Unlocker</b> ${state("BRIGHTDATA_KEY")}${z ? ` <span class="keyst on">zone ${esc(z)}</span>` : ""}<p class="hint">Another way to read stores that turn servers away, built for robot checks; you pay only for pages it actually reads. In <a href="https://brightdata.com/cp" target="_blank" rel="noopener">Bright Data</a>: add a Web Unlocker zone, then copy its zone name and your API key (Account settings › API keys).</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="BRIGHTDATA_KEY"><input type="password" autocomplete="off" spellcheck="false" placeholder="${k.set ? "Paste a new key to replace it" : "API key"}" aria-label="Paste the Bright Data API key"><input class="zone" type="text" autocomplete="off" spellcheck="false" value="${esc(z)}" placeholder="zone, e.g. web_unlocker1" aria-label="Web Unlocker zone name"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="BRIGHTDATA_KEY">Remove</button>` : ""}</form>`}</div>`; })()}
+    ${(() => { const cur = (K.PAGE_SERVICE || {}).value || "auto", has = s => keySvcs.includes(s), names = { brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" };
+      return `<div class="setrow keyrow"><div><b>Blocked pages use</b> ${keySvcs.length ? `<span class="keyst on">${esc(keySvcs.map(x => names[x]).join(" › "))}</span>` : `<span class="keyst off">No service yet</span>`}<p class="hint">Which service reads a store that turns the server away. If it can't, the others are tried in turn. Apify still does Amazon links and web searches.</p></div>${readOnly ? "" : `<select id="pageSvc" aria-label="Service tried first for blocked pages"><option value="auto"${cur === "auto" ? " selected" : ""}>Automatic (Bright Data, ScrapingBee, then Apify)</option>${["brightdata", "scrapingbee", "apify"].map(x => `<option value="${x}"${cur === x ? " selected" : ""}${has(x) ? "" : " disabled"}>${names[x]} first${has(x) ? "" : " (no key yet)"}</option>`).join("")}</select>`}</div>
+      <div class="setrow keyrow"><div><b>Test page services</b><p class="hint">Paste a product link from a store that turns the server away (Net32 or Safco, say). Each service with a key reads it, so you can compare speed and whether the price came through. Each test uses a little credit.</p><div id="pageTestOut"></div></div>${readOnly ? "" : `<form class="keyform" id="pageTestForm"><input type="url" placeholder="https://…" aria-label="Product link to test"><button class="btn" type="submit"${keySvcs.length ? "" : " disabled"}>Test</button></form>`}</div>`; })()}
     ${keyRow("ANTHROPIC_API_KEY", "Claude API key", `Reads product links, photos, price lists and documents, and finds substitutes. Get it at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com › API keys</a>.`, "sk-ant-…")}
     <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
-    <div class="setrow two"><span>Apify this month: ${runs} run${runs === 1 ? "" : "s"}${meter.length ? `<br><small class="muted">${meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ")}</small>` : ""}<span id="apifyOut" class="hint" style="display:block"></span></span>${readOnly || !(K.APIFY_TOKEN || {}).set ? "" : `<button class="btn" type="button" id="apifyBill">What Apify billed</button>`}</div>
+    <div class="setrow two"><span>Paid page reads and searches this month: ${runs}${meter.length ? `<br><small class="muted">${meter.slice(0, 8).map(m => `${esc(m.kind)}${m.host ? " " + esc(m.host) : ""} ${m.runs}${m.failed ? ` (${m.failed} failed)` : ""}`).join(" · ")}</small>` : ""}<span id="apifyOut" class="hint" style="display:block"></span></span>${readOnly || !(K.APIFY_TOKEN || {}).set ? "" : `<button class="btn" type="button" id="apifyBill">What Apify billed</button>`}</div>
   </div>`;
 }
 let checkAllRun = null;
@@ -7622,13 +7631,29 @@ function wireSites(){
     try { const r = await TDC.apifyUsage(30); if (!r.ok) { o.textContent = r.message || "Apify didn't answer"; return; }
       o.innerHTML = `Last ${r.days} days: <b>$${r.usd.toFixed(2)}</b> over ${r.runs} runs. ` + r.actors.map(a => `${esc(a.name)}: $${a.usd.toFixed(2)} (${a.runs} runs${a.failed ? `, ${a.failed} failed` : ""})`).join(" · "); }
     catch(e) { o.textContent = e.message || "Apify didn't answer"; } };
-  const label = n => n === "APIFY_TOKEN" ? "Apify key" : "Claude key";
+  const label = n => ({ APIFY_TOKEN: "Apify key", SCRAPINGBEE_KEY: "ScrapingBee key", BRIGHTDATA_KEY: "Bright Data key" })[n] || "Claude key";
+  const ps = $("#pageSvc"); if (ps) ps.onchange = async () => { if (!needMe()) return; try { await TDC.setKey("PAGE_SERVICE", ps.value); logIt("Setup", null, "Blocked pages now use " + ps.options[ps.selectedIndex].text); toast("Saved"); await loadKeys(true); render(); } catch(e) { toast(e.message || "Couldn't save that"); } };
+  const pt = $("#pageTestForm"); if (pt) pt.onsubmit = async e => { e.preventDefault(); if (!needMe()) return;
+    const inp = pt.querySelector("input"), url = clean(inp.value), out = $("#pageTestOut"), btn = pt.querySelector("button");
+    if (!/^https?:\/\//i.test(url)) { toast("Paste a full product link"); inp.focus(); return; }
+    btn.disabled = true; btn.textContent = "Testing…"; out.innerHTML = `<p class="hint">Reading the page through each service. This can take a minute or two.</p>`;
+    const names = { brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }, rows = [];
+    const draw = (busy) => { out.innerHTML = `<table class="ptest"><thead><tr><th>Service</th><th>Result</th><th>Time</th><th>Price found</th></tr></thead><tbody>${rows.map(x => `<tr><td>${esc(x.name)}</td><td>${x.ok ? `<span class="keyst on">Read it</span> <small class="muted">${x.mode === "browser" ? "needed a browser" : "plain read"} · ${x.kb} KB${x.product ? " · product data" : ""}</small>` : `<span class="keyst off">Failed</span> <small class="muted">${esc(x.message || "")}</small>`}</td><td>${x.secs != null ? x.secs + " s" : ""}</td><td>${x.ok && x.price != null ? "$" + Number(x.price).toFixed(2) : ""}</td></tr>`).join("")}${busy ? `<tr><td>${esc(names[busy] || busy)}</td><td colspan="3" class="muted">Reading…</td></tr>` : ""}</tbody></table>`; };
+    for (const sv of keySvcs) {   // one service per request, so a slow one can't run past the server's time limit
+      draw(sv);
+      try { const r = await TDC.pageTest(url, sv); rows.push(...(r.results || [])); }
+      catch(err) { rows.push({ name: names[sv] || sv, ok: false, message: err.message || "The test didn't finish" }); }
+    }
+    draw(null);
+    try { logIt("Setup", null, "Tested page services on " + new URL(url).hostname); } catch {}
+    btn.disabled = false; btn.textContent = "Test"; };
   document.querySelectorAll("[data-keyform]").forEach(f => f.onsubmit = async e => {
     e.preventDefault(); if (!needMe()) return;
-    const n = f.dataset.keyform, inp = f.querySelector("input"), v = clean(inp.value), btn = f.querySelector("button[type=submit]");
+    const n = f.dataset.keyform, inp = f.querySelector("input"), v = clean(inp.value), btn = f.querySelector("button[type=submit]"), zi = f.querySelector("input.zone");
     if (!v) { toast("Paste the key first"); inp.focus(); return; }
+    if (zi && !clean(zi.value)) { toast("Fill in the zone name too"); zi.focus(); return; }
     btn.disabled = true; btn.textContent = "Checking…";
-    try { const r = await TDC.setKey(n, v); inp.value = ""; logIt("Setup", null, "Saved the " + label(n)); toast(label(n) + " works and is saved in " + (r.where === "config" ? "config.php" : "the database") + (r.who ? " (" + r.who + ")" : "")); await loadKeys(true); render(); }
+    try { const r = await TDC.setKey(n, v, zi ? { zone: clean(zi.value) } : null); inp.value = ""; logIt("Setup", null, "Saved the " + label(n)); toast(label(n) + " works and is saved in " + (r.where === "config" ? "config.php" : "the database") + (r.who ? " (" + r.who + ")" : "")); await loadKeys(true); render(); }
     catch(err) { toast(err.message || "Couldn't save that key"); btn.disabled = false; btn.textContent = "Save"; }
   });
   document.querySelectorAll("[data-keyclear]").forEach(b => b.onclick = async () => {

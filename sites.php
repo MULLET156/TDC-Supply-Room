@@ -173,7 +173,7 @@ function site_links(string $html, string $re, string $host, string $q): array {
 function site_search(string $host, string $q, bool $allowBrowser = true): ?array {
     $p = site_profile($host); $mode = $p['search'] ?? 'web';
     if (empty($p['searchUrl']) || empty($p['link']) || !in_array($mode, ['server', 'browser'], true)) return null;
-    if ($mode === 'browser' && (!$allowBrowser || !apify_ready())) return null;
+    if ($mode === 'browser' && (!$allowBrowser || !page_service_ready())) return null;
     $url = sprintf($p['searchUrl'], rawurlencode($q)); $html = '';
     if ($mode === 'server') {
         $g = http_get($url, 4194304, 25);
@@ -244,7 +244,7 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
         }
     }
     if ($found) $say("Its own search works on the server ({$found['n']} product links for \"{$found['term']}\").");
-    elseif ($browserTry && apify_ready()) {
+    elseif ($browserTry && page_service_ready()) {
         // one browser run, with a common supply, to see whether results only appear in a real browser
         $a = apify_page_run(sprintf($browserTry['tpl'], rawurlencode($browserTry['term'])), 'browser-playwright', 90, true);
         $s = $a['ok'] ? $pickShape($a['html']) : ['n' => 0, 're' => '', 'urls' => []];
@@ -264,7 +264,7 @@ function site_probe(string $host, string $mpn = '', string $term = 'nitrile glov
             $prof['page'] = ($cur['page'] ?? '') === 'signin' ? 'signin' : 'server';
             $hasLd = preg_match('#"@type"\s*:\s*"Product(Group)?"#', $g['body']) || preg_match('#itemtype="https?://schema\.org/Product"#i', $g['body']);
             $say('Product pages open on the server' . ($hasLd ? ', with product data (name, SKU, price) built in.' : '; Claude reads the page text for price and SKU.'));
-        } elseif (apify_ready()) {
+        } elseif (page_service_ready()) {
             $r = apify_page_run($sample, 'raw-http', 40, true);
             if ($r['ok'] && !bot_wall($r['html'])) { $prof['page'] = 'proxy'; $say('Product pages turn the server away but open through Apify\'s quick proxy (cheap).'); }
             else { $b = apify_page_run($sample, 'browser-playwright', 90, true);

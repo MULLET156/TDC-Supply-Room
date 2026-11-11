@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -617,8 +617,8 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
         if ($mode === 'blocked') return ['ok' => false, 'error' => 'blocked', 'message' => ($prof['name'] ?? $host) . ' turns away the server and Apify, so the website can\'t read it. Claude can read it in your browser, or import a price list.'];
         $page = in_array($mode, ['proxy', 'browser'], true) ? ['ok' => false, 'code' => 403, 'error' => ''] : http_get($url);
         $looksBlocked = !$page['ok'] ? in_array($page['code'] ?? 0, [401, 403, 429, 503], true) : bot_wall($page['body']);
-        if ($looksBlocked && apify_ready()) {
-            // The site turned the server away: open it through Apify instead (the quick proxy first, unless the site needs the browser).
+        if ($looksBlocked && page_service_ready()) {
+            // The site turned the server away: open it through a page service instead (the quick proxy first, unless the site needs the browser).
             $got = apify_page($url, $quick, $mode === 'browser' ? 'browser' : 'proxy');
             if (!$got['ok']) { if (!$quick) site_learn($host, ['page' => 'blocked', 'blockedAt' => time()]); return $got; }
             if (($got['tool'] ?? '') !== $mode && $mode !== 'signin') site_learn($host, ['page' => $got['tool']]);
@@ -629,7 +629,7 @@ function read_product_link_live(string $url, array $ctx = [], bool $quick = fals
             return ['ok' => false, 'error' => $looksBlocked ? 'blocked' : 'unreachable',
                     'message' => $looksBlocked ? 'The supplier\'s site didn\'t let the server read that page.' : ($page['error'] ?: 'Couldn\'t open that page.')];
         } elseif ($looksBlocked) {
-            return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site showed a robot check instead of the product. Add an Apify key in Setup › Data collection to read sites like this.'];
+            return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site showed a robot check instead of the product. Add a Bright Data, ScrapingBee or Apify key in Setup › Data collection to read sites like this.'];
         }
         if (stripos($page['type'], 'html') === false && stripos($page['type'], 'xml') === false) {
             return ['ok' => false, 'error' => 'not_page', 'message' => 'That link isn\'t a web page.'];
@@ -901,12 +901,74 @@ function apify_page(string $url, bool $quick = false, string $start = 'proxy'): 
     } elseif ($quick) return ['ok' => false, 'error' => 'blocked', 'message' => 'This site needs the full browser.'];
     $b = apify_page_run($url, 'browser-playwright', 110, true);
     if ($b['ok'] && !bot_wall((string)($b['html'] ?? ''))) return $b + ['tool' => 'browser'];
-    return ['ok' => false, 'error' => 'blocked', 'message' => 'The supplier\'s site blocked the server, and Apify couldn\'t get past it either.'];
+    return ['ok' => false, 'error' => 'blocked', 'message' => $b['message'] ?? 'The supplier\'s site blocked the server, and the page service couldn\'t get past it either.'];
 }
-function apify_page_run(string $url, string $tool, int $secs, bool $residential = false): array {
-    $r = apify_page_run_raw($url, $tool, $secs, $residential);
-    if (function_exists('apify_meter')) apify_meter('page-' . $tool, (string)parse_url($url, PHP_URL_HOST), !empty($r['ok']));
-    return $r;
+/* Pages that turn the server away are read through a paid page service: Bright Data Web Unlocker, ScrapingBee or Apify,
+ * whichever keys are saved in Setup › Data collection. PAGE_SERVICE picks the one tried first ('auto' = Bright Data,
+ * then ScrapingBee, then Apify); if it fails, the others are tried. $tool 'raw-http' = a plain read, else a real browser. */
+function page_services(): array {
+    $have = [];
+    if (trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '') $have[] = 'brightdata';
+    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
+    if (apify_ready()) $have[] = 'apify';
+    $first = (string)cfg('PAGE_SERVICE', 'auto');
+    if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
+    return $have;
+}
+function page_service_ready(): bool { return page_services() !== []; }
+const PAGE_SERVICE_NAMES = ['brightdata' => 'Bright Data', 'scrapingbee' => 'ScrapingBee', 'apify' => 'Apify'];
+function apify_page_run(string $url, string $tool, int $secs, bool $residential = false, ?string $only = null): array {
+    $last = ['ok' => false, 'error' => 'no_service', 'message' => 'No page service is set up. Add a Bright Data, ScrapingBee or Apify key in Setup › Data collection.'];
+    foreach ($only !== null ? [$only] : page_services() as $svc) {
+        $t0 = microtime(true);
+        $r = $svc === 'brightdata' ? brightdata_page($url, $tool, $secs) : ($svc === 'scrapingbee' ? scrapingbee_page($url, $tool, $secs) : apify_page_run_raw($url, $tool, $secs, $residential));
+        $r['via'] = $svc; $r['secs'] = round(microtime(true) - $t0, 1);
+        if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'page-' . $tool, (string)parse_url($url, PHP_URL_HOST), !empty($r['ok']));
+        if (!empty($r['ok'])) return $r;
+        $last = $r;
+    }
+    return $last;
+}
+function page_fail(string $svc, int $code, string $m = ''): array {
+    $n = PAGE_SERVICE_NAMES[$svc] ?? $svc;
+    $noCredit = $code === 402 || ($svc === 'scrapingbee' && $code === 401);   // ScrapingBee answers 401 when the credits run out
+    if ($noCredit) return ['ok' => false, 'error' => 'credits', 'message' => "$n is out of credit."];
+    if ($code === 401 || $code === 403) return ['ok' => false, 'error' => 'key', 'message' => "$n rejected its key (Setup › Data collection)."];
+    return ['ok' => false, 'error' => 'blocked', 'message' => "The supplier's site blocked the server, and $n couldn't open it either" . ($m !== '' ? ": $m" : '.')];
+}
+function brightdata_page(string $url, string $tool, int $secs): array {
+    @set_time_limit($secs + 40);
+    $body = ['zone' => (string)cfg('BRIGHTDATA_ZONE'), 'url' => $url, 'format' => 'raw', 'country' => 'us'];
+    if ($tool !== 'raw-http') $body['render'] = 'true';
+    $ch = curl_init('https://api.brightdata.com/request');
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_SLASHES), CURLOPT_HEADER => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . cfg('BRIGHTDATA_KEY')]]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $hs = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); $err = curl_error($ch); curl_close($ch);
+    if ($res === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach Bright Data (' . $err . ').'];
+    $head = substr($res, 0, $hs); $html = substr($res, $hs);
+    $m = preg_match('/^x-brd-error:\s*(.+)$/mi', $head, $mm) ? trim($mm[1]) : '';
+    if ($code !== 200) { $j = json_decode($html, true); error_log("tdc brightdata page: $code $m"); return page_fail('brightdata', $code, $m ?: (string)($j['error'] ?? '')); }
+    if ($html === '' || bot_wall($html)) return page_fail('brightdata', 200, 'it got a robot check');
+    return ['ok' => true, 'html' => $html, 'url' => $url];
+}
+function scrapingbee_page(string $url, string $tool, int $secs): array {
+    @set_time_limit(2 * $secs + 40);
+    // the cheapest read first (1 credit), then a home-internet address (10 credits; 25 with a browser)
+    $tries = $tool === 'raw-http' ? [['render_js' => 'false'], ['render_js' => 'false', 'premium_proxy' => 'true']] : [['render_js' => 'true', 'premium_proxy' => 'true']];
+    $last = page_fail('scrapingbee', 0);
+    foreach ($tries as $opt) {
+        $q = http_build_query(['url' => $url, 'block_resources' => 'true'] + $opt + (isset($opt['premium_proxy']) ? ['country_code' => 'us'] : []));
+        $ch = curl_init('https://app.scrapingbee.com/api/v1/?' . $q);
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $secs + 15, CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . cfg('SCRAPINGBEE_KEY')]]);
+        $html = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
+        if ($html === false) return ['ok' => false, 'error' => 'unreachable', 'message' => 'Couldn\'t reach ScrapingBee (' . $err . ').'];
+        if ($code === 200 && $html !== '' && !bot_wall((string)$html)) return ['ok' => true, 'html' => (string)$html, 'url' => $url];
+        if (in_array($code, [400, 401, 402, 403], true)) { $j = json_decode((string)$html, true); error_log("tdc scrapingbee page: $code"); return page_fail('scrapingbee', $code, is_array($j) ? (string)($j['message'] ?? $j['error'] ?? '') : ''); }
+        $last = page_fail('scrapingbee', $code, $code === 200 ? 'it got a robot check' : 'status ' . $code);
+    }
+    return $last;
 }
 function apify_page_run_raw(string $url, string $tool, int $secs, bool $residential = false): array {
     @set_time_limit($secs + 40);
@@ -1832,6 +1894,29 @@ function key_test(string $name, string $key): array {
         if ($code === 200) return ['ok' => true];
         if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Claude didn\'t accept that key. Copy it again from console.anthropic.com › API keys.'];
         return ['ok' => false, 'message' => 'Couldn\'t reach Claude to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    if ($name === 'SCRAPINGBEE_KEY') {
+        $ch = curl_init('https://app.scrapingbee.com/api/v1/usage?api_key=' . rawurlencode($key));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
+        $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code === 200) { $j = json_decode((string)$b, true); $left = is_array($j) && isset($j['max_api_credit']) ? (int)$j['max_api_credit'] - (int)($j['used_api_credit'] ?? 0) : null; return ['ok' => true, 'who' => $left !== null ? number_format($left) . ' credits left' : '']; }
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'ScrapingBee didn\'t accept that key. Copy it again from app.scrapingbee.com (Dashboard › API key).'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach ScrapingBee to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    if ($name === 'BRIGHTDATA_KEY') {
+        // one small read through the zone checks the key and the zone name together
+        $zone = $GLOBALS['tdc_test_zone'] ?? (string)cfg('BRIGHTDATA_ZONE');
+        if ($zone === '') return ['ok' => false, 'message' => 'Fill in the Web Unlocker zone name too (from Bright Data › Web Access APIs › your zone).'];
+        $ch = curl_init('https://api.brightdata.com/request');
+        curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 45, CURLOPT_HEADER => true,
+            CURLOPT_POSTFIELDS => json_encode(['zone' => $zone, 'url' => 'https://example.com/', 'format' => 'raw']),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . $key]]);
+        $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $hs = (int)curl_getinfo($ch, CURLINFO_HEADER_SIZE); curl_close($ch);
+        $m = $res !== false && preg_match('/^x-brd-error:\s*(.+)$/mi', substr($res, 0, $hs), $mm) ? trim($mm[1]) : '';
+        if ($code === 200) return ['ok' => true];
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Bright Data didn\'t accept that key or zone' . ($m ? " ($m)" : '') . '. Copy the API key from Bright Data › Account settings › API keys, and the zone name from your Web Unlocker zone.'];
+        if ($code === 400) return ['ok' => false, 'message' => 'Bright Data says the zone name isn\'t right' . ($m ? " ($m)" : '') . '. Use the name of your Web Unlocker zone, such as web_unlocker1.'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach Bright Data to check the key (' . ($code ?: 'no answer') . ($m ? ": $m" : '') . '). Try again.'];
     }
     return ['ok' => false, 'message' => 'Unknown key.'];
 }
