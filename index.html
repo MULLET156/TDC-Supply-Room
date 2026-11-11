@@ -2401,12 +2401,13 @@ window.TDC = (function(){
   async function setKey(name, value, extra){ const r = await call("setkey", Object.assign({ name, value }, extra || {})); try { status = await call("status"); } catch {} return r; }
   async function pageTest(url, service){ return call("pagetest", { url, service: service || "" }); }
   async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
+  async function extKey(what){ return call("extkey", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, keys, setKey, mcpKey, pageTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, keys, setKey, mcpKey, extKey, pageTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -7739,6 +7740,8 @@ function dataSec(){
     <div class="setrow dchead"><b>Keys</b><span class="hint">Each one is optional; more keys means more stores can be read.</span></div>
     ${keyRow("ANTHROPIC_API_KEY", "Claude API key", `Reads product links, photos, price lists and documents, and finds substitutes. Get it at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com › API keys</a>.`, "sk-ant-…")}
     <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
+    ${(() => { const e = K.EXT_KEY || {};
+      return `<div class="setrow keyrow"><div><b>Browser extension</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : e.set ? `<span class="keyst on">On</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Saves the prices your staff see on supplier websites while signed in (Henry Schein, Patterson…) without asking Claude. In Chrome: download it, open chrome://extensions, turn on Developer mode, press <b>Load unpacked</b> and pick the unzipped folder. Then press the Supply Room button in Chrome's toolbar and paste the pairing code. The code can only list products and save prices.</p><div id="extOut" class="mcpout"></div></div><span class="actions"><a class="btn" href="supply-room-extension.zip" download>${ic("download")}Download</a>${readOnly ? "" : e.set ? `<button class="btn" type="button" data-ext="show">Copy pairing code</button><button class="btn ghost" type="button" data-ext="new">New code…</button><button class="btn ghost" type="button" data-ext="off">Turn off…</button>` : `<button class="btn pri" type="button" data-ext="new">Turn on</button>`}</span></div>`; })()}
     ${keyRow("APIFY_TOKEN", "Apify API key", `Reads Amazon links, searches the web for products, and reads stores that turn servers away. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
     ${keyRow("SCRAPINGBEE_KEY", "ScrapingBee API key", `Another way to read stores that turn servers away: one key, monthly credits (a plain read costs 1 credit, a home-internet address 10, a real browser 25). Get it at <a href="https://app.scrapingbee.com/" target="_blank" rel="noopener">app.scrapingbee.com</a> (Dashboard › API key).`, "ScrapingBee key")}
     ${(() => { const k = K.BRIGHTDATA_KEY || {}, z = (K.BRIGHTDATA_ZONE || {}).value || "";
@@ -7827,6 +7830,18 @@ function wireSites(){
     if (!needMe()) return; const n = b.dataset.keyclear;
     if (!confirm("Remove the " + label(n) + "? Features that use it stop working until a new key is saved.")) return;
     try { await TDC.setKey(n, ""); logIt("Setup", null, "Removed the " + label(n)); toast(label(n) + " removed"); await loadKeys(true); render(); } catch(err) { toast(err.message || "Couldn't remove it"); }
+  });
+  document.querySelectorAll("[data-ext]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const what = b.dataset.ext;
+    if (what === "new" && (keyInfo?.EXT_KEY || {}).set && !confirm("Make a new pairing code? Browsers paired with the old code stop saving prices until they're paired again.")) return;
+    if (what === "off" && !confirm("Turn the browser extension off? It stops saving prices until it's turned on and paired again.")) return;
+    try { const r = await TDC.extKey(what === "show" ? "show" : what);
+      if (what !== "show") { logIt("Setup", null, what === "off" ? "Turned the browser extension off" : "Made a new browser extension pairing code"); await loadKeys(true); render(); }
+      if (!r.key) { toast("Browser extension is off"); return; }
+      const code = btoa(JSON.stringify({ u: new URL(".", location.href).href, k: r.key }));
+      try { await navigator.clipboard.writeText(code); toast("Pairing code copied. Paste it into the extension."); }
+      catch { const out = $("#extOut"); if (out) out.innerHTML = `<div class="linkrow"><input readonly value="${esc(code)}" aria-label="Pairing code" onclick="this.select()"></div>`; toast("Copy the pairing code below"); }
+    } catch(err) { toast(err.message || "Couldn't do that"); }
   });
   document.querySelectorAll("[data-mcp]").forEach(b => b.onclick = async () => {
     if (!needMe()) return; const what = b.dataset.mcp, o = $("#mcpOut");

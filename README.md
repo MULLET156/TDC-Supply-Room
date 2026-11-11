@@ -86,6 +86,16 @@ The same token is the fallback for any other supplier site that blocks the serve
 
 **Supplier lights.** Under **Setup → Suppliers**, each supplier with a website gets a light: green means its products are found and read on the server for free, orange means it works but uses Apify (paid), red means prices need a sign-in or the site blocks servers, so Claude reads them in your browser, and grey means it hasn't been checked yet. Open a supplier to see how its website is read and press **Check site** to work it out again.
 
+### Browser extension for signed-in prices (optional)
+
+The **Supply Room Price Helper** Chrome extension saves the prices staff see on supplier websites while signed in (Henry Schein, Patterson and others), with no AI and nothing to type.
+
+1. **Setup → Data collection → Browser extension → Download**, and unzip it.
+2. In Chrome open `chrome://extensions`, turn on **Developer mode**, press **Load unpacked** and pick the unzipped folder.
+3. Back in Setup press **Turn on**, then **Copy pairing code**. Click the extension's toolbar button and paste the code.
+
+From then on, opening a product page that matches a Supply Room product (by its saved link or an item number on the page) saves the price shown, prefers "Your price" over list price, and shows a small note in the corner. Prices go into the product's price history like any other price check. The pairing code can only list products and save prices; **New code** or **Turn off** in Setup disconnects every paired browser. The source is in `extension/`; rebuild the download with `cd extension && zip -r ../supply-room-extension.zip .`.
+
 ### 7. Connect Claude (optional)
 1. In the site, open **Setup → Data collection → Claude connector** and press **Turn on**, then **Show link** and **Copy**. (Or put a long random key in `config.php` as `MCP_KEY` and build the link yourself: `https://<your site>/mcp.php?key=<your MCP_KEY>`.)
 2. In Claude: **Settings → Connectors → Add custom connector**. Name: `TDC Supply Room`. URL: the link you copied.

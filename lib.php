@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;

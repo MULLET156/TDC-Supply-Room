@@ -223,7 +223,7 @@ try {
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
             foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE'], true);
-                $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
+                $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $n === 'EXT_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
             out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority(), 'searchServices' => serp_services()]);
         }
@@ -260,6 +260,15 @@ try {
             if ($n === 'BRIGHTDATA_KEY') key_save($pdo, 'BRIGHTDATA_ZONE', $v === '' ? '' : $zone);
             if ($where === '' && $v !== '') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site. Ask whoever runs the server to make it writable, or edit it in the hosting File Manager.');
             out(200, ['ok' => true, 'where' => $where, 'tail' => $v === '' ? '' : substr($v, -4), 'who' => $t['who'] ?? '']);
+        }
+        case 'extkey': {         // the browser extension's pairing key: show it, make a new one, or turn it off
+            $do = (string)($req['do'] ?? 'show'); $k = (string)cfg('EXT_KEY');
+            if ($do === 'new' || $do === 'off') {
+                $k = $do === 'new' ? bin2hex(random_bytes(24)) : '';
+                $where = key_save($pdo, 'EXT_KEY', $k);
+                if ($where === '' && ($k !== '' || secret_source('EXT_KEY') === 'config')) fail(500, 'not_saved', 'config.php couldn\'t be changed from the site.');
+            }
+            out(200, ['ok' => true, 'key' => $k]);
         }
         case 'mcpkey': {         // the Claude connector link: show it, make a new one (old links stop working), or turn it off
             $do = (string)($req['do'] ?? 'show');

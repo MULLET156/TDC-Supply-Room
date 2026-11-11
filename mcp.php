@@ -23,6 +23,8 @@ function rpc_out($id, $result = null, ?array $error = null): void {
     exit;
 }
 
+// ext.php reuses the tools below (record_price) without the connector's request handling
+if (!defined('TDC_TOOLS_ONLY')) {
 $key = (string)cfg('MCP_KEY');
 $given = (string)($_GET['key'] ?? '');
 if ($given === '' && preg_match('/^Bearer\s+(.+)$/i', (string)($_SERVER['HTTP_AUTHORIZATION'] ?? ''), $m)) $given = trim($m[1]);
@@ -42,6 +44,8 @@ $params = is_array($msg['params'] ?? null) ? $msg['params'] : [];
 
 // Notifications (no id) get an empty "accepted".
 if (!array_key_exists('id', $msg)) { http_response_code(202); exit; }
+}
+
 
 /* ---------- tools ---------- */
 const FIELDS = ['name', 'sku', 'supplier', 'link', 'unitCost', 'units', 'desc', 'cat', 'sub', 'loc', 'qty', 'desired', 'urgent', 'notes', 'exp', 'countEvery'];
@@ -395,6 +399,7 @@ function call_tool(PDO $pdo, string $name, array $a): array {
     throw new RuntimeException("Unknown tool $name");
 }
 
+if (!defined('TDC_TOOLS_ONLY')) {
 switch ($m) {
     case 'initialize':
         rpc_out($id, [
@@ -424,6 +429,7 @@ switch ($m) {
     }
     default:
         rpc_out($id, null, ['code' => -32601, 'message' => 'Method not found']);
+}
 }
 
 // One spelling per supplier: "henry schein", "HENRY SCHEIN" and "Henry-Schein" all become the name already in use.
