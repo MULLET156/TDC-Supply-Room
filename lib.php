@@ -502,7 +502,7 @@ function ai_models(string $p, bool $fresh = false): array {
 /* Setup › Data collection › AI › Test: one provider, three small jobs (text, a picture, a PDF), no backup */
 const AI_TEST_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4IydHU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJI2YD1ZaHIvAAAAAElFTkSuQmCC';
 const AI_TEST_PDF = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxMzQgPj4Kc3RyZWFtCkJUIC9GMSAxOCBUZiA1MCA3NTAgVGQgKElOVk9JQ0UgIEhlbnJ5IFNjaGVpbikgVGogMCAtMzAgVGQgKEdsb3ZlcywgQm94IG9mIDIwMCAgIFF0eSAyICAgJDE4LjU1IGVhY2gpIFRqIDAgLTMwIFRkIChUb3RhbCAkMzcuMTApIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwNDI2IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDk2CiUlRU9GCg==';
-function ai_test(string $p): array {
+function ai_test(string $p, string $only = ''): array {
     if (!ai_has($p)) return ['ok' => false, 'message' => AI_NAMES[$p] . ' has no key.'];
     $jobs = [
         'text' => ['Return JSON {"answer": <the number of legs on a spider, as a number>}', [], '', fn($v) => (int)($v['answer'] ?? 0) === 8],
@@ -510,8 +510,9 @@ function ai_test(string $p): array {
         'pdf' => ['Read this invoice. Return JSON {"total": <the invoice total as a number>}', [['type' => 'application/pdf', 'data' => AI_TEST_PDF]], '', fn($v) => abs((float)($v['total'] ?? 0) - 37.10) < 0.01],
     ];
     $out = [];
+    if ($only !== '' && isset($jobs[$only])) $jobs = [$only => $jobs[$only]];   // one job per request keeps each inside the host's 60-second limit
     foreach ($jobs as $k => [$prompt, $files, $tier, $check]) {
-        $t = microtime(true); $r = ai_call($p, $prompt, $files, $tier, ['maxTokens' => 300, 'timeout' => 40]);
+        $t = microtime(true); $r = ai_call($p, $prompt, $files, $tier, ['maxTokens' => 300, 'timeout' => 50]);
         $out[$k] = ['ok' => !empty($r['ok']) && $check($r['value'] ?? []), 'ms' => (int)round((microtime(true) - $t) * 1000), 'value' => $r['value'] ?? null, 'message' => $r['message'] ?? ''];
         if (in_array($r['error'] ?? '', ['key', 'credits'], true)) break;
     }
