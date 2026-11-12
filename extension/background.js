@@ -66,7 +66,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const seenKey = "seen:" + m.item.id + ":" + sup;
         const seen = (await get([seenKey]))[seenKey];
         if (msg.page.price && seen && Math.abs(seen.price - msg.page.price) < 0.005 && Date.now() - seen.at < 7 * 86400e3) res.already = seen;
-        else if (msg.page.price && msg.page.signedIn === false) res.signedOut = true;    // a signed-out page shows the list price: never saved
+        else if (msg.page.price && msg.page.signedIn === false && sw) { res.saved = await save(m.item, sup, { ...msg.page, signedIn: false, accountPrice: false }); if (res.saved && !res.saved.kept) res.saved.web = true; }   // an update run keeps going: saved as the website price, never over an account price
+        else if (msg.page.price && msg.page.signedIn === false) res.signedOut = true;    // a person browsing signed out: the list price is shown, not saved
         else if (msg.page.price && (auto || sw) && (msg.page.signedIn === true || msg.page.accountPrice)) res.saved = await save(m.item, sup, msg.page);
         // no sign-in either way (Net32 and other stores without account prices): saved as the website price, which never replaces an account or special price
         else if (msg.page.price && (auto || sw) && msg.page.signedIn == null) { res.saved = await save(m.item, sup, { ...msg.page, signedIn: false, accountPrice: false }); if (res.saved && !res.saved.kept) res.saved.web = true; }
