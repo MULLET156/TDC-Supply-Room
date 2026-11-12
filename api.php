@@ -296,6 +296,13 @@ try {
             }
             out(200, ['ok' => true, 'key' => $k]);
         }
+        case 'keycheck': {        // Setup › Data collection › Test: is the saved key still accepted?
+            $n = (string)($req['name'] ?? '');
+            if (!in_array($n, ['APIFY_TOKEN', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
+            $v = trim((string)cfg($n)); if ($v === '') out(200, ['ok' => true, 'valid' => false, 'message' => 'No key saved.']);
+            $t = key_test($n, $v);
+            out(200, ['ok' => true, 'valid' => !empty($t['ok']), 'who' => $t['who'] ?? '', 'message' => $t['message'] ?? '']);
+        }
         case 'aitest': {          // Setup › Data collection › AI › Test
             $pp = (string)($req['provider'] ?? '');
             if (!isset(AI_KEYS[$pp])) fail(400, 'bad_key', 'Unknown AI provider.');

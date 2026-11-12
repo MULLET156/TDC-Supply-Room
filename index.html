@@ -2288,7 +2288,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest", "pagetest", "serptest"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest", "pagetest", "serptest", "keycheck"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
@@ -2431,6 +2431,7 @@ window.TDC = (function(){
   async function setKey(name, value, extra){ const r = await call("setkey", Object.assign({ name, value }, extra || {})); try { status = await call("status"); } catch {} return r; }
   async function pageTest(url, service){ return call("pagetest", { url, service: service || "" }); }
   async function serpTest(query, service){ return call("serptest", { query, service }); }
+  async function keyCheck(name){ return call("keycheck", { name }); }
   async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
   async function extKey(what){ return call("extkey", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
@@ -2438,7 +2439,7 @@ window.TDC = (function(){
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, extKey, pageTest, serpTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, extKey, pageTest, serpTest, keyCheck, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -8058,7 +8059,9 @@ function wireSites(){
       // a product page from a store that turns the server away (Net32 when you have one), and for search services one part-number search
       const it = items.find(i => !i.archived && /net32\.com/i.test(i.link || "")) || items.find(i => !i.archived && /frontierdental|prodentusa/i.test(i.link || ""));
       const url = it ? webHref(it.link) : "https://www.net32.com/";
-      b.disabled = true; b.textContent = "Testing…"; out.textContent = "Reading a page…"; const parts = [];
+      b.disabled = true; b.textContent = "Testing…"; out.textContent = "Checking the key…"; const parts = [];
+      try { const k = await TDC.keyCheck(row.dataset.svckey); parts.push(`<span class="${k.valid ? "ok" : "bad"}">${k.valid ? "✓" : "✗"} Key</span>${k.valid ? (k.who ? ` <small>${esc(k.who)}</small>` : "") : ` <small>${esc(k.message || "not accepted")}</small>`}`); if (!k.valid) { out.innerHTML = parts.join(" · "); b.disabled = false; b.textContent = "Test"; return; } } catch(e) { parts.push(`<span class="bad">✗ Key</span> <small>${esc(e.message || "")}</small>`); }
+      out.innerHTML = parts.join(" · ") + " · Reading a page…";
       try { const r = await TDC.pageTest(url, svc); const x = (r.results || [])[0];
         parts.push(x ? `<span class="${x.ok ? "ok" : "bad"}">${x.ok ? "✓" : "✗"} Page read ${x.secs != null ? Number(x.secs).toFixed(1) + "s" : ""}</span>${x.ok ? (x.price ? ` <small>$${Number(x.price).toFixed(2)}</small>` : "") : ` <small>${esc(x.message || "failed")}</small>`}` : `<span class="bad">✗ Page read</span> <small>not available</small>`);
       } catch(e) { parts.push(`<span class="bad">✗ Page read</span> <small>${esc(e.message || "failed")}</small>`); }

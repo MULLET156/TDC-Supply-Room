@@ -1006,7 +1006,7 @@ function amazon_facts(string $url): array {
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify: $code $m");
-        $msg = $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).'
+        $msg = $code === 401 ? 'Apify rejected the Apify key' . ($m ? ' (' . $m . ')' : '') . '. Check it in Setup › Data collection.'
              : ($code === 402 || stripos($m, 'credit') !== false || stripos($m, 'usage') !== false ? 'Apify refused the run (' . $code . ($m ? ': ' . $m : '') . ').'
              : ($code === 408 ? 'Amazon took too long to answer. Try again.' : 'Apify couldn\'t read that Amazon page' . ($m ? ": $m" : '.')));
         return ['ok' => false, 'error' => 'unavailable', 'message' => $msg];
@@ -1191,7 +1191,7 @@ function apify_page_run_raw(string $url, string $tool, int $secs, bool $resident
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify page ($tool): $code $m");
-        return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).'
+        return ['ok' => false, 'error' => 'blocked', 'message' => $code === 401 ? 'Apify rejected the Apify key' . ($m ? ' (' . $m . ')' : '') . '. Check it in Setup › Data collection.'
             : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The supplier\'s site blocked the server, and Apify couldn\'t open it either' . ($m ? ": $m" : '.'))];
     }
     $it = array_is_list($j) ? ($j[0] ?? null) : $j;
@@ -1661,7 +1661,7 @@ function apify_search_raw(string $query, int $max = 5): array {
     if ($code < 200 || $code >= 300 || !is_array($j)) {
         $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
         error_log("tdc apify search: $code $m");
-        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the Apify key (Setup › Data collection).' : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
+        return ['ok' => false, 'message' => $code === 401 ? 'Apify rejected the Apify key' . ($m ? ' (' . $m . ')' : '') . '. Check it in Setup › Data collection.' : ($code === 402 ? 'Apify refused the run (402' . ($m ? ': ' . $m : '') . ').' : 'The web search didn\'t work' . ($m ? ": $m" : '.'))];
     }
     $out = [];
     foreach ((array_is_list($j) ? $j : [$j]) as $it) {
@@ -2116,7 +2116,7 @@ function key_test(string $name, string $key): array {
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $key]]);
         $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
         if ($code === 200) { $j = json_decode((string)$b, true); return ['ok' => true, 'who' => (string)($j['data']['username'] ?? '')]; }
-        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Apify didn\'t accept that key. Copy it again from apify.com › Settings › API & Integrations.'];
+        if ($code === 401 || $code === 403) { $j = json_decode((string)$b, true); return ['ok' => false, 'message' => 'Apify didn\'t accept that key' . (!empty($j['error']['message']) ? ' (' . $j['error']['message'] . ')' : '') . '. Copy it again from apify.com › Settings › API & Integrations.']; }
         return ['ok' => false, 'message' => 'Couldn\'t reach Apify to check the key (' . ($code ?: 'no answer') . '). Try again.'];
     }
     if ($name === 'ANTHROPIC_API_KEY') {
