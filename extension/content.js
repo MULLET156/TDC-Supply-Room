@@ -48,11 +48,13 @@
       const v = own && money("$" + text(own)), l = lst && money("$" + text(lst));
       if (v) { page.price = v; page.accountPrice = true; if (l && l > v + 0.004) page.listPrice = l; }
     }
+    // Henry Schein's product data carries its catalog (list) price; the account price appears only once the page has drawn it
+    if (/(^|\.)henryschein\.com$/.test(location.hostname) && !(hs && page.accountPrice)) page.price = null;
     const labelled = deepAll('[class*="price" i],[id*="price" i],[data-testid*="price" i]').filter(visible)
       .map(el => ({ el, t: text(el) })).filter(x => x.t && x.t.length < 160 && money(x.t) != null);
     const pick = labelled.find(x => /your price|sale|net price|special|contract|our price/i.test(x.t + " " + (x.el.className || "")))
       || labelled.find(x => !/list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
-    if (pick && !hs) { const v = money(pick.t); if (v && (!page.price || /your price|sale|net|special|contract/i.test(pick.t))) page.price = v; }
+    if (pick && !hs && !/(^|\.)henryschein\.com$/.test(location.hostname)) { const v = money(pick.t); if (v && (!page.price || /your price|sale|net|special|contract/i.test(pick.t))) page.price = v; }
     if (pick && !hs && /your price|net price|special|contract|our price/i.test(pick.t + " " + (pick.el.className || ""))) page.accountPrice = true;
     const lst = labelled.find(x => x !== pick && /list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
     if (lst && !page.listPrice) { const v = money(lst.t); if (v && page.price && v > page.price + 0.004) page.listPrice = v; }
