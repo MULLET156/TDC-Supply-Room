@@ -3400,7 +3400,7 @@ function renderInner(){
   if (tab === "log") { v.innerHTML = banner + logHtml(); wireLog(); return; }
   if (tab === "products" && isPhone()) { v.innerHTML = `<div class="list"><div class="empty"><b>The Editor needs a bigger screen.</b><br>Open it on a computer or tablet. On a phone, tick products on All products to add them to the order list or print labels, or open a product to change it.</div></div>`; return; }
   if (tab === "products") { const ae = document.activeElement; if (ae?.closest?.("#pgrid") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + productsHtml(items); wireProducts(all); return; }
-  if (tab === "setup") { if (dragging) return; const ae = document.activeElement; if (ae?.closest?.("#view") && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return; v.innerHTML = banner + setupHtml(); wireSetup(); return; }
+  if (tab === "setup") { if (dragging) return; const ae = document.activeElement; if (ae?.closest?.("#view") && (/^(TEXTAREA)$/.test(ae.tagName) || (ae.tagName === "INPUT" && !/^(checkbox|radio|button|submit)$/i.test(ae.type)))) return;   /* only text being typed holds off a redraw; switches, ticks and dropdowns redraw at once */ v.innerHTML = banner + setupHtml(); wireSetup(); return; }
   if (!items.length) {
     v.innerHTML = `<div class="list"><div class="empty"><b>No products yet.</b><br>Press <b>New product</b> to add your first product. After that, <b>Scan to count</b> finds a product from a photo of its box so you can update the count.</div></div>`;
     return;
