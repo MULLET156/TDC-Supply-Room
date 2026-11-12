@@ -404,7 +404,7 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         $err = $why ?: (in_array($code, [401, 403], true) || preg_match('/api[_ ]?key|unauthori[sz]ed|permission/i', $m) && $code === 400 ? 'key'
             : (preg_match('/credit balance|insufficient_quota|quota|billing|exceeded your current/i', $low) ? 'credits'
             : (in_array($code, [429, 503, 529], true) ? 'rate_limited' : ($code === 413 || preg_match('/too large|too long|maximum context|prompt is too long/i', $low) ? 'bad_request' : 'unavailable'))));
-        $msg = ['key' => "$N rejected its key (Setup › Data collection).", 'credits' => "$N is out of credit.", 'rate_limited' => "$N is busy right now. Try again in a minute."][$err] ?? ("$N couldn't answer" . ($m !== '' ? ': ' . mb_substr($m, 0, 160) : '.'));
+        $msg = ['key' => "$N rejected its key (Setup › Data collection).", 'credits' => "$N is out of credit or over its quota" . ($m !== '' ? ': ' . mb_substr($m, 0, 220) : '.'), 'rate_limited' => "$N is busy right now. Try again in a minute."][$err] ?? ("$N couldn't answer" . ($m !== '' ? ': ' . mb_substr($m, 0, 160) : '.'));
         error_log("tdc ai $N: $code $m");
         return ['ok' => false, 'error' => $err, 'message' => $msg];
     };
@@ -517,7 +517,7 @@ function ai_test(string $p, string $only = ''): array {
         if (in_array($r['error'] ?? '', ['key', 'credits'], true)) break;
     }
     $models = $p === 'claude' ? ['main' => (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5'), 'quick' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5')] : ai_models($p);
-    return ['ok' => count(array_filter($out, fn($x) => $x['ok'])) === count($jobs), 'provider' => AI_NAMES[$p], 'models' => $models, 'tests' => $out];
+    return ['ok' => true, 'passed' => count(array_filter($out, fn($x) => $x['ok'])) === count($jobs), 'provider' => AI_NAMES[$p], 'models' => $models, 'tests' => $out];
 }
 function parse_json_reply(string $t) {
     $t = trim($t);

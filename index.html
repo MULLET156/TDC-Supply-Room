@@ -2281,7 +2281,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
