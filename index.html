@@ -2019,7 +2019,8 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .swcard{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:14px 16px 10px;scroll-margin-top:90px;transition:box-shadow .3s}
 .swcard.win{border-left:4px solid var(--ok)}
 .swcard.flash{box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 45%,transparent)}
-.swhead{display:flex;gap:12px;align-items:flex-start}
+.swhead{display:flex;gap:12px;align-items:flex-start;border:0;padding:0;background:none;position:static;z-index:auto}
+img.suplogo.ondark{background:#1f2a28;border-radius:4px;padding:1px 3px}
 .swhead .thumb{width:48px;height:48px;object-fit:contain;border-radius:10px;background:#fff;flex:none;border:1px solid var(--line)}
 .swhead .cmpchk{margin-top:4px;width:18px;height:18px;flex:none}
 .swhead .subme small .suplogo{max-height:13px;max-width:44px;vertical-align:-2px;margin-right:4px}
@@ -2038,7 +2039,7 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .ldot{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:2px solid var(--surface);display:grid;place-items:center;cursor:pointer;padding:0;font:700 9.5px/1 var(--f-ui);color:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
 .ldot:hover,.ldot:focus-visible{transform:scale(1.25);z-index:2}
 .ldot.cheap{background:var(--ok)}.ldot.dear{background:color-mix(in srgb,var(--warn) 80%,#000)}
-.ldot.lgdot{width:34px;height:34px;margin:-17px 0 0 -17px;background:#fff;border:3px solid var(--ok);overflow:hidden}.ldot.lgdot.dear{border-color:color-mix(in srgb,var(--warn) 80%,#000)}.ldot.lgdot img{width:100%;height:100%;object-fit:contain;padding:3px;box-sizing:border-box}.ldot.lgdot span{color:#333}.ldot.lgdot.best{width:40px;height:40px;margin:-20px 0 0 -20px}
+.ldot.lgdot{width:34px;height:34px;margin:-17px 0 0 -17px;background:#fff;border:3px solid var(--ok);overflow:hidden}.ldot.lgdot.dear{border-color:color-mix(in srgb,var(--warn) 80%,#000)}.ldot.lgdot img{width:100%;height:100%;object-fit:contain;padding:3px;box-sizing:border-box}.ldot.lgdot span{color:#333}.ldot.lgdot.dk{background:#1f2a28}.ldot.lgdot img.ondark{background:none;border-radius:0}.ldot.lgdot.best{width:40px;height:40px;margin:-20px 0 0 -20px}
 .ldot.f-maybe{box-shadow:0 0 0 2px var(--surface),0 0 0 4px color-mix(in srgb,var(--yel) 80%,transparent)}
 .ldot.best{width:30px;height:30px;margin:-15px 0 0 -15px;font-size:11px;z-index:1;box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 35%,transparent)}
 .swtable{display:grid;margin-top:6px;border-top:1px solid var(--line)}
@@ -3220,7 +3221,13 @@ const infoOf = sup => supInfo[supSlug(sup)] || {};
 const cartOn = sup => { if (window.HOSTED) return false; const c = infoOf(sup).cart; return typeof c === "boolean" ? c : /amazon/i.test(sup || ""); };
 /* a supplier's logo; a name that differs from the saved supplier (Safco Dental Supply vs Safco) uses the logo of the supplier with the same website */
 function logoOf(s){ const own = infoOf(s).logo; if (own) return own; const h = typeof siteHost === "function" ? siteHost(s) : ""; if (!h) return ""; for (const k in supInfo) { const i = supInfo[k]; if (!i?.logo || !i.website) continue; try { if (new URL(webHref(i.website)).hostname.replace(/^www\./, "") === h) return i.logo; } catch {} } return ""; }
-const supLogo = (s, cls = "") => { const l = logoOf(s); return l ? `<img class="suplogo${cls ? " " + cls : ""}" src="blob.php?id=${esc(l)}" alt="" loading="lazy" onerror="this.remove()">` : ""; };
+/* a logo drawn in white (Safco's) disappears on white: such logos get a dark backing */
+const logoTone = {};
+function logoCheck(img){ try { const id = new URL(img.src).searchParams.get("id"); if (id in logoTone) { img.classList.toggle("ondark", logoTone[id]); return; }
+  const c = document.createElement("canvas"), n = 24; c.width = c.height = n; const g = c.getContext("2d"); g.drawImage(img, 0, 0, n, n); const d = g.getImageData(0, 0, n, n).data;
+  let lum = 0, cnt = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { lum += (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255; cnt++; }
+  const light = cnt > n * n * 0.05 && cnt < n * n * 0.9 && lum / cnt > 0.8; logoTone[id] = light; img.classList.toggle("ondark", light); } catch {} }
+const supLogo = (s, cls = "") => { const l = logoOf(s); return l ? `<img class="suplogo${cls ? " " + cls : ""}" src="blob.php?id=${esc(l)}" alt="" loading="lazy" onload="logoCheck(this)" onerror="this.remove()">` : ""; };
 const webHref = u => /^https?:\/\//i.test(u) ? u : "https://" + u;
 const telHref = p => "tel:" + String(p).replace(/[^0-9+]/g, "");
 function repCompact(r, sup){
@@ -3826,7 +3833,7 @@ function compareHtml(){
     if (mp == null || !pts.length) return "";
     const all = [mp, ...pts.map(x => x.p)], lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || hi || 1;
     const X = v => 10 + (v - lo) / span * 80, xy = X(mp), side = xy > 78 ? "r" : xy < 22 ? "l" : "";
-    return `<div class="ladder"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span><div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${esc(money(mp))}</b></div>${pts.map(x => `<button type="button" class="ldot${logoOf(x.c.s) ? " lgdot" : ""} ${x.p < mp - 0.004 ? "cheap" : "dear"}${r.best && r.best.s === x.c.s ? " best" : ""}" style="left:${X(x.p).toFixed(2)}%" data-ini="${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}" data-cmp="${esc(r.it.id)}" data-sup="${esc(x.c.s)}" title="${esc(x.c.s)}: ${esc(money(x.p))}" aria-label="${esc(x.c.s)} at ${esc(money(x.p))}">${logoOf(x.c.s) ? `<img src="blob.php?id=${esc(logoOf(x.c.s))}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.parentNode.dataset.ini}))">` : `<span>${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span>`}</button>`).join("")}</div></div>`;
+    return `<div class="ladder"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span><div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${esc(money(mp))}</b></div>${pts.map(x => `<button type="button" class="ldot${logoOf(x.c.s) ? " lgdot" : ""} ${x.p < mp - 0.004 ? "cheap" : "dear"}${r.best && r.best.s === x.c.s ? " best" : ""}" style="left:${X(x.p).toFixed(2)}%" data-ini="${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}" data-cmp="${esc(r.it.id)}" data-sup="${esc(x.c.s)}" title="${esc(x.c.s)}: ${esc(money(x.p))}" aria-label="${esc(x.c.s)} at ${esc(money(x.p))}">${logoOf(x.c.s) ? `<img src="blob.php?id=${esc(logoOf(x.c.s))}" alt="" loading="lazy" onload="logoCheck(this);this.parentNode.classList.toggle('dk',this.classList.contains('ondark'))" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.parentNode.dataset.ini}))">` : `<span>${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span>`}</button>`).join("")}</div></div>`;
   };
   const card = r => {
     const it = r.it, mp = yourP(r), q = qtyOf(r);
