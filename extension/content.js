@@ -54,7 +54,7 @@
   function signedIn(body) {
     const links = [...document.querySelectorAll('a,button,[role="button"],[role="menuitem"]')].filter(visible).map(e => text(e).toLowerCase()).filter(t => t && t.length < 40);
     const out = links.some(t => /^(sign|log)\s?(out|off)\b|^(hi|hello|welcome),?\s+\w/.test(t));
-    const inn = links.some(t => /^(sign|log)\s?in\b|^login\b|^sign in\s*(\/|or)\s*(register|create)/.test(t)) || /\b(sign|log)\s?in (to|for) (see|view|get)? ?(your )?(price|pricing)\b|login for pricing/i.test(body);
+    const inn = links.some(t => /^(sign|log)\s?in\b|^login\b|\b(account|member|customer) (log|sign) ?in\b|^sign in\s*(\/|or)\s*(register|create)/.test(t)) || /\b(sign|log)\s?in (to|for) (see|view|get)? ?(your )?(price|pricing)\b|login for pricing/i.test(body);
     if (out && !/\b(sign|log)\s?in (to|for) (see|view)? ?(your )?(price|pricing)\b/i.test(body)) return true;
     if (inn) return false;
     return null;
@@ -103,7 +103,8 @@
     });
   }
   // product pages often fill in the price after loading, and some sites change page without reloading
-  let t = null; const soon = () => { clearTimeout(t); t = setTimeout(check, 900); };
+  // (pages that never stop changing, such as Henry Schein's, still get checked at least every 3 seconds)
+  let t = null, since = 0; const soon = () => { clearTimeout(t); if (!since) since = Date.now(); t = setTimeout(() => { since = 0; check(); }, Date.now() - since > 3000 ? 0 : 900); };
   new MutationObserver(soon).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
   addEventListener("popstate", soon); soon();
 })();
