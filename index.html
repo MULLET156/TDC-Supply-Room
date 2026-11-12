@@ -7858,7 +7858,7 @@ function supSiteBlock(name){
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.via && (p.page === "proxy" || p.page === "browser") ? ` (${esc({ brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }[p.via] || p.via)} worked last)` : ""}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
 /* the browser extension's version: the download link carries it so the web host's cache never hands out an old zip (keep in step with extension/manifest.json) */
-const EXT_VERSION = "1.4.0";
+const EXT_VERSION = "1.5.0";
 /* the stores the extension reads (keep in step with extension/manifest.json content_scripts) */
 const EXT_HOSTS = ["henryschein.com", "pattersondental.com", "benco.com", "darbydental.com", "safcodental.com", "net32.com", "frontierdental.com", "dentalcity.com", "ultradent.com", "blueskybio.com", "brasselerusa.com", "burkhartdental.com", "scottsdental.com", "practicon.com", "pearsondental.com", "dhpsupply.com"];
 /* ---- the browser extension, when installed and connected, answers this page (extension/bridge.js) ---- */
@@ -7870,6 +7870,23 @@ addEventListener("message", e => {
 });
 function extCall(msg, ms = 5000){ return new Promise(res => { const id = ++extSeq; extWait.set(id, res); postMessage({ tdcExt: "req", id, msg }, location.origin); setTimeout(() => { if (extWait.has(id)) { extWait.delete(id); res(null); } }, ms); }); }
 setTimeout(async () => { if (extInfo) return; const r = await extCall({ type: "hello" }, 2500); if (r && r.ok) { extInfo = { version: r.version, paired: r.paired }; extPoll(); if (tab === "setup") render(); } }, 1200);
+/* Product-page reads (adding by link, batch updates, price checks): when the store needs a sign-in, or the server
+   read came back without a price, the browser extension reads the page in this browser, quietly, and its price wins. */
+function extWanted(url, r){ let h = ""; try { h = new URL(url).hostname.replace(/^www\./, ""); } catch { return false; }
+  if (!extInfo || !extHostOk(h) || /amazon\./.test(h)) return false;
+  const sup = (orderedSuppliers().find(g => siteHost(g.name) === h || h.endsWith("." + siteHost(g.name))) || {}).name, L = sup ? siteLight(sup) : null;
+  return (L && L.c === "red") || !(Number(r && r.price) > 0); }
+async function extRead(url){ const r = await extCall({ type: "read", url }, 40000); return r && r.ok && r.page ? r.page : null; }
+if (window.TDC?.readLink && !TDC.readLink.__ext) {
+  const serverRead = TDC.readLink;
+  TDC.readLink = async function(url, ctx){
+    let r = null, err = null; try { r = await serverRead(url, ctx); } catch(e) { err = e; }
+    if (extWanted(url, r)) { const p = await extRead(webHref(url)).catch(() => null);
+      if (p && Number(p.price) > 0) { r = r || { ok: true, names: p.title ? [p.title] : [] }; r.price = p.price; if (p.pack && !r.units) r.units = p.pack; if (p.sku && !r.sku) r.sku = p.sku;
+        if (Number(p.listPrice) > p.price) r.listPrice = p.listPrice; r.priceVia = "extension"; r.signedIn = p.signedIn === true || !!p.accountPrice; return r; } }
+    if (err) throw err; return r; };
+  TDC.readLink.__ext = true;
+}
 let extPollT = null;
 async function extPoll(){
   clearTimeout(extPollT); const r = await extCall({ type: "status" }); extSweep = r && r.ok ? r.sweep || null : extSweep;
@@ -7941,6 +7958,7 @@ function dataSec(){
     <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude look up, count and order supplies, and read signed-in prices in your browser. In Claude: Settings › Connectors › Add custom connector, then paste this link. Keep it private: anyone with it can change the list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
     ${(() => { const e = K.EXT_KEY || {};
       return `<div class="setrow keyrow" id="key-EXT_KEY"><div><b>Browser extension</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : e.set ? `<span class="keyst on">On</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Saves the prices staff see on supplier sites; no AI needed. Install: unzip, open chrome://extensions, turn on Developer mode, <b>Load unpacked</b>. Then paste the pairing code in the extension and allow this site. The code can only list products and save prices.</p><div id="extOut" class="mcpout"></div></div><span class="actions"><a class="btn" href="supply-room-extension.zip?v=${EXT_VERSION}" download="supply-room-extension-${EXT_VERSION}.zip" title="Version ${EXT_VERSION}">${ic("download")}Download ${EXT_VERSION}</a>${readOnly ? "" : e.set ? `<button class="btn" type="button" data-ext="show">Copy pairing code</button><button class="btn ghost" type="button" data-ext="new">New code…</button><button class="btn ghost" type="button" data-ext="off">Turn off…</button>` : `<button class="btn pri" type="button" data-ext="new">Turn on</button>`}</span></div>`; })()}
+    <div class="setrow keyrow"><div><b>Automatic price updates</b>${extInfo ? "" : ` <span class="keyst off">Needs the browser extension</span>`}<p class="hint">The browser extension re-reads every product's saved supplier page on this schedule, in a background tab, on any computer where it's installed and Chrome is open. Sign-in stores (Henry Schein) need that browser signed in. Product pages you add by link, and batch updates, also go through the extension when the store needs a sign-in.</p></div>${readOnly ? "" : `<select id="autoDays" aria-label="Automatic price updates">${[[0, "Off"], [7, "Every week"], [14, "Every 2 weeks"], [30, "Every month"]].map(([d, l]) => `<option value="${d}"${Number(rules.autoPriceDays ?? 7) === d ? " selected" : ""}>${l}</option>`).join("")}</select>`}</div>
     <div class="setrow dchead"><b>Page services</b><span class="hint">For blocked stores, Amazon links and web searches.</span></div>
     ${keyRow("APIFY_TOKEN", "Apify API key", `Amazon links, searches and blocked stores; billed per run. Key at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token).`, "apify_api_…")}
     ${keyRow("SCRAPINGBEE_KEY", "ScrapingBee API key", `Searches and blocked stores; monthly credits (read 1, home address 10, browser 25). Key at <a href="https://app.scrapingbee.com/" target="_blank" rel="noopener">app.scrapingbee.com</a> (Dashboard › API key).`, "ScrapingBee key")}
@@ -8026,6 +8044,7 @@ function wireSites(){
     } catch(e) { if (out) out.textContent = e.message || "The test couldn't run"; }
     b.disabled = false; b.textContent = "Test";
   });
+  const ad = $("#autoDays"); if (ad) ad.onchange = async () => { if (!needMe()) { render(); return; } const v = Number(ad.value); try { await db.doc("settings/rules").set({ ...rules, autoPriceDays: v }); rules.autoPriceDays = v; logIt("Setup", null, "automatic price updates: " + (v ? `every ${v} days` : "off")); toast("Saved"); } catch(e) { toast(dbErr(e)); render(); } };
   const af = $("#aiFirst"); if (af) af.onchange = async () => { if (!needMe()) { render(); return; } try { await TDC.setKey("AI_PROVIDER", af.value); logIt("Setup", null, "AI used first: " + (af.value === "auto" ? "automatic" : AI_PNAMES[af.value])); toast("Saved"); await loadKeys(true); render(); } catch(e) { toast(e.message || "Couldn't save"); render(); } };
   const pp = $("#pagePrio"); if (pp) pp.onchange = async () => { if (!needMe()) return; try { await TDC.setKey("PAGE_PRIORITY", pp.value); logIt("Setup", null, "Reading blocked stores: " + pp.options[pp.selectedIndex].text); toast("Saved"); await loadKeys(true); render(); } catch(e) { toast(e.message || "Couldn't save that"); } };
   const ps = $("#pageSvc"); if (ps) ps.onchange = async () => { if (!needMe()) return; try { await TDC.setKey("PAGE_SERVICE", ps.value); logIt("Setup", null, "Blocked pages now use " + ps.options[ps.selectedIndex].text); toast("Saved"); await loadKeys(true); render(); } catch(e) { toast(e.message || "Couldn't save that"); } };

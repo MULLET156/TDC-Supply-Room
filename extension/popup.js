@@ -43,7 +43,7 @@ function drawSweep(s) {
   el.innerHTML = `<b>Henry Schein</b><p class="hint">Sign in to henryschein.com in this browser, then check every Henry Schein product's price in one go (${n} products, about ${Math.max(1, Math.round(n * 9 / 60))} minutes).</p>
     ${w ? `<p class="hint">${w.finishedAt ? `Last run ${new Date(w.finishedAt).toLocaleDateString()}: ` : w.why ? `${esc(w.why)} ` : ""}${w.done} of ${w.total} · ${tally}.</p>` : ""}
     ${w && w.missed?.length ? `<details><summary class="hint">Without a price (${w.missed.length})</summary><ul>${w.missed.map(x => `<li><a href="${esc(x.url)}" target="_blank">${esc(x.name)}</a><br><span class="hint">${esc(x.why)}</span></li>`).join("")}</ul></details>` : ""}
-    <label><input type="checkbox" id="wk" ${s.weekly ? "checked" : ""}> Update Henry Schein prices weekly on its own${s.weeklyAt ? ` <span class="hint">(last ${new Date(s.weeklyAt).toLocaleDateString()})</span>` : ""}</label>
+    <label><input type="checkbox" id="wk" ${s.weekly ? "checked" : ""}> Run the Supply Room's automatic price updates on this computer${s.weeklyAt ? ` <span class="hint">(last ${new Date(s.weeklyAt).toLocaleDateString()})</span>` : ""}</label>
     <button id="swGo" ${n ? "" : "disabled"}>Check all ${n} Henry Schein prices</button>${w && w.resumable && w.done < w.total ? ` <button class="g" id="swRes">Resume</button>` : ""}`;
   const wk = document.getElementById("wk"); if (wk) wk.onchange = () => send({ type: "weekly", on: wk.checked });
   document.getElementById("swGo").onclick = async () => { await send({ type: "sweep" }); setTimeout(async () => drawSweep(await send({ type: "status" })), 600); };

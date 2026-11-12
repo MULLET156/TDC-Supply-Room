@@ -52,6 +52,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     try {
       if (msg.type === "page") {
+        const rw = sender.tab && readWaiters.get(sender.tab.id);   // a read the Supply Room asked for
+        if (rw && (msg.page.price || msg.page.signedIn === false)) rw.done({ ok: true, page: msg.page });
         const { auto = true, paused = false } = await get(["auto", "paused"]);
         if (paused) return reply({ ok: true, paused: true });
         const ix = await getIndex();
@@ -104,6 +106,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const prev = (await get(["sweep"])).sweep;
         runSweep(h, msg.resume && prev && prev.host === h ? prev.done || 0 : 0, ids || (msg.resume && prev && prev.host === h ? prev.ids : null)); return reply({ ok: true });
       }
+      if (msg.type === "read") { const u = String(msg.url || ""); if (!/^https:\/\//i.test(u)) throw new Error("Not a web page."); return reply(await readOne(u)); }
       if (msg.type === "weekly") { await set({ weekly: !!msg.on }); return reply({ ok: true }); }
       if (msg.type === "hello") { const s = await get(["site", "key"]); return reply({ ok: true, version: chrome.runtime.getManifest().version, paired: !!(s.site && s.key), sweeping }); }
       if (msg.type === "sweepStop") { sweepStop = true; return reply({ ok: true }); }
@@ -185,7 +188,7 @@ async function runSweep(h, from = 0, ids = null) {
       await set({ sweep: st });
       await sleep(3000 + Math.random() * 2000);   // a person's pace, not a crawler's
     }
-    st.running = false; if (!st.why) { st.why = ""; st.resumable = false; st.finishedAt = Date.now(); chrome.action.setBadgeText({ text: "" }); if (h === "henryschein.com" && !ids) await set({ weeklyAt: Date.now() }); }
+    st.running = false; if (!st.why) { st.why = ""; st.resumable = false; st.finishedAt = Date.now(); chrome.action.setBadgeText({ text: "" }); if (!ids && (h === "*" || h === "henryschein.com")) await set({ weeklyAt: Date.now() }); }
     await set({ sweep: st });
   } catch (e) {
     const { sweep } = await get(["sweep"]); await set({ sweep: { ...(sweep || {}), running: false, why: e.message || String(e), resumable: true } });
@@ -211,14 +214,36 @@ chrome.permissions.onAdded.addListener(registerBridge);
 
 /* Weekly, on its own: while Chrome is open, Henry Schein account prices are refreshed once a week (Henry Schein
    shows prices only to a signed-in account; Chrome keeps the sign-in between visits). Off in the extension's menu. */
-const WEEK = 7 * 24 * 3600 * 1000;
+/* How often comes from the Supply Room (Setup › Data collection › Automatic price updates); this computer can opt out. */
 async function weeklyCheck() {
   const s = await get(["site", "key", "weekly", "weeklyAt"]);
   if (!s.site || !s.key || s.weekly === false || sweeping) return;
-  if (Date.now() - (s.weeklyAt || 0) < WEEK) return;
-  await set({ weeklyAt: Date.now() });   // once per week even if it stops partway; Resume finishes it
-  runSweep("henryschein.com", 0, null);
+  let days = 7; try { const ix = await getIndex(); days = Number(ix.autoDays ?? 7); } catch { return; }
+  if (!(days > 0) || Date.now() - (s.weeklyAt || 0) < days * 24 * 3600 * 1000) return;
+  await set({ weeklyAt: Date.now() });   // once per period even if it stops partway; Resume finishes it
+  runSweep("*", 0, null);                  // every product's saved supplier page the extension can read
 }
 chrome.alarms.create("tdc-weekly", { periodInMinutes: 60 });
 chrome.alarms.onAlarm.addListener(a => { if (a.name === "tdc-weekly") weeklyCheck(); });
 chrome.runtime.onStartup.addListener(() => setTimeout(weeklyCheck, 120000));
+
+/* A single page read for the Supply Room (adding a product by link, a batch update, a price check on a sign-in store):
+   opens the page in a background tab, waits for the price to show, returns what the page shows, closes the tab. */
+const readWaiters = new Map();
+let readChain = Promise.resolve();
+function readOne(url) {
+  const job = readChain.then(async () => {
+    let tab = null;
+    try {
+      tab = await chrome.tabs.create({ url, active: false });
+      const r = await new Promise(resolve => {
+        const w = { done: x => { readWaiters.delete(tab.id); clearTimeout(w.t); resolve(x); } };
+        readWaiters.set(tab.id, w); w.t = setTimeout(() => w.done({ ok: false, message: "No price showed on the page in time." }), 25000);
+      });
+      return r;
+    } catch (e) { return { ok: false, message: e.message || String(e) }; }
+    finally { if (tab) chrome.tabs.remove(tab.id).catch(() => {}); }
+  });
+  readChain = job.catch(() => {});
+  return job;
+}

@@ -51,7 +51,8 @@ if ($op === 'index') {
                   'price' => (string)($it['unitCost'] ?? ''), 'urls' => array_values(array_unique($urls)), 'codes' => array_values(array_unique($codes))];
     }
     $sites = array_map(fn($h, $n) => ['host' => $h, 'name' => $n], array_keys($sites), array_values($sites));
-    ext_out(200, ['ok' => true, 'at' => time(), 'sites' => $sites, 'items' => $out]);
+    $rules = all_docs($pdo, 'settings')['rules'] ?? [];
+    ext_out(200, ['ok' => true, 'at' => time(), 'sites' => $sites, 'items' => $out, 'autoDays' => (int)($rules['autoPriceDays'] ?? 7)]);
 }
 
 if ($op === 'price') {
