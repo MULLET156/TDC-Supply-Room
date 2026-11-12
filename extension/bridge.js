@@ -8,7 +8,7 @@
     if (e.source !== window || !e.data || e.data.tdcExt !== "req" || !OK.includes(e.data.msg?.type)) return;
     const { id, msg } = e.data;
     try {
-      chrome.runtime.sendMessage({ type: msg.type, host: String(msg.host || ""), resume: !!msg.resume, fromApp: true }, r =>
+      chrome.runtime.sendMessage({ type: msg.type, host: String(msg.host || ""), resume: !!msg.resume, ids: Array.isArray(msg.ids) ? msg.ids.slice(0, 500).map(String) : undefined, fromApp: true }, r =>
         window.postMessage({ tdcExt: "res", id, r: r || { ok: false, message: chrome.runtime.lastError?.message || "The extension didn't answer." } }, location.origin));
     } catch (err) { window.postMessage({ tdcExt: "res", id, r: { ok: false, message: "The extension was updated: reload this page." } }, location.origin); }
   });

@@ -93,15 +93,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         let targets = 0; if (s.site && s.key && !msg.fromApp) { try { targets = sweepTargets(await getIndex(), "henryschein.com").length; } catch {} }
         const sweep = s.sweep || null; if (sweep && sweep.running && !sweeping) { sweep.running = false; sweep.why = sweep.why || "Chrome paused the extension partway. Press Resume to carry on."; sweep.resumable = true; await set({ sweep }); }
         const linked = s.site ? await chrome.permissions.contains({ origins: [new URL(s.site).origin + "/*"] }) : false;
-        return reply({ ok: true, paired: !!(s.site && s.key), site: s.site || "", auto: s.auto !== false, paused: !!s.paused, log: s.log || [], sweep, targets, linked });
+        const w = await get(["weekly", "weeklyAt"]);
+        return reply({ ok: true, paired: !!(s.site && s.key), site: s.site || "", auto: s.auto !== false, paused: !!s.paused, log: s.log || [], sweep, targets, linked, weekly: w.weekly !== false, weeklyAt: w.weeklyAt || 0 });
       }
       if (msg.type === "sweep") {
         const h = String(msg.host || "henryschein.com").replace(/^www\./, "").toLowerCase();
+        const ids = Array.isArray(msg.ids) ? msg.ids.map(String).slice(0, 500) : null;
         if (/(^|\.)amazon\./.test(h)) throw new Error("Amazon isn't read by the extension.");
         if (sweeping) throw new Error("A price update is already running" + ((await get(["sweep"])).sweep?.name ? " for " + (await get(["sweep"])).sweep.name : "") + ".");
         const prev = (await get(["sweep"])).sweep;
-        runSweep(h, msg.resume && prev && prev.host === h ? prev.done || 0 : 0); return reply({ ok: true });
+        runSweep(h, msg.resume && prev && prev.host === h ? prev.done || 0 : 0, ids || (msg.resume && prev && prev.host === h ? prev.ids : null)); return reply({ ok: true });
       }
+      if (msg.type === "weekly") { await set({ weekly: !!msg.on }); return reply({ ok: true }); }
       if (msg.type === "hello") { const s = await get(["site", "key"]); return reply({ ok: true, version: chrome.runtime.getManifest().version, paired: !!(s.site && s.key), sweeping }); }
       if (msg.type === "sweepStop") { sweepStop = true; return reply({ ok: true }); }
       if (msg.type === "settings") { await set(msg.values || {}); return reply({ ok: true }); }
@@ -131,9 +134,20 @@ async function save(item, sup, page) {
 let sweeping = false, sweepStop = false;
 const sweepWaiters = new Map();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-function sweepTargets(ix, h) {
-  const out = [], seen = new Set();
+/* the stores the extension reads (from its own manifest), Amazon never */
+const READ_HOSTS = chrome.runtime.getManifest().content_scripts[0].matches.map(m => m.replace(/^https:\/\/(\*\.)?/, "").replace(/\/\*$/, "")).filter(h => !/amazon/.test(h));
+function sweepTargets(ix, h, ids) {
+  const out = [], seen = new Set(), want = ids ? new Set(ids) : null;
+  if (h === "*") {   // any readable store: the product's own supplier link first
+    for (const it of ix.items) {
+      if (want && !want.has(it.id)) continue;
+      const u = it.urls.find(x => { const hh = x.split("/")[0].replace(/^www\./, ""); return READ_HOSTS.some(r => hh === r || hh.endsWith("." + r)); });
+      if (u && !seen.has(it.id)) { seen.add(it.id); out.push({ id: it.id, name: it.name, url: "https://" + (u.split("/")[0].split(".").length === 2 ? "www." + u : u) }); }
+    }
+    return out;
+  }
   for (const it of ix.items) {
+    if (want && !want.has(it.id)) continue;
     let u = it.urls.find(x => { const l = x.toLowerCase(); return l.startsWith(h + "/") || l.startsWith("www." + h + "/") || l.split("/")[0].endsWith("." + h); });
     if (u) u = "https://" + (u.split("/")[0].split(".").length === 2 ? "www." + u : u);
     else if (h === "henryschein.com" && /schein/i.test(it.supplier || "")) { const c = it.codes.find(x => /^\d{6,8}$/.test(String(x).trim())); if (c) u = "https://www.henryschein.com/en-us/p/x/" + String(c).trim(); }
@@ -141,13 +155,13 @@ function sweepTargets(ix, h) {
   }
   return out;
 }
-async function runSweep(h, from = 0) {
+async function runSweep(h, from = 0, ids = null) {
   sweeping = true; sweepStop = false;
   let tab = null; const keep = setInterval(() => chrome.runtime.getPlatformInfo(() => {}), 20000);   // keeps Chrome from pausing the extension mid-run
   try {
-    const list = sweepTargets(await getIndex(true), h);
+    const list = sweepTargets(await getIndex(true), h, ids);
     const prev = from ? (await get(["sweep"])).sweep || {} : {};
-    const st = { running: true, host: h, name: supplierFor(index, "https://" + h + "/"), total: list.length, done: from, saved: from ? prev.saved || 0 : 0, same: from ? prev.same || 0 : 0, kept: from ? prev.kept || 0 : 0,
+    const st = { running: true, host: h, ids: ids || null, name: h === "*" ? "your suppliers" : supplierFor(index, "https://" + h + "/"), total: list.length, done: from, saved: from ? prev.saved || 0 : 0, same: from ? prev.same || 0 : 0, kept: from ? prev.kept || 0 : 0,
                  missed: from ? prev.missed || [] : [], startedAt: from ? prev.startedAt : Date.now(), why: "" };
     await set({ sweep: st });
     tab = await chrome.tabs.create({ url: "about:blank", active: false });
@@ -162,7 +176,8 @@ async function runSweep(h, from = 0) {
         chrome.tabs.update(tab.id, { url: t.url }).catch(() => w.done({ gone: true }));
       });
       if (res.gone) { st.why = "The background tab was closed."; st.resumable = true; break; }
-      if (res.signedOut) { st.why = `You're not signed in to ${st.name}. Sign in there in this browser, then press Resume.`; st.resumable = true; break; }
+      if (res.signedOut && h !== "*") { st.why = `You're not signed in to ${st.name}. Sign in there in this browser, then press Resume.`; st.resumable = true; chrome.action.setBadgeText({ text: "!" }); chrome.action.setBadgeBackgroundColor({ color: "#b3261e" }); break; }
+      if (res.signedOut) { st.missed.push({ name: t.name, url: t.url, why: "not signed in to that store" }); st.done = i + 1; await set({ sweep: st }); continue; }
       st.done = i + 1;
       if (res.saved && res.saved.kept) st.kept++; else if (res.saved) st.saved++; else if (res.already) st.same++;
       else st.missed.push({ name: t.name, url: t.url, why: res.nomatch ? "page didn't match the product" : res.unsure ? "couldn't tell if signed in" : "no price shown" });
@@ -170,7 +185,7 @@ async function runSweep(h, from = 0) {
       await set({ sweep: st });
       await sleep(3000 + Math.random() * 2000);   // a person's pace, not a crawler's
     }
-    st.running = false; if (!st.why) { st.why = ""; st.resumable = false; st.finishedAt = Date.now(); }
+    st.running = false; if (!st.why) { st.why = ""; st.resumable = false; st.finishedAt = Date.now(); chrome.action.setBadgeText({ text: "" }); if (h === "henryschein.com" && !ids) await set({ weeklyAt: Date.now() }); }
     await set({ sweep: st });
   } catch (e) {
     const { sweep } = await get(["sweep"]); await set({ sweep: { ...(sweep || {}), running: false, why: e.message || String(e), resumable: true } });
@@ -193,3 +208,17 @@ async function registerBridge() {
 chrome.runtime.onInstalled.addListener(registerBridge);
 chrome.runtime.onStartup.addListener(registerBridge);
 chrome.permissions.onAdded.addListener(registerBridge);
+
+/* Weekly, on its own: while Chrome is open, Henry Schein account prices are refreshed once a week (Henry Schein
+   shows prices only to a signed-in account; Chrome keeps the sign-in between visits). Off in the extension's menu. */
+const WEEK = 7 * 24 * 3600 * 1000;
+async function weeklyCheck() {
+  const s = await get(["site", "key", "weekly", "weeklyAt"]);
+  if (!s.site || !s.key || s.weekly === false || sweeping) return;
+  if (Date.now() - (s.weeklyAt || 0) < WEEK) return;
+  await set({ weeklyAt: Date.now() });   // once per week even if it stops partway; Resume finishes it
+  runSweep("henryschein.com", 0, null);
+}
+chrome.alarms.create("tdc-weekly", { periodInMinutes: 60 });
+chrome.alarms.onAlarm.addListener(a => { if (a.name === "tdc-weekly") weeklyCheck(); });
+chrome.runtime.onStartup.addListener(() => setTimeout(weeklyCheck, 120000));

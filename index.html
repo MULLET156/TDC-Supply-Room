@@ -230,6 +230,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .slight{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;vertical-align:middle;box-shadow:0 0 0 2px var(--surface),0 0 0 3px color-mix(in srgb,currentColor 35%,transparent)}
 .slight.none{visibility:hidden}.setrow.sup>.actions .slight{align-self:center;margin-left:2px}
 .slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
+.cmpext{margin:8px 0;border-top:0}
 .extsw{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-block:1px dashed var(--line)}.extsw small{flex-basis:100%}.extprog{display:grid;gap:4px;width:100%}.extprog .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.extprog .bar i{display:block;height:100%;background:var(--ok)}
 .sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
 .sitebox .sitehead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sitebox .sitehead .btn{margin-left:auto}
@@ -3880,6 +3881,7 @@ function compareHtml(){
     <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:0;width:100%"></label></div>
     ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices. Henry Schein is skipped: Claude reads your HS prices while you're signed in.">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
+    ${rows.length && !readOnly ? `<div class="extsw cmpext" data-extsw="*" data-extname="these products" data-ids="${esc((sel ? rows.filter(r => cmpSel.has(r.it.id)) : rows).map(r => r.it.id).join(","))}">${extSweepHtml("*", "these products", (sel ? rows.filter(r => cmpSel.has(r.it.id)) : rows).map(r => r.it.id).join(","))}</div>` : ""}
     ${rows.length ? `<div class="swhero">
       <div><span class="swk">${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</span><b class="swbig">${esc(money(totalSave))}</b><small>Switching each product to its cheapest supplier</small></div>
       <div><span class="swk">Cheaper elsewhere</span><b class="swbig">${wins.length}<small> of ${rows.length}</small></b><small>${rows.filter(r => r.comparable).length} with 2+ prices to compare</small></div>
@@ -3889,6 +3891,7 @@ function compareHtml(){
     <div class="sublist">${rows.map(card).join("")}</div>` : `<div class="list"><div class="empty">${hiddenNoMpn ? `Nothing to compare: the ${hiddenNoMpn} product${hiddenNoMpn > 1 ? "s" : ""} here ${hiddenNoMpn > 1 ? "have" : "has"} no MPN yet.` : cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
 function wireCompare(){
+  document.querySelectorAll("[data-extsw]").forEach(wireExtSweep);
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
   $("#cmpNoMpn") && ($("#cmpNoMpn").onchange = e => { cmpNoMpn = e.target.checked; render(); });
   $("#cmpQ") && ($("#cmpQ").oninput = e => { cmpQ = e.target.value; clearTimeout(wireCompare.t); wireCompare.t = setTimeout(() => { render(); const el = $("#cmpQ"); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }, 300); });
@@ -7853,7 +7856,7 @@ function supSiteBlock(name){
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.via && (p.page === "proxy" || p.page === "browser") ? ` (${esc({ brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }[p.via] || p.via)} worked last)` : ""}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
 /* the browser extension's version: the download link carries it so the web host's cache never hands out an old zip (keep in step with extension/manifest.json) */
-const EXT_VERSION = "1.3.1";
+const EXT_VERSION = "1.4.0";
 /* the stores the extension reads (keep in step with extension/manifest.json content_scripts) */
 const EXT_HOSTS = ["henryschein.com", "pattersondental.com", "benco.com", "darbydental.com", "safcodental.com", "net32.com", "frontierdental.com", "dentalcity.com", "ultradent.com", "blueskybio.com", "brasselerusa.com", "burkhartdental.com", "scottsdental.com", "practicon.com", "pearsondental.com", "dhpsupply.com"];
 /* ---- the browser extension, when installed and connected, answers this page (extension/bridge.js) ---- */
@@ -7868,7 +7871,7 @@ setTimeout(async () => { if (extInfo) return; const r = await extCall({ type: "h
 let extPollT = null;
 async function extPoll(){
   clearTimeout(extPollT); const r = await extCall({ type: "status" }); extSweep = r && r.ok ? r.sweep || null : extSweep;
-  document.querySelectorAll("[data-extsw]").forEach(el => { el.innerHTML = extSweepHtml(el.dataset.extsw, el.dataset.extname); wireExtSweep(el); });
+  document.querySelectorAll("[data-extsw]").forEach(el => { el.innerHTML = extSweepHtml(el.dataset.extsw, el.dataset.extname, el.dataset.ids); wireExtSweep(el); });
   if (extSweep && extSweep.running) extPollT = setTimeout(extPoll, 2000);
 }
 const extHostOk = h => !!h && EXT_HOSTS.some(x => h === x || h.endsWith("." + x));
@@ -7879,17 +7882,20 @@ function extTargets(name, h){
     if (urls.some(u => { try { const x = new URL(webHref(u)).hostname.replace(/^www\./, ""); return x === base || x.endsWith("." + base); } catch { return false; } }) || (base === "henryschein.com" && /schein/i.test(it.supplier || "") && /^\d{6,8}$/.test(clean(it.sku)))) n++; }
   return n;
 }
-function extSweepHtml(h, name){
-  const n = extTargets(name, h), w = extSweep, mine = w && w.host && (h === w.host || h.endsWith("." + w.host) || w.host.endsWith("." + h));
+function extSweepHtml(h, name, idsStr){
+  const anyHost = h === "*", ids = anyHost ? String(idsStr || "").split(",").filter(Boolean) : null;
+  const n = anyHost ? ids.filter(id => { const it = byId(id); return it && [it.link, ...Object.values(it.links || {}).map(l => l && l.url)].some(u => { try { return extHostOk(new URL(webHref(u)).hostname.replace(/^www\./, "")); } catch { return false; } }); }).length : extTargets(name, h);
+  const w = extSweep, mine = w && w.host && (anyHost ? w.host === "*" : (h === w.host || h.endsWith("." + w.host) || w.host.endsWith("." + h)));
   if (!extInfo) return `<button class="btn sm" type="button" disabled>${ic("refresh")}Update all prices with browser extension</button><small class="hint">Needs the Supply Room browser extension (1.3 or newer), connected to this site: Setup › Data collection › Browser extension.</small>`;
-  if (w && w.running && mine) return `<div class="extprog"><b>Updating ${esc(name)} prices</b> <small>${w.done} of ${w.total} · ${w.saved} saved · ${w.same} unchanged${w.kept ? ` · ${w.kept} special kept` : ""}</small><div class="bar"><i style="width:${w.total ? Math.round(w.done / w.total * 100) : 0}%"></i></div><button class="btn sm ghost" type="button" data-extstop="1">Stop</button></div>`;
+  if (w && w.running && mine) return `<div class="extprog"><b>Updating ${esc(anyHost ? "prices" : name + " prices")} with the browser extension</b> <small>${w.done} of ${w.total} · ${w.saved} saved · ${w.same} unchanged${w.kept ? ` · ${w.kept} special kept` : ""}</small><div class="bar"><i style="width:${w.total ? Math.round(w.done / w.total * 100) : 0}%"></i></div><button class="btn sm ghost" type="button" data-extstop="1">Stop</button></div>`;
   if (w && w.running) return `<small class="hint">The extension is updating ${esc(w.name || w.host)} prices; this one can start after it finishes.</small>`;
   const last = mine && w ? `<small class="hint">${w.finishedAt ? `Last run ${esc(shortDate(w.finishedAt))}: ` : w.why ? esc(w.why) + " " : ""}${w.done} of ${w.total} · ${w.saved} saved · ${w.same} unchanged${w.kept ? ` · ${w.kept} special kept` : ""}${w.missed?.length ? ` · ${w.missed.length} without a price (listed in the extension's menu)` : ""}.</small>` : "";
+  if (anyHost) return `${readOnly ? "" : `<button class="btn sm" type="button" data-extgo="*" ${n ? "" : "disabled"}>${ic("refresh")}Update ${n} price${n === 1 ? "" : "s"} with browser extension</button>`}<small class="hint">Free: your Chrome opens each saved supplier page in a background tab and saves the price you see (signed-in prices where you're signed in). About ${Math.max(1, Math.round(n * 9 / 60))} min.</small>${last}`;
   return `${readOnly ? "" : `<button class="btn sm" type="button" data-extgo="${esc(h)}" ${n ? "" : "disabled"}>${ic("refresh")}Update all ${n} prices with browser extension</button>${mine && w && w.resumable && w.done < w.total ? ` <button class="btn sm ghost" type="button" data-extgo="${esc(h)}" data-resume="1">Resume</button>` : ""}`}
     <small class="hint">Opens each product's ${esc(name)} page in this browser, one at a time in a background tab, and saves the price you see${/schein|patterson|benco|darby/i.test(name) ? " (sign in first for your account prices)" : ""}. About ${Math.max(1, Math.round(n * 9 / 60))} min.</small>${last}`;
 }
 function wireExtSweep(el){
-  el.querySelectorAll("[data-extgo]").forEach(b => b.onclick = async () => { if (!needMe()) return; b.disabled = true; const r = await extCall({ type: "sweep", host: b.dataset.extgo, resume: !!b.dataset.resume }); if (!r || !r.ok) { toast(r?.message || "The extension didn't answer. Reload this page, or reinstall it."); b.disabled = false; return; } logIt("Setup", null, `price update with the browser extension started for ${el.dataset.extname}`); setTimeout(extPoll, 800); });
+  el.querySelectorAll("[data-extgo]").forEach(b => b.onclick = async () => { if (!needMe()) return; b.disabled = true; const r = await extCall({ type: "sweep", host: b.dataset.extgo, resume: !!b.dataset.resume, ids: b.dataset.extgo === "*" ? String(el.dataset.ids || "").split(",").filter(Boolean) : undefined }); if (!r || !r.ok) { toast(r?.message || "The extension didn't answer. Reload this page, or reinstall it."); b.disabled = false; return; } logIt("Setup", null, `price update with the browser extension started for ${el.dataset.extname}`); setTimeout(extPoll, 800); });
   el.querySelectorAll("[data-extstop]").forEach(b => b.onclick = async () => { await extCall({ type: "sweepStop" }); setTimeout(extPoll, 800); });
 }
 let keyAi = { providers: [], models: {}, down: [] };
