@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AI_LOCAL_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_KEY', 'AI_PROVIDER', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -348,14 +348,14 @@ function http_get(string $url, int $max = 4194304, int $timeout = 20, array $hea
     }
 }
 
-/* ---------- AI (Claude, OpenAI, Google Gemini, or the office's own model) ----------
+/* ---------- AI (Claude, OpenAI or Google Gemini) ----------
  * Every AI feature (reading pages, photos, price lists and invoices, finding substitutes) goes through ai_json().
  * Any one provider is enough. When several have keys, the first is used (Claude, unless Setup › Data collection
  * picks another) and the rest are backups: if one rejects its key, runs out of credit, is busy or can't answer,
  * the next one is asked. A provider that rejected its key or ran out of credit is skipped for 6 hours. */
-const AI_NAMES = ['claude' => 'Claude', 'openai' => 'OpenAI', 'gemini' => 'Google Gemini', 'local' => 'Your own model'];
-const AI_KEYS = ['claude' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY', 'local' => 'AI_LOCAL_URL'];
-function ai_has(string $p): bool { return isset(AI_KEYS[$p]) && trim((string)cfg(AI_KEYS[$p])) !== '' && ($p !== 'local' || trim((string)cfg('AI_LOCAL_MODEL')) !== ''); }
+const AI_NAMES = ['claude' => 'Claude', 'openai' => 'OpenAI', 'gemini' => 'Google Gemini'];
+const AI_KEYS = ['claude' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY'];
+function ai_has(string $p): bool { return isset(AI_KEYS[$p]) && trim((string)cfg(AI_KEYS[$p])) !== ''; }
 function ai_ready(): bool { foreach (array_keys(AI_KEYS) as $p) if (ai_has($p)) return true; return false; }
 function ai_providers(): array {
     $have = array_values(array_filter(array_keys(AI_KEYS), 'ai_has'));
@@ -369,7 +369,7 @@ function ai_name(): string { $p = ai_providers(); return $p ? AI_NAMES[$p[0]] : 
 // $opt: maxFiles (default 4), maxTokens (default 4096), timeout in seconds (default 90), cache (a long fixed part sent first)
 function ai_json(string $prompt, array $images = [], string $tier = '', array $opt = []): array {
     $list = ai_providers();
-    if (!$list) return ['ok' => false, 'error' => 'no_key', 'message' => 'AI isn\'t set up yet: add a Claude, OpenAI or Gemini key (or your own model) in Setup › Data collection.'];
+    if (!$list) return ['ok' => false, 'error' => 'no_key', 'message' => 'AI isn\'t set up yet: add a Claude, OpenAI or Gemini key in Setup › Data collection.'];
     $last = null; $tried = [];
     foreach ($list as $p) {
         $r = ai_call($p, $prompt, $images, $tier, $opt);
@@ -442,29 +442,20 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         if ($text === '') return ['ok' => false, 'error' => 'unavailable', 'message' => "$N didn't answer" . (!empty($j['candidates'][0]['finishReason']) ? ' (' . strtolower((string)$j['candidates'][0]['finishReason']) . ').' : '.')];
         return $done($text);
     }
-    // OpenAI, and the office's own model (any server that speaks the OpenAI chat format: Ollama, LM Studio, vLLM…)
-    $local = $p === 'local';
-    if ($local && array_filter($files, fn($f) => $f['mime'] === 'application/pdf')) return ['ok' => false, 'error' => 'unsupported', 'message' => "$N can't read PDF documents."];
-    $m = $local ? ['main' => (string)cfg('AI_LOCAL_MODEL'), 'quick' => (string)cfg('AI_LOCAL_MODEL')] : ai_models('openai');
-    $model = $quick ? $m['quick'] : $m['main'];
+    // OpenAI
+    $m = ai_models('openai'); $model = $quick ? $m['quick'] : $m['main'];
     $content = [];
     if ($cache !== '') $content[] = ['type' => 'text', 'text' => $cache];
     foreach ($files as $i => $f) $content[] = $f['mime'] === 'application/pdf' ? ['type' => 'file', 'file' => ['filename' => 'document' . ($i + 1) . '.pdf', 'file_data' => 'data:application/pdf;base64,' . $f['data']]]
                                                                               : ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $f['mime'] . ';base64,' . $f['data']]];
     $content[] = ['type' => 'text', 'text' => $ask];
-    $req = ['model' => $model, 'messages' => [['role' => 'user', 'content' => $content]]];
-    if ($local) $req['max_tokens'] = max(4096, $maxTok); else { $req['max_completion_tokens'] = max(8192, $maxTok * 2); $req['response_format'] = ['type' => 'json_object']; }
-    $body = $enc($req);
+    $body = $enc(['model' => $model, 'messages' => [['role' => 'user', 'content' => $content]], 'max_completion_tokens' => max(8192, $maxTok * 2), 'response_format' => ['type' => 'json_object']]);
     if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The text couldn\'t be sent.'];
-    $url = $local ? ai_local_base() . '/chat/completions' : 'https://api.openai.com/v1/chat/completions';
-    $key = $local ? trim((string)cfg('AI_LOCAL_KEY')) : (string)cfg('OPENAI_API_KEY');
-    [$res, $code, $cerr, $j] = ai_http($url, $key !== '' ? ['Authorization: Bearer ' . $key] : [], $body, $local ? max($timeout, 120) : $timeout);
+    [$res, $code, $cerr, $j] = ai_http('https://api.openai.com/v1/chat/completions', ['Authorization: Bearer ' . cfg('OPENAI_API_KEY')], $body, $timeout);
     if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
-    if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? (is_string($j['error'] ?? null) ? $j['error'] : '')) : ''; return $fail($code, $em, is_array($j) && (($j['error']['code'] ?? '') === 'insufficient_quota') ? 'credits' : ''); }
-    $text = (string)($j['choices'][0]['message']['content'] ?? '');
-    return $done($text);
+    if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return $fail($code, $em, is_array($j) && (($j['error']['code'] ?? '') === 'insufficient_quota') ? 'credits' : ''); }
+    return $done((string)($j['choices'][0]['message']['content'] ?? ''));
 }
-function ai_local_base(): string { $u = rtrim(trim((string)cfg('AI_LOCAL_URL')), '/'); return preg_match('#/v\d+$#', $u) ? $u : $u . '/v1'; }
 /* Which model each provider uses: the newest general model, and its quicker, cheaper sibling for small jobs. Read
  * from the provider's own model list (so new models are picked up without an update) and remembered for a week.
  * OPENAI_MODEL(_QUICK) / GEMINI_MODEL(_QUICK) in config.php override the choice. */
@@ -2104,22 +2095,6 @@ function key_test(string $name, string $key): array {
         if (in_array($code, [400, 401, 403], true)) return ['ok' => false, 'message' => 'Google didn\'t accept that key. Copy it again from aistudio.google.com › Get API key.'];
         return ['ok' => false, 'message' => 'Couldn\'t reach Google Gemini to check the key (' . ($code ?: 'no answer') . '). Try again.'];
     }
-    if ($name === 'AI_LOCAL_URL') {
-        // the office's own model: the server must be able to reach it, and the model name must exist there
-        $model = (string)($GLOBALS['tdc_test_model'] ?? cfg('AI_LOCAL_MODEL'));
-        $u = rtrim($key, '/'); $u = preg_match('#/v\d+$#', $u) ? $u : $u . '/v1';
-        $ch = curl_init($u . '/models');
-        $lk = (string)($GLOBALS['tdc_test_lkey'] ?? cfg('AI_LOCAL_KEY'));
-        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_HTTPHEADER => $lk !== '' ? ['Authorization: Bearer ' . $lk] : []]);
-        $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
-        if ($b === false || $code === 0) return ['ok' => false, 'message' => 'The website\'s server couldn\'t reach ' . $u . ($err ? " ($err)" : '') . '. The model has to be reachable from the internet (for example through a tunnel); a computer only on the office network can\'t be reached from your web host.'];
-        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Your model\'s server wants a key. Fill in its key too.'];
-        if ($code !== 200) return ['ok' => false, 'message' => 'Your model\'s server answered with error ' . $code . '. Use its OpenAI-compatible address, such as https://your-tunnel.example.com/v1.'];
-        $j = json_decode((string)$b, true); $names = array_map(fn($x) => (string)($x['id'] ?? ''), (array)($j['data'] ?? []));
-        if ($model === '') return ['ok' => false, 'message' => 'Fill in the model name too' . ($names ? ' (it has: ' . implode(', ', array_slice($names, 0, 6)) . ')' : '') . '.'];
-        if ($names && !in_array($model, $names, true)) return ['ok' => false, 'message' => 'Your server doesn\'t have a model called ' . $model . '. It has: ' . implode(', ', array_slice($names, 0, 8)) . '.'];
-        return ['ok' => true, 'who' => $model];
-    }
     if ($name === 'SCRAPINGBEE_KEY') {
         $ch = curl_init('https://app.scrapingbee.com/api/v1/usage?api_key=' . rawurlencode($key));
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
@@ -2207,7 +2182,7 @@ function service_advice(PDO $pdo): array {
     $tips = [];
     $add = function (string $level, string $text, string $act = '') use (&$tips) { $tips[] = ['level' => $level, 'text' => $text] + ($act !== '' ? ['act' => $act] : []); };
     $aiList = ai_providers();
-    if (!$aiList) $add('warn', 'Not AI powered: product pages are read from the store\'s own product data (name, price, item number), but photos, invoices, price-list matching and substitutes need AI. Add a Claude, OpenAI or Gemini key, or your own model.', 'ANTHROPIC_API_KEY');
+    if (!$aiList) $add('warn', 'Not AI powered: product pages are read from the store\'s own product data (name, price, item number), but photos, invoices, price-list matching and substitutes need AI. Add a Claude, OpenAI or Gemini key.', 'ANTHROPIC_API_KEY');
     elseif (count($aiList) === 1) $add('tip', 'AI powered by ' . AI_NAMES[$aiList[0]] . '. A second AI key (Claude, OpenAI or Gemini) would take over automatically if ' . AI_NAMES[$aiList[0]] . ' is down or out of credit.', $aiList[0] === 'claude' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY');
     else $add('ok', 'AI powered by ' . AI_NAMES[$aiList[0]] . ', with ' . implode(' then ', array_map(fn($p) => AI_NAMES[$p], array_slice($aiList, 1))) . ' as backup.');
     if (!$has['scrapingbee'] && !$has['apify']) $add('bad', 'Add a ScrapingBee or Apify key so products can be found by part number. ScrapingBee is about 10 times faster.', 'SCRAPINGBEE_KEY');

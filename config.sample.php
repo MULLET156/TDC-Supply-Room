@@ -31,9 +31,7 @@ define('ANTHROPIC_API_KEY', '');   // Claude: console.anthropic.com → API keys
 // define('OPENAI_MODEL', '');     // optional: force a model
 // define('GEMINI_API_KEY', '');   // Google Gemini: aistudio.google.com → Get API key (newest model picked automatically)
 // define('GEMINI_MODEL', '');     // optional: force a model
-// define('AI_LOCAL_URL', '');     // your own model's OpenAI-compatible address (Ollama, LM Studio…), reachable from this server
-// define('AI_LOCAL_MODEL', '');   // its model name, e.g. qwen2.5vl
-// define('AI_PROVIDER', '');      // claude, openai, gemini or local: which answers first (default: that order)
+// define('AI_PROVIDER', '');      // claude, openai or gemini: which answers first (default: that order)
 
 // Amazon links: Amazon blocks servers from reading its pages, so they go through
 // Apify (apify.com → Settings → API & Integrations → Personal API token).

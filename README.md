@@ -63,9 +63,8 @@ Any one AI key makes the site **AI powered** (shown in Setup → Data collection
 - **Claude:** at [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**) and add a payment method.
 - **OpenAI:** at [platform.openai.com](https://platform.openai.com/api-keys) create an API key.
 - **Google Gemini:** at [aistudio.google.com](https://aistudio.google.com/app/apikey) get an API key (has a free tier).
-- **Your own model:** an OpenAI-compatible server (Ollama, LM Studio) that this website's server can reach over the internet, plus its model name. It can't read PDF invoices.
 
-Paste it under **Setup → Data collection → AI**. The site checks the key, then writes it into `config.php` for you. With more than one, the first answers (Claude, then OpenAI, then Gemini, then your own, unless **Use first** says otherwise) and the rest take over automatically if it's down, out of credit or can't answer. Cost is per use, typically a few cents per product page read.
+Paste it under **Setup → Data collection → AI**. The site checks the key, then writes it into `config.php` for you. With more than one, the first answers (Claude, then OpenAI, then Gemini, unless **Use first** says otherwise) and the rest take over automatically if it's down, out of credit or can't answer. Cost is per use, typically a few cents per product page read.
 
 With a key set, these work: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
 
