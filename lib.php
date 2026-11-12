@@ -2228,27 +2228,26 @@ function service_advice(PDO $pdo): array {
     $tips = [];
     $add = function (string $level, string $text, string $act = '') use (&$tips) { $tips[] = ['level' => $level, 'text' => $text] + ($act !== '' ? ['act' => $act] : []); };
     $aiList = ai_providers();
-    if (!$aiList) $add('warn', 'Not AI powered: product pages are read from the store\'s own product data (name, price, item number), but photos, invoices, price-list matching and substitutes need AI. Add a Claude, OpenAI or Gemini key.', 'ANTHROPIC_API_KEY');
-    elseif (count($aiList) === 1) $add('tip', 'AI powered by ' . AI_NAMES[$aiList[0]] . '. A second AI key (Claude, OpenAI or Gemini) would take over automatically if ' . AI_NAMES[$aiList[0]] . ' is down or out of credit.', $aiList[0] === 'claude' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY');
-    else $add('ok', 'AI powered by ' . AI_NAMES[$aiList[0]] . ', with ' . implode(' then ', array_map(fn($p) => AI_NAMES[$p], array_slice($aiList, 1))) . ' as backup.');
+    if (!$aiList) $add('warn', 'Not AI powered: add a Claude, OpenAI or Gemini key for photos, invoices and substitutes.', 'ANTHROPIC_API_KEY');
+    elseif (count($aiList) === 1) $add('tip', 'Add a second AI key as an automatic backup for ' . AI_NAMES[$aiList[0]] . '.', $aiList[0] === 'claude' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY');
     if (!$has['scrapingbee'] && !$has['apify']) $add('bad', 'Add a ScrapingBee or Apify key so products can be found by part number. ScrapingBee is about 10 times faster.', 'SCRAPINGBEE_KEY');
     elseif (!$has['scrapingbee'] && $need['search'] > 3) $add('tip', "Searches run on Apify (8–35 seconds each). A ScrapingBee key would make them about 10 times faster for {$need['search']} of your stores.", 'SCRAPINGBEE_KEY');
     if (count($need['proxy']) + count($need['browser']) && !$has['scrapingbee'] && !$has['brightdata'] && !$has['apify']) $add('bad', count($need['proxy']) + count($need['browser']) . ' of your stores turn the server away (' . implode(', ', array_slice(array_merge($need['proxy'], $need['browser']), 0, 4)) . '). Add ScrapingBee to read them.', 'SCRAPINGBEE_KEY');
     if (count($need['browser']) && !$has['scrapingbee'] && ($has['brightdata'] || $has['apify'])) $add('tip', implode(', ', $need['browser']) . ' only open in a real browser, where ScrapingBee was fastest and failed least in testing (Bright Data took 45 seconds; Apify failed).', 'SCRAPINGBEE_KEY');
     if ($has['brightdata'] && $has['scrapingbee']) {
         $bdOnly = count($via['brightdata'] ?? []);
-        $add('tip', 'Bright Data and ScrapingBee overlap. Bright Data is quicker on ' . ($bdOnly ? implode(', ', $via['brightdata']) : 'a few stores') . ' (about 2 seconds against 8), but ScrapingBee can read them too. Removing Bright Data leaves one bill for page reading.', 'BRIGHTDATA_KEY');
+        $add('tip', 'Bright Data overlaps ScrapingBee and is only quicker on ' . ($bdOnly ? implode(', ', $via['brightdata']) : 'a few stores') . ' (2 s vs 8 s). Dropping it leaves one bill.', 'BRIGHTDATA_KEY');
     }
     if ($has['apify'] && $has['scrapingbee'] && !$amazon) $add('tip', 'Apify is now only a backup: ScrapingBee does the searches and page reads. You have no Amazon links, so Apify could be removed.', 'APIFY_TOKEN');
-    elseif ($has['apify'] && $has['scrapingbee']) $add('ok', "Apify is kept for your $amazon Amazon link" . ($amazon === 1 ? '' : 's') . ' and as a backup. Its free monthly credit should cover that.');
+    elseif ($has['apify'] && $has['scrapingbee']) $add('ok', "Apify covers your $amazon Amazon link" . ($amazon === 1 ? '' : 's') . ' and backup, within its free credit.');
     if ($amazon && !$has['apify']) $add('tip', "You have $amazon Amazon link" . ($amazon === 1 ? '' : 's') . ', which only Apify can read. Its free plan covers that.', 'APIFY_TOKEN');
     if ($sbLeft !== null && $sb['max'] > 0) {
         $pct = $sbLeft / max(1, $sb['max']);
         if ($sbLeft === 0) $add('bad', 'ScrapingBee is out of credit' . (!empty($sb['renews']) ? ' until ' . date('M j', strtotime($sb['renews'])) : '') . '. Searches and page reads are using ' . ($has['apify'] ? 'Apify' : ($has['brightdata'] ? 'Bright Data' : 'nothing')) . ' instead.');
         elseif ($pct < 0.2) $add('warn', 'ScrapingBee has ' . number_format($sbLeft) . ' credits left (' . (int)round($pct * 100) . '%)' . (!empty($sb['renews']) ? ', renewing ' . date('M j', strtotime($sb['renews'])) : '') . '. A search costs 10 credits.');
-        else $add('ok', 'ScrapingBee has ' . number_format($sbLeft) . ' of ' . number_format((int)$sb['max']) . ' credits left' . (!empty($sb['renews']) ? ', renewing ' . date('M j', strtotime($sb['renews'])) : '') . '.');
+        else $add('ok', 'ScrapingBee: ' . number_format($sbLeft) . ' of ' . number_format((int)$sb['max']) . ' credits left' . (!empty($sb['renews']) ? ', renews ' . date('M j', strtotime($sb['renews'])) : '') . '.');
     }
-    if (count($need['signin']) && !$has['ext']) $add('tip', 'Turn on the browser extension: it saves your account prices from ' . implode(', ', $need['signin']) . ' whenever staff open a product page there.', 'EXT_KEY');
+    if (count($need['signin']) && !$has['ext']) $add('tip', 'Turn on the browser extension to save account prices from ' . implode(', ', $need['signin']) . '.', 'EXT_KEY');
     if (count($need['blocked'])) $add('warn', implode(', ', $need['blocked']) . ' turned every service away. Their prices come from the browser extension, Claude in your browser, or a price list.');
     if (!$tips) $add('ok', 'Everything your stores need is covered.');
     return ['ai' => $aiList ? ['on' => true, 'providers' => array_map(fn($p) => AI_NAMES[$p], $aiList)] : ['on' => false], 'plan' => $plan, 'tips' => $tips, 'runs' => $runs, 'stores' => ['free' => count($seen) - count($need['proxy']) - count($need['browser']) - count($need['signin']) - count($need['blocked']), 'proxy' => $need['proxy'], 'browser' => $need['browser'], 'signin' => $need['signin'], 'blocked' => $need['blocked']]];
