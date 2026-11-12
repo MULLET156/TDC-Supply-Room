@@ -84,16 +84,24 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         try { const j = JSON.parse(atob(String(msg.code || "").trim())); site = j.u; key = j.k; } catch {}
         if (!/^https:\/\//.test(site || "") || !key) throw new Error("That isn't a pairing code. Copy it again from Setup › Data collection › Browser extension.");
         await set({ site, key }); index = null;
-        const p = await api("ping");
+        const p = await api("ping"); registerBridge();
         return reply({ ok: true, name: p.name, site });
       }
       if (msg.type === "status") {
         const s = await get(["site", "key", "auto", "paused", "log", "sweep"]);
-        let targets = 0; if (s.site && s.key) { try { targets = sweepTargets(await getIndex(), "henryschein.com").length; } catch {} }
+        let targets = 0; if (s.site && s.key && !msg.fromApp) { try { targets = sweepTargets(await getIndex(), "henryschein.com").length; } catch {} }
         const sweep = s.sweep || null; if (sweep && sweep.running && !sweeping) { sweep.running = false; sweep.why = sweep.why || "Chrome paused the extension partway. Press Resume to carry on."; sweep.resumable = true; await set({ sweep }); }
-        return reply({ ok: true, paired: !!(s.site && s.key), site: s.site || "", auto: s.auto !== false, paused: !!s.paused, log: s.log || [], sweep, targets });
+        const linked = s.site ? await chrome.permissions.contains({ origins: [new URL(s.site).origin + "/*"] }) : false;
+        return reply({ ok: true, paired: !!(s.site && s.key), site: s.site || "", auto: s.auto !== false, paused: !!s.paused, log: s.log || [], sweep, targets, linked });
       }
-      if (msg.type === "sweep") { if (!sweeping) runSweep("henryschein.com", msg.resume ? ((await get(["sweep"])).sweep?.done || 0) : 0); return reply({ ok: true }); }
+      if (msg.type === "sweep") {
+        const h = String(msg.host || "henryschein.com").replace(/^www\./, "").toLowerCase();
+        if (/(^|\.)amazon\./.test(h)) throw new Error("Amazon isn't read by the extension.");
+        if (sweeping) throw new Error("A price update is already running" + ((await get(["sweep"])).sweep?.name ? " for " + (await get(["sweep"])).sweep.name : "") + ".");
+        const prev = (await get(["sweep"])).sweep;
+        runSweep(h, msg.resume && prev && prev.host === h ? prev.done || 0 : 0); return reply({ ok: true });
+      }
+      if (msg.type === "hello") { const s = await get(["site", "key"]); return reply({ ok: true, version: chrome.runtime.getManifest().version, paired: !!(s.site && s.key), sweeping }); }
       if (msg.type === "sweepStop") { sweepStop = true; return reply({ ok: true }); }
       if (msg.type === "settings") { await set(msg.values || {}); return reply({ ok: true }); }
       if (msg.type === "unpair") { await chrome.storage.local.clear(); index = null; return reply({ ok: true }); }
@@ -125,9 +133,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function sweepTargets(ix, h) {
   const out = [], seen = new Set();
   for (const it of ix.items) {
-    let u = it.urls.find(x => x.toLowerCase().startsWith(h) || x.toLowerCase().startsWith("www." + h));
-    if (u) u = "https://" + (u.startsWith("www.") ? u : "www." + u);
-    else if (/schein/i.test(it.supplier || "")) { const c = it.codes.find(x => /^\d{6,8}$/.test(String(x).trim())); if (c) u = "https://www.henryschein.com/en-us/p/x/" + String(c).trim(); }
+    let u = it.urls.find(x => { const l = x.toLowerCase(); return l.startsWith(h + "/") || l.startsWith("www." + h + "/") || l.split("/")[0].endsWith("." + h); });
+    if (u) u = "https://" + (u.split("/")[0].split(".").length === 2 ? "www." + u : u);
+    else if (h === "henryschein.com" && /schein/i.test(it.supplier || "")) { const c = it.codes.find(x => /^\d{6,8}$/.test(String(x).trim())); if (c) u = "https://www.henryschein.com/en-us/p/x/" + String(c).trim(); }
     if (u && !seen.has(it.id)) { seen.add(it.id); out.push({ id: it.id, name: it.name, url: u }); }
   }
   return out;
@@ -138,7 +146,7 @@ async function runSweep(h, from = 0) {
   try {
     const list = sweepTargets(await getIndex(true), h);
     const prev = from ? (await get(["sweep"])).sweep || {} : {};
-    const st = { running: true, host: h, total: list.length, done: from, saved: from ? prev.saved || 0 : 0, same: from ? prev.same || 0 : 0, kept: from ? prev.kept || 0 : 0,
+    const st = { running: true, host: h, name: supplierFor(index, "https://" + h + "/"), total: list.length, done: from, saved: from ? prev.saved || 0 : 0, same: from ? prev.same || 0 : 0, kept: from ? prev.kept || 0 : 0,
                  missed: from ? prev.missed || [] : [], startedAt: from ? prev.startedAt : Date.now(), why: "" };
     await set({ sweep: st });
     tab = await chrome.tabs.create({ url: "about:blank", active: false });
@@ -153,7 +161,7 @@ async function runSweep(h, from = 0) {
         chrome.tabs.update(tab.id, { url: t.url }).catch(() => w.done({ gone: true }));
       });
       if (res.gone) { st.why = "The background tab was closed."; st.resumable = true; break; }
-      if (res.signedOut) { st.why = "You're not signed in to Henry Schein. Sign in, then press Resume."; st.resumable = true; break; }
+      if (res.signedOut) { st.why = `You're not signed in to ${st.name}. Sign in there in this browser, then press Resume.`; st.resumable = true; break; }
       st.done = i + 1;
       if (res.saved && res.saved.kept) st.kept++; else if (res.saved) st.saved++; else if (res.already) st.same++;
       else st.missed.push({ name: t.name, url: t.url, why: res.nomatch ? "page didn't match the product" : res.unsure ? "couldn't tell if signed in" : "no price shown" });
@@ -169,3 +177,18 @@ async function runSweep(h, from = 0) {
     sweeping = false; clearInterval(keep); if (tab) chrome.tabs.remove(tab.id).catch(() => {});
   }
 }
+
+/* the bridge to the Supply Room page: registered for the paired site once the person has allowed it (in the popup) */
+async function registerBridge() {
+  try {
+    const { site } = await get(["site"]); if (!site) return;
+    const origin = new URL(site).origin, pat = origin + "/*";
+    if (!(await chrome.permissions.contains({ origins: [pat] }))) return;
+    try { await chrome.scripting.unregisterContentScripts({ ids: ["tdc-bridge"] }); } catch {}
+    await chrome.scripting.registerContentScripts([{ id: "tdc-bridge", matches: [pat], js: ["bridge.js"], runAt: "document_idle", persistAcrossSessions: true }]);
+    for (const t of await chrome.tabs.query({ url: pat })) chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["bridge.js"] }).catch(() => {});
+  } catch (e) { console.warn("Supply Room bridge", e); }
+}
+chrome.runtime.onInstalled.addListener(registerBridge);
+chrome.runtime.onStartup.addListener(registerBridge);
+chrome.permissions.onAdded.addListener(registerBridge);

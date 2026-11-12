@@ -230,6 +230,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .slight{display:inline-block;width:11px;height:11px;border-radius:50%;flex:none;vertical-align:middle;box-shadow:0 0 0 2px var(--surface),0 0 0 3px color-mix(in srgb,currentColor 35%,transparent)}
 .slight.none{visibility:hidden}.setrow.sup>.actions .slight{align-self:center;margin-left:2px}
 .slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
+.extsw{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-block:1px dashed var(--line)}.extsw small{flex-basis:100%}.extprog{display:grid;gap:4px;width:100%}.extprog .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.extprog .bar i{display:block;height:100%;background:var(--ok)}
 .sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
 .sitebox .sitehead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sitebox .sitehead .btn{margin-left:auto}
 .secnote .slight{width:9px;height:9px;margin:0 2px 0 4px}.secnote [data-checkall]{margin-left:6px;vertical-align:middle}
@@ -7846,10 +7847,49 @@ function supSiteBlock(name){
   if (!h) return `<div class="sitebox"><b>Website data collection</b><span class="hint">Add the ordering website above, then Check site works out how to read it.</span></div>`;
   const p = profOf(name) || {}, L = siteLight(name);
   return `<div class="sitebox"><div class="sitehead"><span class="slight ${L.c}" aria-hidden="true"></span><b>Website data collection</b> <small class="muted">${esc(h)}</small>${readOnly ? "" : `<button class="btn sm" type="button" data-siteprobe="${esc(name)}">Check site</button>`}</div>
+    ${extHostOk(h) ? `<div class="extsw" data-extsw="${esc(h)}" data-extname="${esc(name)}">${extSweepHtml(h, name)}</div>` : ""}
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.via && (p.page === "proxy" || p.page === "browser") ? ` (${esc({ brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }[p.via] || p.via)} worked last)` : ""}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
 /* the browser extension's version: the download link carries it so the web host's cache never hands out an old zip (keep in step with extension/manifest.json) */
-const EXT_VERSION = "1.2.1";
+const EXT_VERSION = "1.3.0";
+/* the stores the extension reads (keep in step with extension/manifest.json content_scripts) */
+const EXT_HOSTS = ["henryschein.com", "pattersondental.com", "benco.com", "darbydental.com", "safcodental.com", "net32.com", "frontierdental.com", "dentalcity.com", "ultradent.com", "blueskybio.com", "brasselerusa.com", "burkhartdental.com", "scottsdental.com", "practicon.com", "pearsondental.com", "dhpsupply.com"];
+/* ---- the browser extension, when installed and connected, answers this page (extension/bridge.js) ---- */
+let extInfo = null, extSweep = null, extSeq = 0; const extWait = new Map();
+addEventListener("message", e => {
+  if (e.source !== window || !e.data || typeof e.data !== "object") return;
+  if (e.data.tdcExt === "ready") { const had = !!extInfo; extInfo = { version: String(e.data.version || "") }; if (!had) { extPoll(); if (tab === "setup") render(); } }
+  else if (e.data.tdcExt === "res") { const w = extWait.get(e.data.id); if (w) { extWait.delete(e.data.id); w(e.data.r); } }
+});
+function extCall(msg, ms = 5000){ return new Promise(res => { const id = ++extSeq; extWait.set(id, res); postMessage({ tdcExt: "req", id, msg }, location.origin); setTimeout(() => { if (extWait.has(id)) { extWait.delete(id); res(null); } }, ms); }); }
+setTimeout(async () => { if (extInfo) return; const r = await extCall({ type: "hello" }, 2500); if (r && r.ok) { extInfo = { version: r.version, paired: r.paired }; extPoll(); if (tab === "setup") render(); } }, 1200);
+let extPollT = null;
+async function extPoll(){
+  clearTimeout(extPollT); const r = await extCall({ type: "status" }); extSweep = r && r.ok ? r.sweep || null : extSweep;
+  document.querySelectorAll("[data-extsw]").forEach(el => { el.innerHTML = extSweepHtml(el.dataset.extsw, el.dataset.extname); wireExtSweep(el); });
+  if (extSweep && extSweep.running) extPollT = setTimeout(extPoll, 2000);
+}
+const extHostOk = h => !!h && EXT_HOSTS.some(x => h === x || h.endsWith("." + x));
+function extTargets(name, h){
+  const base = EXT_HOSTS.find(x => h === x || h.endsWith("." + x)) || h; let n = 0;
+  for (const it of items) { if (it.archived) continue;
+    const urls = [it.link, ...Object.values(it.links || {}).map(l => l && l.url), ...(it.offers || []).map(o => o && o.url)].filter(Boolean);
+    if (urls.some(u => { try { const x = new URL(webHref(u)).hostname.replace(/^www\./, ""); return x === base || x.endsWith("." + base); } catch { return false; } }) || (base === "henryschein.com" && /schein/i.test(it.supplier || "") && /^\d{6,8}$/.test(clean(it.sku)))) n++; }
+  return n;
+}
+function extSweepHtml(h, name){
+  const n = extTargets(name, h), w = extSweep, mine = w && w.host && (h === w.host || h.endsWith("." + w.host) || w.host.endsWith("." + h));
+  if (!extInfo) return `<button class="btn sm" type="button" disabled>${ic("refresh")}Update all prices with browser extension</button><small class="hint">Needs the Supply Room browser extension (1.3 or newer), connected to this site: Setup › Data collection › Browser extension.</small>`;
+  if (w && w.running && mine) return `<div class="extprog"><b>Updating ${esc(name)} prices</b> <small>${w.done} of ${w.total} · ${w.saved} saved · ${w.same} unchanged${w.kept ? ` · ${w.kept} special kept` : ""}</small><div class="bar"><i style="width:${w.total ? Math.round(w.done / w.total * 100) : 0}%"></i></div><button class="btn sm ghost" type="button" data-extstop="1">Stop</button></div>`;
+  if (w && w.running) return `<small class="hint">The extension is updating ${esc(w.name || w.host)} prices; this one can start after it finishes.</small>`;
+  const last = mine && w ? `<small class="hint">${w.finishedAt ? `Last run ${esc(shortDate(w.finishedAt))}: ` : w.why ? esc(w.why) + " " : ""}${w.done} of ${w.total} · ${w.saved} saved · ${w.same} unchanged${w.kept ? ` · ${w.kept} special kept` : ""}${w.missed?.length ? ` · ${w.missed.length} without a price (listed in the extension's menu)` : ""}.</small>` : "";
+  return `${readOnly ? "" : `<button class="btn sm" type="button" data-extgo="${esc(h)}" ${n ? "" : "disabled"}>${ic("refresh")}Update all ${n} prices with browser extension</button>${mine && w && w.resumable && w.done < w.total ? ` <button class="btn sm ghost" type="button" data-extgo="${esc(h)}" data-resume="1">Resume</button>` : ""}`}
+    <small class="hint">Opens each product's ${esc(name)} page in this browser, one at a time in a background tab, and saves the price you see${/schein|patterson|benco|darby/i.test(name) ? " (sign in first for your account prices)" : ""}. About ${Math.max(1, Math.round(n * 9 / 60))} min.</small>${last}`;
+}
+function wireExtSweep(el){
+  el.querySelectorAll("[data-extgo]").forEach(b => b.onclick = async () => { if (!needMe()) return; b.disabled = true; const r = await extCall({ type: "sweep", host: b.dataset.extgo, resume: !!b.dataset.resume }); if (!r || !r.ok) { toast(r?.message || "The extension didn't answer. Reload this page, or reinstall it."); b.disabled = false; return; } logIt("Setup", null, `price update with the browser extension started for ${el.dataset.extname}`); setTimeout(extPoll, 800); });
+  el.querySelectorAll("[data-extstop]").forEach(b => b.onclick = async () => { await extCall({ type: "sweepStop" }); setTimeout(extPoll, 800); });
+}
 let keyAi = { providers: [], models: {}, down: [] };
 const AI_PNAMES = { claude: "Claude", openai: "OpenAI", gemini: "Google Gemini" };
 function aiBadge(big){ if (!keyInfo) return ""; const on = keyAi.providers.length > 0; return `<span class="aibadge ${on ? "on" : "off"}${big ? " big" : ""}" title="${esc(on ? "AI by " + keyAi.providers.map(p => AI_PNAMES[p]).join(", then ") : "No AI key saved: product pages are read from store data only")}">${on ? "AI powered" : "Not AI powered"}</span>`; }
@@ -7889,7 +7929,7 @@ function dataSec(){
     <div class="setrow dchead"><b>Connections</b><span class="hint">Let Claude and your browser work with the Supply Room.</span></div>
     <div class="setrow keyrow"><div><b>Claude connector (MCP)</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : mcp.set ? `<span class="keyst on">On${mcp.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Lets Claude (claude.ai or the Claude app) look up, count and order supplies here, and read prices on sign-in sites like Henry Schein in your browser. In Claude: Settings › Connectors › Add custom connector, and paste this link. Keep the link private: anyone with it can change the supply list.</p><div id="mcpOut" class="mcpout"></div></div>${readOnly ? "" : `<span class="actions">${mcp.set ? `<button class="btn" type="button" data-mcp="show">Show link</button>` : ""}<button class="btn ${mcp.set ? "" : "pri"}" type="button" data-mcp="new">${mcp.set ? "New link…" : "Turn on"}</button>${mcp.set ? `<button class="btn ghost" type="button" data-mcp="off">Turn off…</button>` : ""}</span>`}</div>
     ${(() => { const e = K.EXT_KEY || {};
-      return `<div class="setrow keyrow" id="key-EXT_KEY"><div><b>Browser extension</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : e.set ? `<span class="keyst on">On</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Saves the prices your staff see on supplier websites while signed in (Henry Schein, Patterson…) without asking Claude. In Chrome: download it, open chrome://extensions, turn on Developer mode, press <b>Load unpacked</b> and pick the unzipped folder. Then press the Supply Room button in Chrome's toolbar and paste the pairing code. The code can only list products and save prices.</p><div id="extOut" class="mcpout"></div></div><span class="actions"><a class="btn" href="supply-room-extension.zip?v=${EXT_VERSION}" download="supply-room-extension-${EXT_VERSION}.zip" title="Version ${EXT_VERSION}">${ic("download")}Download ${EXT_VERSION}</a>${readOnly ? "" : e.set ? `<button class="btn" type="button" data-ext="show">Copy pairing code</button><button class="btn ghost" type="button" data-ext="new">New code…</button><button class="btn ghost" type="button" data-ext="off">Turn off…</button>` : `<button class="btn pri" type="button" data-ext="new">Turn on</button>`}</span></div>`; })()}
+      return `<div class="setrow keyrow" id="key-EXT_KEY"><div><b>Browser extension</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : e.set ? `<span class="keyst on">On</span>` : `<span class="keyst off">Off</span>`}<p class="hint">Saves the prices your staff see on supplier websites while signed in (Henry Schein, Patterson…) without asking Claude. In Chrome: download it, open chrome://extensions, turn on Developer mode, press <b>Load unpacked</b> and pick the unzipped folder. Then press the Supply Room button in Chrome's toolbar and paste the pairing code (Chrome then asks to let the extension work with this site, so Setup › Suppliers can start "Update all prices with browser extension"). The code can only list products and save prices.</p><div id="extOut" class="mcpout"></div></div><span class="actions"><a class="btn" href="supply-room-extension.zip?v=${EXT_VERSION}" download="supply-room-extension-${EXT_VERSION}.zip" title="Version ${EXT_VERSION}">${ic("download")}Download ${EXT_VERSION}</a>${readOnly ? "" : e.set ? `<button class="btn" type="button" data-ext="show">Copy pairing code</button><button class="btn ghost" type="button" data-ext="new">New code…</button><button class="btn ghost" type="button" data-ext="off">Turn off…</button>` : `<button class="btn pri" type="button" data-ext="new">Turn on</button>`}</span></div>`; })()}
     <div class="setrow dchead"><b>Page services</b><span class="hint">Read stores that turn the server away, Amazon links, and web searches.</span></div>
     ${keyRow("APIFY_TOKEN", "Apify API key", `Reads Amazon links, searches the web for products, and reads stores that turn servers away. Get it at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token). Apify bills per run; the Supply Room uses the cheapest way that works.`, "apify_api_…")}
     ${keyRow("SCRAPINGBEE_KEY", "ScrapingBee API key", `Another way to read stores that turn servers away: one key, monthly credits (a plain read costs 1 credit, a home-internet address 10, a real browser 25). Get it at <a href="https://app.scrapingbee.com/" target="_blank" rel="noopener">app.scrapingbee.com</a> (Dashboard › API key).`, "ScrapingBee key")}
@@ -8046,6 +8086,7 @@ function wireBrand(){
 }
 try { applyBrand(); } catch {}
 function wireSetup(){
+  document.querySelectorAll("[data-extsw]").forEach(wireExtSweep);
   /* Setup shows one tab at a time, so most of its fields aren't on the page: wire against a stand-in for those */
   const $ = sel => document.querySelector(sel) || document.createElement("div");
   wireBrand(); wireSites();
