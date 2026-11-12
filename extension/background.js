@@ -68,6 +68,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (msg.page.price && seen && Math.abs(seen.price - msg.page.price) < 0.005 && Date.now() - seen.at < 7 * 86400e3) res.already = seen;
         else if (msg.page.price && msg.page.signedIn === false) res.signedOut = true;    // a signed-out page shows the list price: never saved
         else if (msg.page.price && (auto || sw) && (msg.page.signedIn === true || msg.page.accountPrice)) res.saved = await save(m.item, sup, msg.page);
+        // no sign-in either way (Net32 and other stores without account prices): saved as the website price, which never replaces an account or special price
+        else if (msg.page.price && (auto || sw) && msg.page.signedIn == null) { res.saved = await save(m.item, sup, { ...msg.page, signedIn: false, accountPrice: false }); if (res.saved && !res.saved.kept) res.saved.web = true; }
         else if (msg.page.price) res.unsure = msg.page.signedIn == null;
         if (sw) { if (res.saved || res.already || res.signedOut || res.unsure) sw.done(res); else if (msg.page.signedIn === false) sw.signedOutSeen = true; }
         return reply(res);

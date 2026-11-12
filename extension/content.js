@@ -109,7 +109,7 @@
         note(`<span class="d"></span><div>${what}<small>Special price ${fmt(r.saved.special)} kept. This page shows the list price ${fmt(page.price)}: sign in to see your account price.</small></div>`);
       } else if (r.saved) {
         const ch = r.saved.change; const chg = ch == null ? "" : ch === 0 ? " · unchanged" : ` · ${ch > 0 ? "up" : "down"} ${fmt(Math.abs(ch))}`;
-        note(`<span class="d"></span><div>${what}<small>Saved ${fmt(r.saved.price)}${esc(page.pack ? " / " + page.pack : "")}${page.listPrice ? ` <b>SP</b> · list ${fmt(page.listPrice)}` : ""}${esc(chg)}</small></div>`);
+        note(`<span class="d"></span><div>${what}<small>Saved ${fmt(r.saved.price)}${r.saved.web ? " as the website price" : ""}${esc(page.pack ? " / " + page.pack : "")}${page.listPrice ? ` <b>SP</b> · list ${fmt(page.listPrice)}` : ""}${esc(chg)}</small></div>`);
       } else if (r.already) {
         note(`<span class="d"></span><div>${what}<small>${fmt(page.price)} already saved</small></div>`);
         setTimeout(() => host && host.remove(), 4000);

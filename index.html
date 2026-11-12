@@ -7849,7 +7849,7 @@ function supSiteBlock(name){
     <small>${esc(L.t)}.<br>Finding products: ${esc(SEARCH_WORDS[p.search] || "Not checked yet")}<br>Product pages: ${esc(PAGE_WORDS[p.page] || "Not checked yet")}${p.via && (p.page === "proxy" || p.page === "browser") ? ` (${esc({ brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" }[p.via] || p.via)} worked last)` : ""}${p.note ? `<br><span class="muted">${esc(p.note)}</span>` : ""}${p.checkedAt ? `<br><span class="muted">Checked ${new Date(p.checkedAt * 1000).toLocaleDateString()}</span>` : ""}</small></div>`;
 }
 /* the browser extension's version: the download link carries it so the web host's cache never hands out an old zip (keep in step with extension/manifest.json) */
-const EXT_VERSION = "1.2.0";
+const EXT_VERSION = "1.2.1";
 let keyAi = { providers: [], models: {}, down: [] };
 const AI_PNAMES = { claude: "Claude", openai: "OpenAI", gemini: "Google Gemini" };
 function aiBadge(big){ if (!keyInfo) return ""; const on = keyAi.providers.length > 0; return `<span class="aibadge ${on ? "on" : "off"}${big ? " big" : ""}" title="${esc(on ? "AI by " + keyAi.providers.map(p => AI_PNAMES[p]).join(", then ") : "No AI key saved: product pages are read from store data only")}">${on ? "AI powered" : "Not AI powered"}</span>`; }
