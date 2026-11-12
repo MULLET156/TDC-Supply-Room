@@ -2286,7 +2286,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest", "pagetest", "serptest"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
@@ -2428,6 +2428,7 @@ window.TDC = (function(){
   async function keys(){ return call("keys"); }
   async function setKey(name, value, extra){ const r = await call("setkey", Object.assign({ name, value }, extra || {})); try { status = await call("status"); } catch {} return r; }
   async function pageTest(url, service){ return call("pagetest", { url, service: service || "" }); }
+  async function serpTest(query, service){ return call("serptest", { query, service }); }
   async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
   async function extKey(what){ return call("extkey", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
@@ -2435,7 +2436,7 @@ window.TDC = (function(){
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, extKey, pageTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, extKey, pageTest, serpTest, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -8041,6 +8042,26 @@ function wireSites(){
   const sp = $("#serpSvc"); if (sp) sp.onchange = async () => { if (!needMe()) return; try { await TDC.setKey("SEARCH_SERVICE", sp.value); logIt("Setup", null, "Web searches now use " + sp.options[sp.selectedIndex].text); toast("Saved"); await loadKeys(true); render(); } catch(e) { toast(e.message || "Couldn't save that"); } };
   const ar = $("#adviceRe"); if (ar) ar.onclick = async () => { ar.disabled = true; await loadAdvice(); render(); };
   document.querySelectorAll("[data-advgo]").forEach(a => a.onclick = e => { e.preventDefault(); const el = document.getElementById("key-" + a.dataset.advgo); if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); el.querySelector("input,button")?.focus({ preventScroll: true }); } });
+  document.querySelectorAll(".setrow[data-svc]").forEach(row => {
+    const svc = row.dataset.svc; if (!["apify", "scrapingbee", "brightdata"].includes(svc) || row.classList.contains("svcoff") || readOnly || row.querySelector("[data-pgtest]")) return;
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn sm ghost"; b.dataset.pgtest = svc; b.textContent = "Test";
+    const out = document.createElement("span"); out.className = "aitestout";
+    const anchor = row.querySelector(":scope > div > .keyst:last-of-type") || row.querySelector(":scope > div > b"); anchor.after(" ", b, out);
+    b.onclick = async () => {
+      // a product page from a store that turns the server away (Net32 when you have one), and for search services one part-number search
+      const it = items.find(i => !i.archived && /net32\.com/i.test(i.link || "")) || items.find(i => !i.archived && /frontierdental|prodentusa/i.test(i.link || ""));
+      const url = it ? webHref(it.link) : "https://www.net32.com/";
+      b.disabled = true; b.textContent = "Testing…"; out.textContent = "Reading a page…"; const parts = [];
+      try { const r = await TDC.pageTest(url, svc); const x = (r.results || [])[0];
+        parts.push(x ? `<span class="${x.ok ? "ok" : "bad"}">${x.ok ? "✓" : "✗"} Page read ${x.secs != null ? Number(x.secs).toFixed(1) + "s" : ""}</span>${x.ok ? (x.price ? ` <small>$${Number(x.price).toFixed(2)}</small>` : "") : ` <small>${esc(x.message || "failed")}</small>`}` : `<span class="bad">✗ Page read</span> <small>not available</small>`);
+      } catch(e) { parts.push(`<span class="bad">✗ Page read</span> <small>${esc(e.message || "failed")}</small>`); }
+      if (svc !== "brightdata") { out.innerHTML = parts.join(" · ") + " · Searching…";
+        try { const q = clean(it?.mfr) || "Microbrush DryTips large"; const r = await TDC.serpTest(q, svc);
+          parts.push(`<span class="${r.found ? "ok" : "bad"}">${r.found ? "✓" : "✗"} Search ${Number(r.secs || 0).toFixed(1)}s</span>${r.found ? "" : ` <small>${esc(r.message || "no results")}</small>`}`);
+        } catch(e) { parts.push(`<span class="bad">✗ Search</span> <small>${esc(e.message || "failed")}</small>`); } }
+      out.innerHTML = parts.join(" · "); b.disabled = false; b.textContent = "Test";
+    };
+  });
   document.querySelectorAll("[data-aitest]").forEach(b => b.onclick = async () => {
     const p = b.dataset.aitest, out = document.querySelector(`[data-aitestout="${p}"]`); b.disabled = true; b.textContent = "Testing…"; if (out) out.textContent = "";
     try { const r = { tests: {} }; for (const [i, j] of ["text", "picture", "pdf"].entries()) { if (out) out.textContent = `Testing ${j}…`; const x = await TDC.aiTest(p, i === 0, j); Object.assign(r.tests, x.tests || {}); r.models = x.models; r.message = x.message; if (x.message && !x.tests) break; } const L = { text: "Text", picture: "Picture", pdf: "PDF invoice" };
