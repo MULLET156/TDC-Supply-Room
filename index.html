@@ -3839,7 +3839,7 @@ function compareHtml(){
         <span class="cpprice"><button type="button" class="linkbtn" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}"${ew ? ` data-ew="1"` : ""} title="Open the page, fix the price, or mark it the wrong product"><b>${esc(money(p))}</b>${spBadge(o)}</button><small>${esc(o.pack || "")}</small></span>
         <span class="cpsrc"><i class="csrc s-${esc(o.kind)}">${esc(src)}</i>${when ? `<small>${esc(when)}</small>` : ""}</span>
         <span class="swvs">${pct != null && pct > 0 ? `<i class="${diff > 0 ? "lo" : "hi"}" style="width:${Math.min(100, pct)}%"></i><b>${diff > 0 ? "−" : "+"}${pct}%</b>` : ""}</span>
-        <span class="swsave">${save ? `<b>${esc(money(save))}</b><small>${q > 1 ? `on ${fmtQ(q)}` : "each"}</small>` : ""}</span>
+        <span class="swsave">${save ? `<b>${esc(money(save))}</b><small>${it.need ? `on ${fmtQ(q)}` : "each"}</small>` : ""}</span>
         <span class="swact">${readOnly || isCur || ew || !o.url ? "" : `<button type="button" class="btn sm${save ? " pri" : ""}" data-cmpsw="${esc(it.id)}" data-sup="${esc(c.s)}">Switch</button>`}</span>
       </div>`; };
     const miss = c => { const url = linkFor(it, c.s), m = it.links?.[keyOf(c.s)]?.none;
@@ -3852,7 +3852,7 @@ function compareHtml(){
         <div class="subme"><button type="button" class="cnb" data-cmpopen="${esc(it.id)}">${esc(it.name)}</button>
           <small>${it.supplier ? `${supLogo(it.supplier)}${esc(it.supplier)}` : "No supplier"}${mp != null ? ` · <b>${esc(money(mp))}</b>${itemSp(it)}` : ""}${it.units ? ` / ${esc(it.units)}` : ""}${it.need ? ` · order ${fmtQ(it.orderQty)}` : ""}</small>
           <small class="subspecs">${clean(it.mfr) ? `MPN ${esc(it.mfr)}` : `<span class="nompn">No MPN</span>`}</small></div>
-        <div class="swwin">${r.save > 0.004 ? `<span class="swbig">Save ${esc(money(r.save))}</span><small>${q > 1 ? "on this order" : "each"} with ${esc(r.best.s)}</small>` : `<span class="swnone">${r.comparable ? "Best price already" : priced.length ? "Only one price so far" : "No prices yet"}</span>`}</div>
+        <div class="swwin">${r.save > 0.004 ? `<span class="swbig">Save ${esc(money(r.save))}</span><small>${it.need ? "on this order" : "each"} with ${esc(r.best.s)}</small>` : `<span class="swnone">${r.comparable ? "Best price already" : priced.length ? "Only one price so far" : "No prices yet"}</span>`}</div>
       </header>
       ${ladder(r)}
       ${priced.length || w ? `<div class="swtable" role="table"><div class="swr cpr swth" role="row"><span></span><span>Supplier</span><span>Price</span><span>From</span><span>vs yours</span><span>Saving</span><span></span></div>${priced.map(c => row(c)).join("")}${w ? row({ s: w.src, o: w }, true) : ""}</div>` : ""}
