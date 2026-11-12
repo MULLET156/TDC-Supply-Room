@@ -7,6 +7,12 @@
   const text = el => (el?.innerText || el?.textContent || "").replace(/\s+/g, " ").trim();
   const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
 
+  /* querySelectorAll that also looks inside open shadow roots (Henry Schein draws its prices inside web components) */
+  function deepAll(sel, root = document, out = [], depth = 0) {
+    out.push(...root.querySelectorAll(sel));
+    if (depth < 6) for (const e of root.querySelectorAll("*")) if (e.shadowRoot) deepAll(sel, e.shadowRoot, out, depth + 1);
+    return out;
+  }
   function readPage() {
     const page = { url: location.href.split("#")[0], title: "", price: null, pack: "", sku: "", codes: [], listPrice: null, accountPrice: false, signedIn: null };
     // 1. structured product data (schema.org JSON-LD and microdata)
@@ -34,15 +40,24 @@
     page.sku = page.codes[0] || "";
 
     // 3. the signed-in price: a price labelled "Your price"/"Sale"/"Net" wins over a list price
-    const labelled = [...document.querySelectorAll('[class*="price" i],[id*="price" i],[data-testid*="price" i]')].filter(visible)
+    // Henry Schein: the account price and the struck-through list price sit in .product-unit-price inside a web component
+    const hs = deepAll(".product-unit-price").find(visible);
+    if (hs) {
+      const own = [...hs.querySelectorAll(".display-price")].filter(e => !e.closest(".original-price") && visible(e))[0];
+      const lst = [...hs.querySelectorAll(".original-price .display-price")].find(visible);
+      const v = own && money("$" + text(own)), l = lst && money("$" + text(lst));
+      if (v) { page.price = v; page.accountPrice = true; if (l && l > v + 0.004) page.listPrice = l; }
+    }
+    const labelled = deepAll('[class*="price" i],[id*="price" i],[data-testid*="price" i]').filter(visible)
       .map(el => ({ el, t: text(el) })).filter(x => x.t && x.t.length < 160 && money(x.t) != null);
     const pick = labelled.find(x => /your price|sale|net price|special|contract|our price/i.test(x.t + " " + (x.el.className || "")))
       || labelled.find(x => !/list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
-    if (pick) { const v = money(pick.t); if (v && (!page.price || /your price|sale|net|special|contract/i.test(pick.t))) page.price = v; }
-    if (pick && /your price|net price|special|contract|our price/i.test(pick.t + " " + (pick.el.className || ""))) page.accountPrice = true;
+    if (pick && !hs) { const v = money(pick.t); if (v && (!page.price || /your price|sale|net|special|contract/i.test(pick.t))) page.price = v; }
+    if (pick && !hs && /your price|net price|special|contract|our price/i.test(pick.t + " " + (pick.el.className || ""))) page.accountPrice = true;
     const lst = labelled.find(x => x !== pick && /list|msrp|was|retail|reg(ular)?/i.test(x.t + " " + (x.el.className || "")));
-    if (lst) { const v = money(lst.t); if (v && page.price && v > page.price + 0.004) page.listPrice = v; }
+    if (lst && !page.listPrice) { const v = money(lst.t); if (v && page.price && v > page.price + 0.004) page.listPrice = v; }
     page.signedIn = signedIn(body);
+    if (hs && page.price) page.signedIn = true;   // Henry Schein shows a price only to a signed-in account
     const pk = body.match(/\b(\d+\s*(?:\/|per)\s*(?:box|bx|pk|pack|case|cs|bag|bg|ea|each|bottle|btl|tube|kit|roll|syringe|jar|vial))\b/i) || body.match(/\b((?:box|pack|case|bag|package) of \d+)\b/i);
     if (pk) page.pack = pk[1];
     page.codes = [...new Set(page.codes.map(c => String(c).trim()).filter(Boolean))].slice(0, 40);
