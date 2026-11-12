@@ -534,6 +534,7 @@ function ai_test(string $p, string $only = ''): array {
         if (in_array($r['error'] ?? '', ['key', 'credits'], true)) break;
     }
     $models = $p === 'claude' ? ['main' => (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5'), 'quick' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5')] : ai_models($p);
+    if (array_filter($out, fn($x) => $x['ok']) && function_exists('service_up')) service_up('ai-' . $p);   // a passing test clears a pause (say, after credit was added)
     return ['ok' => true, 'passed' => count(array_filter($out, fn($x) => $x['ok'])) === count($jobs), 'provider' => AI_NAMES[$p], 'models' => $models, 'tests' => $out];
 }
 function ai_model_drop(string $p, string $model): void {
