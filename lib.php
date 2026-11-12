@@ -512,7 +512,7 @@ function ai_test(string $p, string $only = ''): array {
     $out = [];
     if ($only !== '' && isset($jobs[$only])) $jobs = [$only => $jobs[$only]];   // one job per request keeps each inside the host's 60-second limit
     foreach ($jobs as $k => [$prompt, $files, $tier, $check]) {
-        $t = microtime(true); $r = ai_call($p, $prompt, $files, $tier, ['maxTokens' => 300, 'timeout' => 50]);
+        $t = microtime(true); $r = ai_call($p, $prompt, $files, $tier, ['maxTokens' => 300, 'timeout' => 25]);
         $out[$k] = ['ok' => !empty($r['ok']) && $check($r['value'] ?? []), 'ms' => (int)round((microtime(true) - $t) * 1000), 'value' => $r['value'] ?? null, 'message' => $r['message'] ?? ''];
         if (in_array($r['error'] ?? '', ['key', 'credits'], true)) break;
     }
