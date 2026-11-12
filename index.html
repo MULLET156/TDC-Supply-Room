@@ -231,6 +231,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .slight.none{visibility:hidden}.setrow.sup>.actions .slight{align-self:center;margin-left:2px}
 .slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
 .cmpext{margin:8px 0;border-top:0}
+.setrow.keyrow:not(.showhelp) > div > p.hint{display:none}
+.infobtn{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:var(--sunk);color:var(--muted);font:italic 700 11px/1 Georgia,serif;cursor:pointer;margin:0 6px;padding:0;vertical-align:1px;display:inline-flex;align-items:center;justify-content:center}.infobtn:hover,.showhelp .infobtn{background:var(--fg);color:var(--bg,#fff);border-color:var(--fg)}
 .extsw{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-block:1px dashed var(--line)}.extsw small{flex-basis:100%}.extprog{display:grid;gap:4px;width:100%}.extprog .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.extprog .bar i{display:block;height:100%;background:var(--ok)}
 .sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
 .sitebox .sitehead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sitebox .sitehead .btn{margin-left:auto}
@@ -8105,6 +8107,13 @@ function wireBrand(){
 }
 try { applyBrand(); } catch {}
 function wireSetup(){
+  /* help text under each setting stays hidden until its "i" button is pressed */
+  document.querySelectorAll(".setrow.keyrow").forEach(row => {
+    const help = row.querySelector(":scope > div > p.hint, :scope > summary + div > p.hint"); if (!help || row.querySelector(".infobtn")) return;
+    const b = document.createElement("button"); b.type = "button"; b.className = "infobtn"; b.setAttribute("aria-label", "More info"); b.setAttribute("aria-expanded", "false"); b.title = "More info"; b.textContent = "i";
+    b.onclick = () => { const on = row.classList.toggle("showhelp"); b.setAttribute("aria-expanded", String(on)); };
+    const title = row.querySelector(":scope > div > b"); (title || help).after(b);
+  });
   document.querySelectorAll("[data-extsw]").forEach(wireExtSweep);
   /* Setup shows one tab at a time, so most of its fields aren't on the page: wire against a stand-in for those */
   const $ = sel => document.querySelector(sel) || document.createElement("div");
