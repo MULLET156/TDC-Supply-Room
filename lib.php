@@ -21,6 +21,7 @@ const MAX_BLOB    = 6291456; // 6 MB per photo
 function out(int $code, array $body): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
+    if (!empty($GLOBALS['tdc_ai_via'])) header('X-TDC-AI: ' . implode(',', array_unique($GLOBALS['tdc_ai_via'])));   // which AI answered (for checking)
     echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -374,7 +375,7 @@ function ai_json(string $prompt, array $images = [], string $tier = '', array $o
     foreach ($list as $p) {
         $r = ai_call($p, $prompt, $images, $tier, $opt);
         $tried[] = AI_NAMES[$p];
-        if (!empty($r['ok'])) { if (function_exists('service_up')) service_up('ai-' . $p); return $r + ['via' => $p]; }
+        if (!empty($r['ok'])) { if (function_exists('service_up')) service_up('ai-' . $p); $GLOBALS['tdc_ai_via'][] = $p . ':' . ($r['model'] ?? ''); return $r + ['via' => $p]; }
         if (in_array($r['error'] ?? '', ['key', 'credits'], true) && function_exists('cache_put')) cache_put('svcdown', 'ai-' . $p, ['at' => time(), 'why' => (string)($r['message'] ?? '')]);
         $last = $r;
         if (($r['error'] ?? '') === 'bad_request') break;   // the request itself was refused (too large, say): another provider won't do better
@@ -408,9 +409,10 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         error_log("tdc ai $N: $code $m");
         return ['ok' => false, 'error' => $err, 'message' => $msg];
     };
-    $done = function (string $text) use ($N) {
+    $usedModel = '';
+    $done = function (string $text) use ($N, &$usedModel) {
         $val = parse_json_reply($text);
-        return $val === null ? ['ok' => false, 'error' => 'bad_reply', 'message' => "$N's answer couldn't be read."] : ['ok' => true, 'value' => $val];
+        return $val === null ? ['ok' => false, 'error' => 'bad_reply', 'message' => "$N's answer couldn't be read."] : ['ok' => true, 'value' => $val, 'model' => $usedModel];
     };
     if ($p === 'claude') {
         $model = $quick ? (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5') : (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
@@ -425,7 +427,7 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
         if ($code !== 200 || !is_array($j)) return $fail($code, is_array($j) ? (string)($j['error']['message'] ?? '') : '');
         $text = ''; foreach ($j['content'] ?? [] as $c) if (($c['type'] ?? '') === 'text') $text .= $c['text'];
-        return $done($text);
+        $usedModel = $model; return $done($text);
     }
     if ($p === 'gemini') {
         $m = ai_models('gemini'); $model = $quick ? $m['quick'] : $m['main'];
@@ -447,7 +449,7 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return $fail($code, $em, preg_match('/API_KEY_INVALID|API key not valid/i', (string)$res) ? 'key' : (preg_match('/RESOURCE_EXHAUSTED/', (string)$res) && preg_match('/quota/i', $em) && !preg_match('/per minute/i', $em) ? 'credits' : '')); }
         $text = ''; foreach ($j['candidates'][0]['content']['parts'] ?? [] as $c) if (empty($c['thought']) && isset($c['text'])) $text .= $c['text'];
         if ($text === '') return ['ok' => false, 'error' => 'unavailable', 'message' => "$N didn't answer" . (!empty($j['candidates'][0]['finishReason']) ? ' (' . strtolower((string)$j['candidates'][0]['finishReason']) . ').' : '.')];
-        return $done($text);
+        $usedModel = $model; return $done($text);
     }
     // OpenAI
     $m = ai_models('openai'); $model = $quick ? $m['quick'] : $m['main'];
@@ -461,7 +463,7 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
     [$res, $code, $cerr, $j] = ai_http('https://api.openai.com/v1/chat/completions', ['Authorization: Bearer ' . cfg('OPENAI_API_KEY')], $body, $timeout);
     if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
     if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return $fail($code, $em, is_array($j) && (($j['error']['code'] ?? '') === 'insufficient_quota') ? 'credits' : ''); }
-    return $done((string)($j['choices'][0]['message']['content'] ?? ''));
+    $usedModel = $model;     return $done((string)($j['choices'][0]['message']['content'] ?? ''));
 }
 /* Which model each provider uses: the newest general model, and its quicker, cheaper sibling for small jobs. Read
  * from the provider's own model list (so new models are picked up without an update) and remembered for a week.
