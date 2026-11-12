@@ -290,6 +290,12 @@ try {
             }
             out(200, ['ok' => true, 'key' => $k]);
         }
+        case 'aitest': {          // Setup › Data collection › AI › Test
+            $pp = (string)($req['provider'] ?? '');
+            if (!isset(AI_KEYS[$pp])) fail(400, 'bad_key', 'Unknown AI provider.');
+            if ($req['fresh'] ?? false) ai_models($pp, true);
+            out(200, ai_test($pp));
+        }
         case 'advice': {         // Setup › Data collection › Recommendations
             out(200, ['ok' => true] + service_advice($pdo));
         }

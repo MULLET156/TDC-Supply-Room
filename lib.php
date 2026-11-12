@@ -488,13 +488,35 @@ function ai_models(string $p, bool $fresh = false): array {
                 $c = array_values(array_filter($ids, fn($id) => preg_match('/^gemini-\d+(?:\.\d+)?-' . $kind . ($stable ? '$' : '(-preview(-[0-9-]+)?)?$') . '/', $id)));
                 usort($c, fn($x, $y) => [$ver($y), strlen($x)] <=> [$ver($x), strlen($y)]); return $c[0] ?? '';
             };
-            $flash = $pick('flash', true) ?: $pick('flash', false); $pro = $pick('pro', true) ?: $pick('pro', false);
-            if ($flash || $pro) $got = ['main' => $pro ?: $flash, 'quick' => $flash ?: $pro];
+            $flash = $pick('flash', true) ?: $pick('flash', false);
+            $pros = array_filter([$pick('pro', true), $pick('pro', false)]); usort($pros, fn($x, $y) => $ver($y) <=> $ver($x)); $pro = $pros[0] ?? '';
+            // the newest generation leads: an older Pro loses to a newer Flash
+            $main = $pro && (!$flash || $ver($pro) >= $ver($flash)) ? $pro : ($flash ?: $pro);
+            if ($flash || $pro) $got = ['main' => $main, 'quick' => $flash ?: $pro];
         }
         if ($got && function_exists('cache_put')) cache_put('aimodels', $p, $got);
     }
     $got = $got ?: $fallback;
     return ['main' => $over['main'] ?: $got['main'], 'quick' => $over['quick'] ?: ($over['main'] ?: $got['quick'])];
+}
+/* Setup › Data collection › AI › Test: one provider, three small jobs (text, a picture, a PDF), no backup */
+const AI_TEST_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4IydHU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJI2YD1ZaHIvAAAAAElFTkSuQmCC';
+const AI_TEST_PDF = 'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxMzQgPj4Kc3RyZWFtCkJUIC9GMSAxOCBUZiA1MCA3NTAgVGQgKElOVk9JQ0UgIEhlbnJ5IFNjaGVpbikgVGogMCAtMzAgVGQgKEdsb3ZlcywgQm94IG9mIDIwMCAgIFF0eSAyICAgJDE4LjU1IGVhY2gpIFRqIDAgLTMwIFRkIChUb3RhbCAkMzcuMTApIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwNDI2IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDk2CiUlRU9GCg==';
+function ai_test(string $p): array {
+    if (!ai_has($p)) return ['ok' => false, 'message' => AI_NAMES[$p] . ' has no key.'];
+    $jobs = [
+        'text' => ['Return JSON {"answer": <the number of legs on a spider, as a number>}', [], '', fn($v) => (int)($v['answer'] ?? 0) === 8],
+        'picture' => ['Look at the picture. Return JSON {"color": "<its main color, one lowercase word>"}', [['type' => 'image/png', 'data' => AI_TEST_PNG]], 'quick', fn($v) => str_contains(strtolower((string)($v['color'] ?? '')), 'red')],
+        'pdf' => ['Read this invoice. Return JSON {"total": <the invoice total as a number>}', [['type' => 'application/pdf', 'data' => AI_TEST_PDF]], '', fn($v) => abs((float)($v['total'] ?? 0) - 37.10) < 0.01],
+    ];
+    $out = [];
+    foreach ($jobs as $k => [$prompt, $files, $tier, $check]) {
+        $t = microtime(true); $r = ai_call($p, $prompt, $files, $tier, ['maxTokens' => 300, 'timeout' => 40]);
+        $out[$k] = ['ok' => !empty($r['ok']) && $check($r['value'] ?? []), 'ms' => (int)round((microtime(true) - $t) * 1000), 'value' => $r['value'] ?? null, 'message' => $r['message'] ?? ''];
+        if (in_array($r['error'] ?? '', ['key', 'credits'], true)) break;
+    }
+    $models = $p === 'claude' ? ['main' => (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5'), 'quick' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5')] : ai_models($p);
+    return ['ok' => count(array_filter($out, fn($x) => $x['ok'])) === count($jobs), 'provider' => AI_NAMES[$p], 'models' => $models, 'tests' => $out];
 }
 function parse_json_reply(string $t) {
     $t = trim($t);
