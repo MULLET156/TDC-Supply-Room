@@ -51,7 +51,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
+const SECRET_NAMES = ['SERVICES_OFF', 'APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AI_PROVIDER', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -356,7 +356,7 @@ function http_get(string $url, int $max = 4194304, int $timeout = 20, array $hea
  * the next one is asked. A provider that rejected its key or ran out of credit is skipped for 6 hours. */
 const AI_NAMES = ['claude' => 'Claude', 'openai' => 'OpenAI', 'gemini' => 'Google Gemini'];
 const AI_KEYS = ['claude' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY'];
-function ai_has(string $p): bool { return isset(AI_KEYS[$p]) && trim((string)cfg(AI_KEYS[$p])) !== ''; }
+function ai_has(string $p): bool { return isset(AI_KEYS[$p]) && trim((string)cfg(AI_KEYS[$p])) !== '' && svc_on($p); }
 function ai_ready(): bool { foreach (array_keys(AI_KEYS) as $p) if (ai_has($p)) return true; return false; }
 function ai_providers(): array {
     $have = array_values(array_filter(array_keys(AI_KEYS), 'ai_has'));
@@ -966,7 +966,9 @@ function parse_exp(string $v): ?int {
 function today_str(): string { return date('n/j/Y'); }
 
 /* ---------- Amazon, through Apify (apify.com, actor junglee/amazon-crawler) ---------- */
-function apify_ready(): bool { return trim((string)cfg('APIFY_TOKEN')) !== ''; }
+/* Setup › Data collection: a service with a key can be switched off without removing the key */
+function svc_on(string $s): bool { return !in_array($s, array_filter(array_map('trim', explode(',', (string)cfg('SERVICES_OFF', '')))), true); }
+function apify_ready(): bool { return trim((string)cfg('APIFY_TOKEN')) !== '' && svc_on('apify'); }
 // Returns a clean https://www.amazon.<tld>/dp/<ASIN> for Amazon product links (short a.co / amzn.to links are kept as given).
 function amazon_url(string $url): ?string {
     $p = parse_url(preg_match('#^https?://#i', $url) ? $url : 'https://' . $url);
@@ -1086,8 +1088,8 @@ function service_up(string $svc): void { if (function_exists('cache_put') && ser
 function skip_down(array $list): array { $up = array_values(array_filter($list, fn($x) => !service_down($x))); return $up ?: $list; }
 function page_services(string $tool = 'raw-http', string $host = ''): array {
     $have = [];
-    if (trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '') $have[] = 'brightdata';
-    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
+    if (trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '' && svc_on('brightdata')) $have[] = 'brightdata';
+    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '' && svc_on('scrapingbee')) $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
     $order = PAGE_ORDERS[page_priority()][$tool === 'raw-http' ? 'raw-http' : 'browser'];
     $have = skip_down(array_values(array_intersect($order, $have)));
@@ -1584,7 +1586,7 @@ function apify_serp(string $query, int $max = 10): array {
  * Google Search Scraper (about $0.0024, 5-10 s). SEARCH_SERVICE picks; 'auto' = ScrapingBee when it has a key. */
 function serp_services(): array {
     $have = [];
-    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '') $have[] = 'scrapingbee';
+    if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '' && svc_on('scrapingbee')) $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
     $have = skip_down($have);
     $first = (string)cfg('SEARCH_SERVICE', 'auto');
@@ -2191,8 +2193,8 @@ function brightdata_usage(): ?array {
  * Built from the keys that are saved, what the stores need (their profiles), this month's counts and ScrapingBee's credit. */
 function service_advice(PDO $pdo): array {
     $N = PAGE_SERVICE_NAMES; $nm = fn(array $l) => array_map(fn($x) => $N[$x] ?? $x, $l);
-    $has = ['apify' => apify_ready(), 'scrapingbee' => trim((string)cfg('SCRAPINGBEE_KEY')) !== '',
-            'brightdata' => trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '',
+    $has = ['apify' => apify_ready(), 'scrapingbee' => trim((string)cfg('SCRAPINGBEE_KEY')) !== '' && svc_on('scrapingbee'),
+            'brightdata' => trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '' && svc_on('brightdata'),
             'claude' => ai_ready(), 'ext' => trim((string)cfg('EXT_KEY')) !== '', 'mcp' => trim((string)cfg('MCP_KEY')) !== ''];
     // what the office's stores need
     $items = all_docs($pdo, 'items'); $hosts = []; $amazon = 0;

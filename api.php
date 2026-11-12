@@ -222,7 +222,7 @@ try {
         }
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
-            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'AI_PROVIDER'], true);
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'AI_PROVIDER', 'SERVICES_OFF'], true);
                 $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $n === 'EXT_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
             out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority(), 'searchServices' => serp_services(),
@@ -234,6 +234,12 @@ try {
             if ($n === 'SEARCH_SERVICE') { // which service runs web searches (not a secret)
                 if (!in_array($v, ['auto', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown search service.');
                 $where = key_save($pdo, 'SEARCH_SERVICE', $v === 'auto' ? '' : $v);
+                out(200, ['ok' => true, 'where' => $where]);
+            }
+            if ($n === 'SERVICES_OFF') {   // switched-off services (keys kept)
+                $list = array_values(array_unique(array_filter(array_map('trim', explode(',', $v)))));
+                foreach ($list as $x) if (!in_array($x, ['claude', 'openai', 'gemini', 'apify', 'scrapingbee', 'brightdata'], true)) fail(400, 'bad_key', 'Unknown service.');
+                $where = key_save($pdo, 'SERVICES_OFF', implode(',', $list));
                 out(200, ['ok' => true, 'where' => $where]);
             }
             if ($n === 'AI_PROVIDER') {    // which AI provider answers first when several have keys (not a secret)

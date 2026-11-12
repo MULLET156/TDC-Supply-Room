@@ -232,6 +232,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .slight.green{background:#2fa84f;color:#2fa84f}.slight.orange{background:#f08c1a;color:#f08c1a}.slight.red{background:#d93a3a;color:#d93a3a}.slight.grey{background:#a7adb5;color:#a7adb5}
 .cmpext{margin:8px 0;border-top:0}
 .setrow.keyrow:not(.showhelp) > div > p.hint{display:none}
+.svcsw{position:relative;display:inline-block;width:34px;height:20px;margin-right:8px;vertical-align:-5px;cursor:pointer}.svcsw input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}.svcsw span{position:absolute;inset:0;border-radius:99px;background:var(--line);transition:background .15s}.svcsw span::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}.svcsw input:checked + span{background:var(--ok)}.svcsw input:checked + span::after{transform:translateX(14px)}.svcsw input:focus-visible + span{outline:2px solid var(--ok);outline-offset:2px}
+.setrow.svcoff{opacity:.55;background:var(--sunk)}.setrow.svcoff > :not(:first-child), .setrow.svcoff p.hint, .setrow.svcoff .infobtn, .setrow.svcoff .aitestout{display:none !important}.setrow.svcoff{grid-template-columns:minmax(0,1fr)}.setrow.svcoff .keyst:not(.off){display:none}
 .infobtn{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:var(--sunk);color:var(--muted);font:italic 700 11px/1 Georgia,serif;cursor:pointer;margin:0 6px;padding:0;vertical-align:1px;display:inline-flex;align-items:center;justify-content:center}.infobtn:hover,.showhelp .infobtn{background:var(--fg);color:var(--bg,#fff);border-color:var(--fg)}
 .extsw{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:8px 0;border-block:1px dashed var(--line)}.extsw small{flex-basis:100%}.extprog{display:grid;gap:4px;width:100%}.extprog .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}.extprog .bar i{display:block;height:100%;background:var(--ok)}
 .sitebox{grid-column:1/-1;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);display:grid;gap:6px}
@@ -7917,7 +7919,9 @@ function wireExtSweep(el){
   el.querySelectorAll("[data-extgo]").forEach(b => b.onclick = async () => { if (!needMe()) return; b.disabled = true; const r = await extCall({ type: "sweep", host: b.dataset.extgo, resume: !!b.dataset.resume, ids: b.dataset.extgo === "*" ? String(el.dataset.ids || "").split(",").filter(Boolean) : undefined }); if (!r || !r.ok) { toast(r?.message || "The extension didn't answer. Reload this page, or reinstall it."); b.disabled = false; return; } logIt("Setup", null, `price update with the browser extension started for ${el.dataset.extname}`); setTimeout(extPoll, 800); });
   el.querySelectorAll("[data-extstop]").forEach(b => b.onclick = async () => { await extCall({ type: "sweepStop" }); setTimeout(extPoll, 800); });
 }
-let keyAi = { providers: [], models: {}, down: [] };
+let keyAi = { providers: [], models: {}, down: [] }, keyOff = [];
+const svcOpen = new Set();   /* rows opened to paste a key for a service that has none yet */
+const SVC_OF = { ANTHROPIC_API_KEY: "claude", OPENAI_API_KEY: "openai", GEMINI_API_KEY: "gemini", APIFY_TOKEN: "apify", SCRAPINGBEE_KEY: "scrapingbee", BRIGHTDATA_KEY: "brightdata" };
 const AI_PNAMES = { claude: "Claude", openai: "OpenAI", gemini: "Google Gemini" };
 function aiBadge(big){ if (!keyInfo) return ""; const on = keyAi.providers.length > 0; return `<span class="aibadge ${on ? "on" : "off"}${big ? " big" : ""}" title="${esc(on ? "AI by " + keyAi.providers.map(p => AI_PNAMES[p]).join(", then ") : "No AI key saved: product pages are read from store data only")}">${on ? "AI powered" : "Not AI powered"}</span>`; }
 let keyInfo = null, keyInfoAt = 0, keyCfgOk = true, keySvcs = [], keyPrio = "auto", keySerp = [], keyAdvice = null, keyAdviceAt = 0;
@@ -7925,7 +7929,7 @@ async function loadAdvice(){ keyAdviceAt = Date.now(); try { keyAdvice = await T
 async function loadKeys(force){
   if (!window.TDC?.keys || (!force && keyInfoAt && Date.now() - keyInfoAt < 60e3)) return;
   keyInfoAt = Date.now(); if (force) keyAdviceAt = 0;
-  try { const r = await TDC.keys(); keyInfo = r.keys || null; keyCfgOk = r.configWritable !== false; keySvcs = r.services || []; keyPrio = r.priority || "auto"; keySerp = r.searchServices || []; keyAi = r.ai || { providers: [], models: {}, down: [] }; } catch { keyInfo = null; }
+  try { const r = await TDC.keys(); keyInfo = r.keys || null; keyOff = String(r.keys?.SERVICES_OFF?.value || "").split(",").filter(Boolean); keyCfgOk = r.configWritable !== false; keySvcs = r.services || []; keyPrio = r.priority || "auto"; keySerp = r.searchServices || []; keyAi = r.ai || { providers: [], models: {}, down: [] }; } catch { keyInfo = null; }
 }
 function dataSec(){
   if (!window.TDC?.keys) return "";
@@ -7935,7 +7939,7 @@ function dataSec(){
   const K = keyInfo || {};
   const state = n => { const k = K[n]; if (!keyInfo) return `<span class="hint">Checking…</span>`; if (!k || !k.set) return `<span class="keyst off">Not set</span>`; return `<span class="keyst on">Set${k.tail ? ` · …${esc(k.tail)}` : ""}${k.source === "config" ? " · saved in config.php" : " · saved in the database"}</span>`; };
   const keyRow = (n, title, help, ph, more) => { const k = K[n] || {};
-    return `<div class="setrow keyrow" id="key-${n}"><div><b>${title}</b> ${state(n)}${more || ""}<p class="hint">${help}</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="${n}"><input type="password" autocomplete="off" spellcheck="false" placeholder="${esc(k.set ? "Paste a new key to replace it" : ph)}" aria-label="Paste ${esc(title)}"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="${n}">Remove</button>` : ""}</form>`}</div>`; };
+    return `<div class="setrow keyrow${svcOff(n) ? " svcoff" : ""}" id="key-${n}"${SVC_OF[n] ? ` data-svc="${SVC_OF[n]}" data-svckey="${n}"` : ""}><div><b>${title}</b> ${svcOff(n) ? `<span class="keyst off">${(K[n] || {}).set ? "Off" : "Not used"}</span>` : state(n) + (more || "")}<p class="hint">${help}</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="${n}"><input type="password" autocomplete="off" spellcheck="false" placeholder="${esc(k.set ? "Paste a new key to replace it" : ph)}" aria-label="Paste ${esc(title)}"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="${n}">Remove</button>` : ""}</form>`}</div>`; };
   const sups = orderedSuppliers().map(g => g.name).filter(n => siteHost(n));
   const cnt = { green: 0, orange: 0, red: 0, grey: 0 }; sups.forEach(n => { const L = siteLight(n); if (L) cnt[L.c]++; });
   const meter = siteMeter.filter(m => m.month === new Date().toISOString().slice(0, 7));
@@ -7963,7 +7967,7 @@ function dataSec(){
     ${keyRow("APIFY_TOKEN", "Apify API key", `Amazon links, searches and blocked stores; billed per run. Key at <a href="https://console.apify.com/settings/integrations" target="_blank" rel="noopener">apify.com › Settings › API &amp; Integrations</a> (Personal API token).`, "apify_api_…")}
     ${keyRow("SCRAPINGBEE_KEY", "ScrapingBee API key", `Searches and blocked stores; monthly credits (read 1, home address 10, browser 25). Key at <a href="https://app.scrapingbee.com/" target="_blank" rel="noopener">app.scrapingbee.com</a> (Dashboard › API key).`, "ScrapingBee key")}
     ${(() => { const k = K.BRIGHTDATA_KEY || {}, z = (K.BRIGHTDATA_ZONE || {}).value || "";
-      return `<div class="setrow keyrow" id="key-BRIGHTDATA_KEY"><div><b>Bright Data Web Unlocker</b> ${state("BRIGHTDATA_KEY")}${z ? ` <span class="keyst on">zone ${esc(z)}</span>` : ""}<p class="hint">Blocked stores; pay per page read. In <a href="https://brightdata.com/cp" target="_blank" rel="noopener">Bright Data</a>: add a Web Unlocker zone, then copy its zone name and your API key (Account settings › API keys).</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="BRIGHTDATA_KEY"><input type="password" autocomplete="off" spellcheck="false" placeholder="${k.set ? "Paste a new key to replace it" : "API key"}" aria-label="Paste the Bright Data API key"><input class="zone" type="text" autocomplete="off" spellcheck="false" value="${esc(z)}" placeholder="zone, e.g. web_unlocker1" aria-label="Web Unlocker zone name"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="BRIGHTDATA_KEY">Remove</button>` : ""}</form>`}</div>`; })()}
+      return `<div class="setrow keyrow${svcOff("BRIGHTDATA_KEY") ? " svcoff" : ""}" id="key-BRIGHTDATA_KEY" data-svc="brightdata" data-svckey="BRIGHTDATA_KEY"><div><b>Bright Data Web Unlocker</b> ${state("BRIGHTDATA_KEY")}${z ? ` <span class="keyst on">zone ${esc(z)}</span>` : ""}<p class="hint">Blocked stores; pay per page read. In <a href="https://brightdata.com/cp" target="_blank" rel="noopener">Bright Data</a>: add a Web Unlocker zone, then copy its zone name and your API key (Account settings › API keys).</p></div>${readOnly ? "" : `<form class="keyform" data-keyform="BRIGHTDATA_KEY"><input type="password" autocomplete="off" spellcheck="false" placeholder="${k.set ? "Paste a new key to replace it" : "API key"}" aria-label="Paste the Bright Data API key"><input class="zone" type="text" autocomplete="off" spellcheck="false" value="${esc(z)}" placeholder="zone, e.g. web_unlocker1" aria-label="Web Unlocker zone name"><button class="btn pri" type="submit">${k.set ? "Replace" : "Save"}</button>${k.set ? `<button class="btn ghost" type="button" data-keyclear="BRIGHTDATA_KEY">Remove</button>` : ""}</form>`}</div>`; })()}
     <div class="setrow dchead"><b>How reading works</b><span class="hint">Your server reads free first. Blocked stores go to your services in the Recommended order; what works is remembered, and a service out of credit is skipped for 6 hours.</span></div>
     ${(() => { const cur = (K.PAGE_SERVICE || {}).value || "auto", has = s => keySvcs.includes(s), names = { brightdata: "Bright Data", scrapingbee: "ScrapingBee", apify: "Apify" };
       const PR = { auto: ["Automatic (recommended)", "Picks from the services you have keys for, using what testing showed: Bright Data for quick reads, ScrapingBee when a real browser is needed, Apify as the backup."], speed: ["Fastest", "The quickest service for each kind of page, even when it costs a little more."], cost: ["Lowest cost", "ScrapingBee's 1-credit read first and Bright Data's flat price for browser pages. A bit slower."], reliable: ["Most reliable", "Goes straight to a real browser on sites not yet known to work without one. Slower and costs the most, but fails least."] };
@@ -8125,7 +8129,24 @@ function wireBrand(){
   });
 }
 try { applyBrand(); } catch {}
+/* a service row is off (grey, details hidden) when it's switched off, or has no key and hasn't been opened */
+function svcOff(n){ const svc = SVC_OF[n]; if (!svc || !keyInfo) return false; const set = !!(keyInfo[n] || {}).set; return set ? keyOff.includes(svc) : !svcOpen.has(n); }
 function wireSetup(){
+  document.querySelectorAll(".setrow[data-svc]").forEach(row => {
+    if (row.querySelector(".svcsw")) return;
+    const n = row.dataset.svckey, svc = row.dataset.svc, on = !row.classList.contains("svcoff");
+    const lab = document.createElement("label"); lab.className = "svcsw"; lab.title = on ? "Turn off" : "Turn on";
+    lab.innerHTML = `<input type="checkbox" ${on ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="${on ? "Turn off" : "Turn on"}"><span></span>`;
+    lab.querySelector("input").onchange = async e => {
+      const want = e.target.checked, set = !!(keyInfo?.[n] || {}).set;
+      if (!set) { want ? svcOpen.add(n) : svcOpen.delete(n); render(); if (want) setTimeout(() => document.querySelector(`#key-${n} .keyform input`)?.focus(), 50); return; }
+      if (!needMe()) { e.target.checked = !want; return; }
+      const next = want ? keyOff.filter(x => x !== svc) : [...new Set([...keyOff, svc])];
+      try { await TDC.setKey("SERVICES_OFF", next.join(",")); keyOff = next; logIt("Setup", null, `${svc} turned ${want ? "on" : "off"}`); keyAdviceAt = 0; await loadKeys(true); render(); }
+      catch(err) { toast(err.message || "Couldn't save"); e.target.checked = !want; }
+    };
+    row.querySelector(":scope > div").prepend(lab);
+  });
   /* help text under each setting stays hidden until its "i" button is pressed */
   document.querySelectorAll(".setrow.keyrow").forEach(row => {
     const help = row.querySelector(":scope > div > p.hint, :scope > summary + div > p.hint"); if (!help || row.querySelector(".infobtn")) return;
