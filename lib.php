@@ -50,7 +50,7 @@ function cfg(string $name, $default = '') {
 /* ---------- keys pasted in Setup › Data collection ----------
  * Kept in their own table (sr_secrets), which the page's data calls can't read: the page only ever
  * learns whether a key is set and its last 4 characters. */
-const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
+const SECRET_NAMES = ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'AI_LOCAL_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_KEY', 'AI_PROVIDER', 'MCP_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY', 'BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'EXT_KEY'];
 function secret_pdo(): ?PDO {
     if (isset($GLOBALS['pdo']) && $GLOBALS['pdo'] instanceof PDO) return $GLOBALS['pdo'];
     static $p = null; if ($p) return $p;
@@ -348,50 +348,162 @@ function http_get(string $url, int $max = 4194304, int $timeout = 20, array $hea
     }
 }
 
-/* ---------- Claude (Anthropic API) ---------- */
-function ai_ready(): bool { return trim((string)cfg('ANTHROPIC_API_KEY')) !== ''; }
+/* ---------- AI (Claude, OpenAI, Google Gemini, or the office's own model) ----------
+ * Every AI feature (reading pages, photos, price lists and invoices, finding substitutes) goes through ai_json().
+ * Any one provider is enough. When several have keys, the first is used (Claude, unless Setup › Data collection
+ * picks another) and the rest are backups: if one rejects its key, runs out of credit, is busy or can't answer,
+ * the next one is asked. A provider that rejected its key or ran out of credit is skipped for 6 hours. */
+const AI_NAMES = ['claude' => 'Claude', 'openai' => 'OpenAI', 'gemini' => 'Google Gemini', 'local' => 'Your own model'];
+const AI_KEYS = ['claude' => 'ANTHROPIC_API_KEY', 'openai' => 'OPENAI_API_KEY', 'gemini' => 'GEMINI_API_KEY', 'local' => 'AI_LOCAL_URL'];
+function ai_has(string $p): bool { return isset(AI_KEYS[$p]) && trim((string)cfg(AI_KEYS[$p])) !== '' && ($p !== 'local' || trim((string)cfg('AI_LOCAL_MODEL')) !== ''); }
+function ai_ready(): bool { foreach (array_keys(AI_KEYS) as $p) if (ai_has($p)) return true; return false; }
+function ai_providers(): array {
+    $have = array_values(array_filter(array_keys(AI_KEYS), 'ai_has'));
+    $first = (string)cfg('AI_PROVIDER', '');
+    if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
+    $up = array_values(array_filter($have, fn($p) => !service_down('ai-' . $p)));
+    return $up ?: $have;
+}
+function ai_name(): string { $p = ai_providers(); return $p ? AI_NAMES[$p[0]] : 'AI'; }
 // $images: list of ['type' => mime, 'data' => base64]; PDFs ('application/pdf') are sent as documents
-// $opt: maxFiles (default 4), maxTokens (default 4096), timeout in seconds (default 90)
+// $opt: maxFiles (default 4), maxTokens (default 4096), timeout in seconds (default 90), cache (a long fixed part sent first)
 function ai_json(string $prompt, array $images = [], string $tier = '', array $opt = []): array {
-    if (!ai_ready()) return ['ok' => false, 'error' => 'no_key', 'message' => 'Claude isn\'t set up yet: add a Claude API key in Setup › Data collection.'];
-    $model = $tier === 'quick' ? (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5') : (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
-    $content = [];
+    $list = ai_providers();
+    if (!$list) return ['ok' => false, 'error' => 'no_key', 'message' => 'AI isn\'t set up yet: add a Claude, OpenAI or Gemini key (or your own model) in Setup › Data collection.'];
+    $last = null; $tried = [];
+    foreach ($list as $p) {
+        $r = ai_call($p, $prompt, $images, $tier, $opt);
+        $tried[] = AI_NAMES[$p];
+        if (!empty($r['ok'])) { if (function_exists('service_up')) service_up('ai-' . $p); return $r + ['via' => $p]; }
+        if (in_array($r['error'] ?? '', ['key', 'credits'], true) && function_exists('cache_put')) cache_put('svcdown', 'ai-' . $p, ['at' => time(), 'why' => (string)($r['message'] ?? '')]);
+        $last = $r;
+        if (($r['error'] ?? '') === 'bad_request') break;   // the request itself was refused (too large, say): another provider won't do better
+    }
+    if (count($tried) > 1) $last['message'] = ($last['message'] ?? 'AI couldn\'t answer.') . ' (Tried ' . implode(', then ', $tried) . '.)';
+    return $last;
+}
+function ai_http(string $url, array $headers, string $body, int $timeout): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout, CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_HTTPHEADER => array_merge(['content-type: application/json'], $headers)]);
+    $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $cerr = curl_error($ch); curl_close($ch);
+    return [$res, $code, $cerr, is_string($res) ? json_decode($res, true) : null];
+}
+function ai_call(string $p, string $prompt, array $images, string $tier, array $opt): array {
+    $N = AI_NAMES[$p]; $quick = $tier === 'quick'; $timeout = (int)($opt['timeout'] ?? 90); $maxTok = (int)($opt['maxTokens'] ?? 4096);
+    $files = [];
     foreach (array_slice($images, 0, (int)($opt['maxFiles'] ?? 4)) as $im) {
         $mime = strtolower((string)($im['type'] ?? ''));
-        if (!is_string($im['data'] ?? null)) continue;
-        if ($mime === 'application/pdf') $content[] = ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
-        elseif (in_array($mime, IMG_TYPES, true)) $content[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $mime, 'data' => $im['data']]];
+        if (is_string($im['data'] ?? null) && ($mime === 'application/pdf' || in_array($mime, IMG_TYPES, true))) $files[] = ['mime' => $mime, 'data' => $im['data']];
     }
-    $content[] = ['type' => 'text', 'text' => $prompt . "\n\nReply with only the JSON, no other text."];
-    // A long fixed part (instructions + our inventory) goes first and is cached, so a run of invoices only pays for it once.
-    if (is_string($opt['cache'] ?? null) && $opt['cache'] !== '') array_unshift($content, ['type' => 'text', 'text' => $opt['cache'], 'cache_control' => ['type' => 'ephemeral']]);
-    $body = json_encode([
-        'model' => $model, 'max_tokens' => (int)($opt['maxTokens'] ?? 4096),
-        'messages' => [['role' => 'user', 'content' => $content]],
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
-    if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The page text couldn\'t be sent to Claude.'];
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => (int)($opt['timeout'] ?? 90),
-        CURLOPT_HTTPHEADER => ['content-type: application/json', 'anthropic-version: 2023-06-01', 'x-api-key: ' . cfg('ANTHROPIC_API_KEY')],
-    ]);
-    $res = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $cerr = curl_error($ch);
-    curl_close($ch);
-    if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => 'Couldn\'t reach Claude (' . $cerr . ').'];
-    $j = json_decode((string)$res, true);
-    if ($code !== 200 || !is_array($j)) {
-        $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
-        error_log("tdc ai: $code $m");
-        $map = [401 => 'Claude rejected the API key (Setup › Data collection).', 429 => 'Claude is busy right now. Try again in a minute.', 529 => 'Claude is busy right now. Try again in a minute.'];
-        return ['ok' => false, 'error' => $code === 429 || $code === 529 ? 'rate_limited' : 'unavailable', 'message' => $map[$code] ?? ('Claude couldn\'t answer' . ($m ? ": $m" : '.'))];
+    $ask = $prompt . "\n\nReply with only the JSON, no other text.";
+    $cache = is_string($opt['cache'] ?? null) ? $opt['cache'] : '';
+    $enc = fn($a) => json_encode($a, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    $fail = function (int $code, string $m, string $why = '') use ($N) {
+        $low = strtolower($m);
+        $err = $why ?: (in_array($code, [401, 403], true) || preg_match('/api[_ ]?key|unauthori[sz]ed|permission/i', $m) && $code === 400 ? 'key'
+            : (preg_match('/credit balance|insufficient_quota|quota|billing|exceeded your current/i', $low) ? 'credits'
+            : (in_array($code, [429, 503, 529], true) ? 'rate_limited' : ($code === 413 || preg_match('/too large|too long|maximum context|prompt is too long/i', $low) ? 'bad_request' : 'unavailable'))));
+        $msg = ['key' => "$N rejected its key (Setup › Data collection).", 'credits' => "$N is out of credit.", 'rate_limited' => "$N is busy right now. Try again in a minute."][$err] ?? ("$N couldn't answer" . ($m !== '' ? ': ' . mb_substr($m, 0, 160) : '.'));
+        error_log("tdc ai $N: $code $m");
+        return ['ok' => false, 'error' => $err, 'message' => $msg];
+    };
+    $done = function (string $text) use ($N) {
+        $val = parse_json_reply($text);
+        return $val === null ? ['ok' => false, 'error' => 'bad_reply', 'message' => "$N's answer couldn't be read."] : ['ok' => true, 'value' => $val];
+    };
+    if ($p === 'claude') {
+        $model = $quick ? (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5') : (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5');
+        $content = [];
+        if ($cache !== '') $content[] = ['type' => 'text', 'text' => $cache, 'cache_control' => ['type' => 'ephemeral']];   // a run of invoices pays for the fixed part once
+        foreach ($files as $f) $content[] = $f['mime'] === 'application/pdf' ? ['type' => 'document', 'source' => ['type' => 'base64', 'media_type' => $f['mime'], 'data' => $f['data']]]
+                                                                               : ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $f['mime'], 'data' => $f['data']]];
+        $content[] = ['type' => 'text', 'text' => $ask];
+        $body = $enc(['model' => $model, 'max_tokens' => $maxTok, 'messages' => [['role' => 'user', 'content' => $content]]]);
+        if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The text couldn\'t be sent.'];
+        [$res, $code, $cerr, $j] = ai_http('https://api.anthropic.com/v1/messages', ['anthropic-version: 2023-06-01', 'x-api-key: ' . cfg('ANTHROPIC_API_KEY')], $body, $timeout);
+        if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
+        if ($code !== 200 || !is_array($j)) return $fail($code, is_array($j) ? (string)($j['error']['message'] ?? '') : '');
+        $text = ''; foreach ($j['content'] ?? [] as $c) if (($c['type'] ?? '') === 'text') $text .= $c['text'];
+        return $done($text);
     }
-    $text = '';
-    foreach ($j['content'] ?? [] as $c) if (($c['type'] ?? '') === 'text') $text .= $c['text'];
-    $val = parse_json_reply($text);
-    if ($val === null) return ['ok' => false, 'error' => 'bad_reply', 'message' => 'Claude\'s answer couldn\'t be read.'];
-    return ['ok' => true, 'value' => $val];
+    if ($p === 'gemini') {
+        $m = ai_models('gemini'); $model = $quick ? $m['quick'] : $m['main'];
+        $parts = [];
+        if ($cache !== '') $parts[] = ['text' => $cache];
+        foreach ($files as $f) $parts[] = ['inline_data' => ['mime_type' => $f['mime'], 'data' => $f['data']]];
+        $parts[] = ['text' => $ask];
+        $body = $enc(['contents' => [['role' => 'user', 'parts' => $parts]], 'generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => max(8192, $maxTok * 2)]]);
+        if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The text couldn\'t be sent.'];
+        [$res, $code, $cerr, $j] = ai_http('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', ['x-goog-api-key: ' . cfg('GEMINI_API_KEY')], $body, $timeout);
+        if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
+        if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return $fail($code, $em, preg_match('/API_KEY_INVALID|API key not valid/i', (string)$res) ? 'key' : (preg_match('/RESOURCE_EXHAUSTED/', (string)$res) && preg_match('/quota/i', $em) && !preg_match('/per minute/i', $em) ? 'credits' : '')); }
+        $text = ''; foreach ($j['candidates'][0]['content']['parts'] ?? [] as $c) if (empty($c['thought']) && isset($c['text'])) $text .= $c['text'];
+        if ($text === '') return ['ok' => false, 'error' => 'unavailable', 'message' => "$N didn't answer" . (!empty($j['candidates'][0]['finishReason']) ? ' (' . strtolower((string)$j['candidates'][0]['finishReason']) . ').' : '.')];
+        return $done($text);
+    }
+    // OpenAI, and the office's own model (any server that speaks the OpenAI chat format: Ollama, LM Studio, vLLM…)
+    $local = $p === 'local';
+    if ($local && array_filter($files, fn($f) => $f['mime'] === 'application/pdf')) return ['ok' => false, 'error' => 'unsupported', 'message' => "$N can't read PDF documents."];
+    $m = $local ? ['main' => (string)cfg('AI_LOCAL_MODEL'), 'quick' => (string)cfg('AI_LOCAL_MODEL')] : ai_models('openai');
+    $model = $quick ? $m['quick'] : $m['main'];
+    $content = [];
+    if ($cache !== '') $content[] = ['type' => 'text', 'text' => $cache];
+    foreach ($files as $i => $f) $content[] = $f['mime'] === 'application/pdf' ? ['type' => 'file', 'file' => ['filename' => 'document' . ($i + 1) . '.pdf', 'file_data' => 'data:application/pdf;base64,' . $f['data']]]
+                                                                              : ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $f['mime'] . ';base64,' . $f['data']]];
+    $content[] = ['type' => 'text', 'text' => $ask];
+    $req = ['model' => $model, 'messages' => [['role' => 'user', 'content' => $content]]];
+    if ($local) $req['max_tokens'] = max(4096, $maxTok); else { $req['max_completion_tokens'] = max(8192, $maxTok * 2); $req['response_format'] = ['type' => 'json_object']; }
+    $body = $enc($req);
+    if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The text couldn\'t be sent.'];
+    $url = $local ? ai_local_base() . '/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    $key = $local ? trim((string)cfg('AI_LOCAL_KEY')) : (string)cfg('OPENAI_API_KEY');
+    [$res, $code, $cerr, $j] = ai_http($url, $key !== '' ? ['Authorization: Bearer ' . $key] : [], $body, $local ? max($timeout, 120) : $timeout);
+    if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
+    if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? (is_string($j['error'] ?? null) ? $j['error'] : '')) : ''; return $fail($code, $em, is_array($j) && (($j['error']['code'] ?? '') === 'insufficient_quota') ? 'credits' : ''); }
+    $text = (string)($j['choices'][0]['message']['content'] ?? '');
+    return $done($text);
+}
+function ai_local_base(): string { $u = rtrim(trim((string)cfg('AI_LOCAL_URL')), '/'); return preg_match('#/v\d+$#', $u) ? $u : $u . '/v1'; }
+/* Which model each provider uses: the newest general model, and its quicker, cheaper sibling for small jobs. Read
+ * from the provider's own model list (so new models are picked up without an update) and remembered for a week.
+ * OPENAI_MODEL(_QUICK) / GEMINI_MODEL(_QUICK) in config.php override the choice. */
+function ai_models(string $p, bool $fresh = false): array {
+    $U = strtoupper($p);
+    $over = ['main' => trim((string)cfg($U . '_MODEL')), 'quick' => trim((string)cfg($U . '_MODEL_QUICK'))];
+    $fallback = $p === 'openai' ? ['main' => 'gpt-5', 'quick' => 'gpt-5-mini'] : ['main' => 'gemini-2.5-pro', 'quick' => 'gemini-2.5-flash'];
+    $got = !$fresh && function_exists('cache_get') ? cache_get('aimodels', $p, 7) : null;
+    if (!$got) {
+        $ids = [];
+        if ($p === 'openai' && trim((string)cfg('OPENAI_API_KEY')) !== '') {
+            $ch = curl_init('https://api.openai.com/v1/models'); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . cfg('OPENAI_API_KEY')]]);
+            $j = json_decode((string)curl_exec($ch), true); curl_close($ch);
+            foreach ((array)($j['data'] ?? []) as $x) $ids[] = (string)($x['id'] ?? '');
+            $ok = fn($id) => preg_match('/^gpt-(\d+(?:\.\d+)?)(?:-[a-z0-9.]+)*$/', $id) && !preg_match('/audio|realtime|transcribe|tts|image|search|codex|oss|instruct|latest|preview|chat|pro\b|\d{4}-\d\d-\d\d|nano/', $id);
+            $ver = fn($id) => preg_match('/^gpt-(\d+(?:\.\d+)?)/', $id, $mm) ? (float)$mm[1] : 0;
+            $c = array_values(array_filter($ids, $ok));
+            $main = array_values(array_filter($c, fn($id) => !str_contains($id, 'mini')));
+            $mini = array_values(array_filter($c, fn($id) => str_contains($id, 'mini')));
+            $sort = function (&$a) use ($ver) { usort($a, fn($x, $y) => [$ver($y), strlen($x)] <=> [$ver($x), strlen($y)]); };
+            $sort($main); $sort($mini);
+            if ($main) $got = ['main' => $main[0], 'quick' => $mini[0] ?? $main[0]];
+        }
+        if ($p === 'gemini' && trim((string)cfg('GEMINI_API_KEY')) !== '') {
+            $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200'); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['x-goog-api-key: ' . cfg('GEMINI_API_KEY')]]);
+            $j = json_decode((string)curl_exec($ch), true); curl_close($ch);
+            foreach ((array)($j['models'] ?? []) as $x) if (in_array('generateContent', (array)($x['supportedGenerationMethods'] ?? []), true)) $ids[] = preg_replace('#^models/#', '', (string)($x['name'] ?? ''));
+            $ver = fn($id) => preg_match('/^gemini-(\d+(?:\.\d+)?)/', $id, $mm) ? (float)$mm[1] : 0;
+            $pick = function (string $kind, bool $stable) use ($ids, $ver) {
+                $c = array_values(array_filter($ids, fn($id) => preg_match('/^gemini-\d+(?:\.\d+)?-' . $kind . ($stable ? '$' : '(-preview(-[0-9-]+)?)?$') . '/', $id)));
+                usort($c, fn($x, $y) => [$ver($y), strlen($x)] <=> [$ver($x), strlen($y)]); return $c[0] ?? '';
+            };
+            $flash = $pick('flash', true) ?: $pick('flash', false); $pro = $pick('pro', true) ?: $pick('pro', false);
+            if ($flash || $pro) $got = ['main' => $pro ?: $flash, 'quick' => $flash ?: $pro];
+        }
+        if ($got && function_exists('cache_put')) cache_put('aimodels', $p, $got);
+    }
+    $got = $got ?: $fallback;
+    return ['main' => $over['main'] ?: $got['main'], 'quick' => $over['quick'] ?: ($over['main'] ?: $got['quick'])];
 }
 function parse_json_reply(string $t) {
     $t = trim($t);
@@ -1570,7 +1682,7 @@ function price_search(array $q, array $sites, string $scope = 'mine', array $ski
     $cands = array_values($cands);
     if (!$cands) return ['ok' => true, 'candidates' => [], 'message' => $err ?: 'No product pages turned up.'];
     if ($scope === 'alt') {
-        if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs Claude (a Claude API key in Setup › Data collection).'];
+        if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding alternatives needs AI (a Claude, OpenAI or Gemini key in Setup › Data collection).'];
         $list = implode("\n", array_map(fn($i, $c) => "$i: [{$c['supplier']}] {$c['title']} — {$c['url']}\n   {$c['description']}", array_keys($cands), $cands));
         $a = ai_json("A dental office uses \"$name\"" . ($mfr !== '' ? " (manufacturer # $mfr)" : '') . (!empty($q['units']) ? ", sold as " . $q['units'] : '') . " and wants alternatives: other products that do the same job and could replace it (another brand, or the same brand's equivalent).\nSearch results from their suppliers:\n$list\n\n"
             . "Pick product pages (not category, search or article pages) from US stores that are good substitutes. Leave out the exact same product. Prefer the same size, shade or strength. Up to 8, best first, at most 2 per store. For each, say in a few words how it differs (brand, size, pack).\n"
@@ -1819,7 +1931,7 @@ function sub_desc(array $p): string {
     return $d;
 }
 function sub_plan(array $p): array {
-    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs Claude (a Claude API key in Setup › Data collection).'];
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Finding substitutes needs AI (a Claude, OpenAI or Gemini key in Setup › Data collection).'];
     if (trim((string)($p['name'] ?? '')) === '') return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'The product needs a name.'];
     $a = ai_json("A dental office buys " . sub_desc($p) . " and wants cheaper substitutes from other brands, mostly suppliers' house brands.\n"
         . "1. phrase: a short generic search phrase for this kind of product, without brand or part numbers (e.g. \"nitrile exam gloves powder free medium\"); broad: the same in 2-3 words (e.g. \"nitrile exam gloves\").\n"
@@ -1827,7 +1939,7 @@ function sub_plan(array $p): array {
         . "3. strict: true when those specs are about safety or fit and must match exactly (gloves, masks, gowns, sterilization, sizes); false when a close product is fine (paper, cups, bibs, cleaners, tips).\n"
         . "4. unit: the single item counted for a price-per-unit (glove, mask, cup, bib, tip, wipe, sheet, roll, oz, mL, each).\n"
         . "Reply with JSON: {\"phrase\": \"...\", \"broad\": \"...\", \"specs\": [\"...\"], \"strict\": true, \"unit\": \"glove\"}", [], 'quick');
-    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'Claude didn\'t answer.'];
+    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'The AI didn\'t answer.'];
     $v = $a['value'];
     return ['ok' => true, 'phrase' => mb_substr(trim((string)($v['phrase'] ?? '')), 0, 80) ?: (string)$p['name'], 'broad' => mb_substr(trim((string)($v['broad'] ?? '')), 0, 40),
         'specs' => array_slice(array_map(fn($s) => mb_substr((string)$s, 0, 60), (array)($v['specs'] ?? [])), 0, 6),
@@ -1910,14 +2022,14 @@ function sub_find(array $p, array $plan, array $s, bool $nameBrands, array $skip
 }
 // $subs: [['i' => n, 'sup', 'title', 'units', 'price', 'desc']]; returns per-unit counts and how each compares
 function sub_compare(array $p, array $plan, array $subs): array {
-    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Comparing needs Claude.'];
+    if (!ai_ready()) return ['ok' => false, 'error' => 'no_ai', 'message' => 'Comparing needs AI (Setup › Data collection).'];
     $unit = (string)($plan['unit'] ?? 'each');
     $list = implode("\n", array_map(fn($s) => "{$s['i']}: [{$s['sup']}] {$s['title']} — sold as: " . ($s['units'] ?: '?') . " — price: " . ($s['price'] ? '$' . $s['price'] : '?') . (!empty($s['desc']) ? "\n   " . mb_substr((string)$s['desc'], 0, 300) : ''), array_slice($subs, 0, 14)));
     $a = ai_json("A dental office buys " . sub_desc($p) . ".\nIt must match: " . implode('; ', (array)($plan['specs'] ?? [])) . ".\nPossible substitutes:\n$list\n\n"
         . "For their product (index -1) and each substitute, give count: how many {$unit}s come in the package at that price (e.g. 'Box of 200' = 200 gloves; 'Case of 10 boxes of 100' = 1000; null if you can't tell).\n"
         . "For each substitute also give: same (up to 3 short things that match), diff (up to 3 short differences, e.g. '3.0 mil vs 3.5 mil', 'Box of 200 vs 100'), fit: 'good' (does the same job), 'maybe' (check the difference), or 'no' (wrong product, size or grade).\n"
         . "Reply with JSON: {\"mine\": {\"count\": n}, \"subs\": [{\"i\": index, \"count\": n, \"same\": [\"...\"], \"diff\": [\"...\"], \"fit\": \"good\"}]}", [], 'quick');
-    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'Claude didn\'t answer.'];
+    if (!($a['ok'] ?? false)) return ['ok' => false, 'error' => 'ai', 'message' => $a['message'] ?? 'The AI didn\'t answer.'];
     $num = fn($v) => is_numeric($v) && $v > 0 ? (float)$v : null;
     $out = [];
     foreach ((array)($a['value']['subs'] ?? []) as $s) $out[] = ['i' => (int)($s['i'] ?? -1), 'count' => $num($s['count'] ?? null),
@@ -1976,6 +2088,38 @@ function key_test(string $name, string $key): array {
         if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Claude didn\'t accept that key. Copy it again from console.anthropic.com › API keys.'];
         return ['ok' => false, 'message' => 'Couldn\'t reach Claude to check the key (' . ($code ?: 'no answer') . '). Try again.'];
     }
+    if ($name === 'OPENAI_API_KEY') {
+        $ch = curl_init('https://api.openai.com/v1/models');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $key]]);
+        curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code === 200) return ['ok' => true];
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'OpenAI didn\'t accept that key. Copy it again from platform.openai.com › API keys.'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach OpenAI to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    if ($name === 'GEMINI_API_KEY') {
+        $ch = curl_init('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1');
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_HTTPHEADER => ['x-goog-api-key: ' . $key]]);
+        curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
+        if ($code === 200) return ['ok' => true];
+        if (in_array($code, [400, 401, 403], true)) return ['ok' => false, 'message' => 'Google didn\'t accept that key. Copy it again from aistudio.google.com › Get API key.'];
+        return ['ok' => false, 'message' => 'Couldn\'t reach Google Gemini to check the key (' . ($code ?: 'no answer') . '). Try again.'];
+    }
+    if ($name === 'AI_LOCAL_URL') {
+        // the office's own model: the server must be able to reach it, and the model name must exist there
+        $model = (string)($GLOBALS['tdc_test_model'] ?? cfg('AI_LOCAL_MODEL'));
+        $u = rtrim($key, '/'); $u = preg_match('#/v\d+$#', $u) ? $u : $u . '/v1';
+        $ch = curl_init($u . '/models');
+        $lk = (string)($GLOBALS['tdc_test_lkey'] ?? cfg('AI_LOCAL_KEY'));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_HTTPHEADER => $lk !== '' ? ['Authorization: Bearer ' . $lk] : []]);
+        $b = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); $err = curl_error($ch); curl_close($ch);
+        if ($b === false || $code === 0) return ['ok' => false, 'message' => 'The website\'s server couldn\'t reach ' . $u . ($err ? " ($err)" : '') . '. The model has to be reachable from the internet (for example through a tunnel); a computer only on the office network can\'t be reached from your web host.'];
+        if ($code === 401 || $code === 403) return ['ok' => false, 'message' => 'Your model\'s server wants a key. Fill in its key too.'];
+        if ($code !== 200) return ['ok' => false, 'message' => 'Your model\'s server answered with error ' . $code . '. Use its OpenAI-compatible address, such as https://your-tunnel.example.com/v1.'];
+        $j = json_decode((string)$b, true); $names = array_map(fn($x) => (string)($x['id'] ?? ''), (array)($j['data'] ?? []));
+        if ($model === '') return ['ok' => false, 'message' => 'Fill in the model name too' . ($names ? ' (it has: ' . implode(', ', array_slice($names, 0, 6)) . ')' : '') . '.'];
+        if ($names && !in_array($model, $names, true)) return ['ok' => false, 'message' => 'Your server doesn\'t have a model called ' . $model . '. It has: ' . implode(', ', array_slice($names, 0, 8)) . '.'];
+        return ['ok' => true, 'who' => $model];
+    }
     if ($name === 'SCRAPINGBEE_KEY') {
         $ch = curl_init('https://app.scrapingbee.com/api/v1/usage?api_key=' . rawurlencode($key));
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
@@ -2028,7 +2172,7 @@ function service_advice(PDO $pdo): array {
     $N = PAGE_SERVICE_NAMES; $nm = fn(array $l) => array_map(fn($x) => $N[$x] ?? $x, $l);
     $has = ['apify' => apify_ready(), 'scrapingbee' => trim((string)cfg('SCRAPINGBEE_KEY')) !== '',
             'brightdata' => trim((string)cfg('BRIGHTDATA_KEY')) !== '' && trim((string)cfg('BRIGHTDATA_ZONE')) !== '',
-            'claude' => trim((string)cfg('ANTHROPIC_API_KEY')) !== '', 'ext' => trim((string)cfg('EXT_KEY')) !== '', 'mcp' => trim((string)cfg('MCP_KEY')) !== ''];
+            'claude' => ai_ready(), 'ext' => trim((string)cfg('EXT_KEY')) !== '', 'mcp' => trim((string)cfg('MCP_KEY')) !== ''];
     // what the office's stores need
     $items = all_docs($pdo, 'items'); $hosts = []; $amazon = 0;
     foreach ($items as $it) { if (!empty($it['archived'])) continue; foreach (array_merge([$it['link'] ?? ''], array_map(fn($l) => is_array($l) ? ($l['url'] ?? '') : '', (array)($it['links'] ?? []))) as $u) { $h = site_host((string)parse_url((string)$u, PHP_URL_HOST)); if ($h === '') continue; $hosts[$h] = ($hosts[$h] ?? 0) + 1; if (preg_match('/(^|\.)amazon\./', $h)) $amazon++; } }
@@ -2054,14 +2198,18 @@ function service_advice(PDO $pdo): array {
         ['job' => 'Stores that turn the server away', 'use' => $nm(page_services('raw-http')), 'empty' => count($need['proxy']) ? 'Not set up: ' . count($need['proxy']) . ' of your stores need this' : 'Not needed by your stores right now'],
         ['job' => 'Stores that need a real browser', 'use' => $nm(page_services('browser')), 'empty' => 'Not set up'],
         ['job' => 'Amazon links', 'use' => $has['apify'] ? ['Apify'] : [], 'empty' => $amazon ? 'Not set up: ' . $amazon . ' Amazon links' : 'Not needed'],
-        ['job' => 'Reading pages, photos and invoices', 'use' => $has['claude'] ? ['Claude'] : [], 'empty' => 'Not set up: add a Claude API key'],
+        ['job' => 'Reading pages, photos, price lists and invoices', 'use' => array_map(fn($p) => AI_NAMES[$p], ai_providers()), 'empty' => 'No AI: product pages are read from the store\'s own product data; add an AI key for photos, invoices and substitutes'],
+        ['job' => 'Finding substitutes', 'use' => array_map(fn($p) => AI_NAMES[$p], ai_providers()), 'empty' => 'Needs AI'],
         ['job' => 'Signed-in prices (' . (count($need['signin']) ? implode(', ', $need['signin']) : 'none of your stores') . ')', 'use' => array_values(array_filter([$has['ext'] ? 'Browser extension' : '', $has['mcp'] ? 'Claude in your browser' : ''])), 'empty' => count($need['signin']) ? 'Not set up: turn on the browser extension' : 'Not needed'],
     ];
     foreach ($plan as &$pp) { foreach ($pp['use'] as $i => $u) { $k = array_search($u, $N, true); if ($k && ($d = service_down($k))) $pp['use'][$i] = $u . ' (paused: ' . rtrim((string)$d['why'], '.') . ')'; } } unset($pp);
 
     $tips = [];
     $add = function (string $level, string $text, string $act = '') use (&$tips) { $tips[] = ['level' => $level, 'text' => $text] + ($act !== '' ? ['act' => $act] : []); };
-    if (!$has['claude']) $add('bad', 'Add a Claude API key. Without it the Supply Room can\'t read product pages, photos or invoices, or find substitutes.', 'ANTHROPIC_API_KEY');
+    $aiList = ai_providers();
+    if (!$aiList) $add('warn', 'Not AI powered: product pages are read from the store\'s own product data (name, price, item number), but photos, invoices, price-list matching and substitutes need AI. Add a Claude, OpenAI or Gemini key, or your own model.', 'ANTHROPIC_API_KEY');
+    elseif (count($aiList) === 1) $add('tip', 'AI powered by ' . AI_NAMES[$aiList[0]] . '. A second AI key (Claude, OpenAI or Gemini) would take over automatically if ' . AI_NAMES[$aiList[0]] . ' is down or out of credit.', $aiList[0] === 'claude' ? 'OPENAI_API_KEY' : 'ANTHROPIC_API_KEY');
+    else $add('ok', 'AI powered by ' . AI_NAMES[$aiList[0]] . ', with ' . implode(' then ', array_map(fn($p) => AI_NAMES[$p], array_slice($aiList, 1))) . ' as backup.');
     if (!$has['scrapingbee'] && !$has['apify']) $add('bad', 'Add a ScrapingBee or Apify key so products can be found by part number. ScrapingBee is about 10 times faster.', 'SCRAPINGBEE_KEY');
     elseif (!$has['scrapingbee'] && $need['search'] > 3) $add('tip', "Searches run on Apify (8–35 seconds each). A ScrapingBee key would make them about 10 times faster for {$need['search']} of your stores.", 'SCRAPINGBEE_KEY');
     if (count($need['proxy']) + count($need['browser']) && !$has['scrapingbee'] && !$has['brightdata'] && !$has['apify']) $add('bad', count($need['proxy']) + count($need['browser']) . ' of your stores turn the server away (' . implode(', ', array_slice(array_merge($need['proxy'], $need['browser']), 0, 4)) . '). Add ScrapingBee to read them.', 'SCRAPINGBEE_KEY');
@@ -2082,7 +2230,7 @@ function service_advice(PDO $pdo): array {
     if (count($need['signin']) && !$has['ext']) $add('tip', 'Turn on the browser extension: it saves your account prices from ' . implode(', ', $need['signin']) . ' whenever staff open a product page there.', 'EXT_KEY');
     if (count($need['blocked'])) $add('warn', implode(', ', $need['blocked']) . ' turned every service away. Their prices come from the browser extension, Claude in your browser, or a price list.');
     if (!$tips) $add('ok', 'Everything your stores need is covered.');
-    return ['plan' => $plan, 'tips' => $tips, 'runs' => $runs, 'stores' => ['free' => count($seen) - count($need['proxy']) - count($need['browser']) - count($need['signin']) - count($need['blocked']), 'proxy' => $need['proxy'], 'browser' => $need['browser'], 'signin' => $need['signin'], 'blocked' => $need['blocked']]];
+    return ['ai' => $aiList ? ['on' => true, 'providers' => array_map(fn($p) => AI_NAMES[$p], $aiList)] : ['on' => false], 'plan' => $plan, 'tips' => $tips, 'runs' => $runs, 'stores' => ['free' => count($seen) - count($need['proxy']) - count($need['browser']) - count($need['signin']) - count($need['blocked']), 'proxy' => $need['proxy'], 'browser' => $need['browser'], 'signin' => $need['signin'], 'blocked' => $need['blocked']]];
 }
 
 require_once __DIR__ . '/sites.php';

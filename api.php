@@ -27,7 +27,7 @@ $op = $req['op'];
 $pdo = connect();
 
 if ($op === 'status') {
-    out(200, ['ok' => true, 'signedIn' => signed_in($pdo), 'ai' => ai_ready()]);
+    out(200, ['ok' => true, 'signedIn' => signed_in($pdo), 'ai' => ai_ready(), 'aiName' => ai_name()]);
 }
 
 if ($op === 'login') {
@@ -222,10 +222,13 @@ try {
         }
         case 'keys': {           // Setup › Data collection: which keys are set (never the keys themselves)
             $o = [];
-            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE'], true);
+            foreach (SECRET_NAMES as $n) { $v = (string)cfg($n); $plain = in_array($n, ['BRIGHTDATA_ZONE', 'PAGE_SERVICE', 'PAGE_PRIORITY', 'SEARCH_SERVICE', 'AI_LOCAL_MODEL', 'AI_PROVIDER'], true);
+                if ($n === 'AI_LOCAL_URL' && $v !== '') { $o[$n] = ['set' => true, 'source' => secret_source($n), 'tail' => '', 'value' => (string)parse_url($v, PHP_URL_HOST)]; continue; }
                 $o[$n] = ['set' => trim($v) !== '', 'source' => secret_source($n), 'tail' => $n === 'MCP_KEY' || $n === 'EXT_KEY' || $v === '' || $plain ? '' : substr($v, -4)] + ($plain ? ['value' => $v] : []); }
             $cp = __DIR__ . '/config.php';
-            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority(), 'searchServices' => serp_services()]);
+            out(200, ['ok' => true, 'keys' => $o, 'configWritable' => is_file($cp) && is_writable($cp) && is_writable(__DIR__), 'services' => page_services(), 'priority' => page_priority(), 'searchServices' => serp_services(),
+                'ai' => ['providers' => ai_providers(), 'models' => array_map(fn($p) => $p === 'claude' ? ['main' => (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5'), 'quick' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5')] : ($p === 'local' ? ['main' => (string)cfg('AI_LOCAL_MODEL'), 'quick' => ''] : ai_models($p)), array_combine(ai_providers(), ai_providers()) ?: []),
+                         'down' => array_values(array_filter(array_keys(AI_KEYS), fn($p) => ai_has($p) && service_down('ai-' . $p)))]]);
         }
         case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup: written into config.php (database if it can't be)
             $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
@@ -233,6 +236,24 @@ try {
                 if (!in_array($v, ['auto', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown search service.');
                 $where = key_save($pdo, 'SEARCH_SERVICE', $v === 'auto' ? '' : $v);
                 out(200, ['ok' => true, 'where' => $where]);
+            }
+            if ($n === 'AI_PROVIDER') {    // which AI provider answers first when several have keys (not a secret)
+                if (!in_array($v, ['auto', 'claude', 'openai', 'gemini', 'local'], true)) fail(400, 'bad_key', 'Unknown AI provider.');
+                $where = key_save($pdo, 'AI_PROVIDER', $v === 'auto' ? '' : $v);
+                out(200, ['ok' => true, 'where' => $where]);
+            }
+            if ($n === 'AI_LOCAL_URL') {   // the office's own model: its address, model name and (optional) key, checked together
+                $model = trim((string)($req['model'] ?? '')); $lkey = trim((string)($req['lkey'] ?? ''));
+                if ($v === '') { foreach (['AI_LOCAL_URL', 'AI_LOCAL_MODEL', 'AI_LOCAL_KEY'] as $k) key_save($pdo, $k, ''); out(200, ['ok' => true, 'where' => 'config']); }
+                if (!preg_match('#^https?://[^\s\'"]{3,250}$#i', $v)) fail(400, 'bad_key', 'Use the full address of your model\'s server, starting with https://');
+                if ($model === '' || strlen($model) > 120 || preg_match('/[\s\'"\\]/', $model)) fail(400, 'bad_key', 'Fill in the model name, such as llama3.2-vision or qwen2.5vl.');
+                if (strlen($lkey) > 300 || preg_match('/[\s\'"\\]/', $lkey)) fail(400, 'bad_key', 'That doesn\'t look like a key.');
+                $GLOBALS['tdc_test_model'] = $model; $GLOBALS['tdc_test_lkey'] = $lkey;
+                $t = key_test('AI_LOCAL_URL', $v); if (!$t['ok']) fail(400, 'key_rejected', $t['message']);
+                $where = key_save($pdo, 'AI_LOCAL_URL', $v); key_save($pdo, 'AI_LOCAL_MODEL', $model); key_save($pdo, 'AI_LOCAL_KEY', $lkey);
+                if ($where === '') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site.');
+                service_up('ai-local');
+                out(200, ['ok' => true, 'where' => $where, 'who' => $model]);
             }
             if ($n === 'PAGE_PRIORITY') {  // what matters most when reading blocked stores (not a secret)
                 if (!in_array($v, ['auto', 'balanced', 'speed', 'cost', 'reliable'], true)) fail(400, 'bad_key', 'Unknown choice.');
@@ -244,7 +265,7 @@ try {
                 $where = key_save($pdo, 'PAGE_SERVICE', $v === 'auto' ? '' : $v);
                 out(200, ['ok' => true, 'where' => $where]);
             }
-            if (!in_array($n, ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
+            if (!in_array($n, ['APIFY_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'SCRAPINGBEE_KEY', 'BRIGHTDATA_KEY'], true)) fail(400, 'bad_key', 'Unknown key.');
             $zone = trim((string)($req['zone'] ?? ''));
             if ($n === 'BRIGHTDATA_KEY' && $v !== '') {
                 if ($zone === '') $zone = (string)cfg('BRIGHTDATA_ZONE');
@@ -258,6 +279,8 @@ try {
             }
             $where = key_save($pdo, $n, $v);
             if ($n === 'BRIGHTDATA_KEY') key_save($pdo, 'BRIGHTDATA_ZONE', $v === '' ? '' : $zone);
+            $aiP = array_search($n, AI_KEYS, true);
+            if ($aiP !== false && $v !== '') { service_up('ai-' . $aiP); if (in_array($aiP, ['openai', 'gemini'], true)) { $mm = ai_models($aiP, true); $t['who'] = $mm['main'] . ($mm['quick'] !== $mm['main'] ? ' and ' . $mm['quick'] : ''); } }
             if ($where === '' && $v !== '') fail(500, 'not_saved', 'config.php couldn\'t be changed from the site. Ask whoever runs the server to make it writable, or edit it in the hosting File Manager.');
             out(200, ['ok' => true, 'where' => $where, 'tail' => $v === '' ? '' : substr($v, -4), 'who' => $t['who'] ?? '']);
         }

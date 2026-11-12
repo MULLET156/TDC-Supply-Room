@@ -21,11 +21,19 @@ define('DB_PASS', 'database-password-here');
 // (into the database instead, if the server doesn't let the site change this file).
 // Keys are never sent back to the page.
 
-// Claude, for reading product links and photos (console.anthropic.com → API keys).
-// Leave empty to turn those features off; everything else still works.
-define('ANTHROPIC_API_KEY', '');
+// AI, for reading product links, photos, price lists and invoices, and finding substitutes.
+// Any one is enough; with several, the first (or AI_PROVIDER) answers and the others are backups.
+// Leave them all empty and the site is "Not AI powered": pages are read from the store's own product data.
+define('ANTHROPIC_API_KEY', '');   // Claude: console.anthropic.com → API keys
 // define('ANTHROPIC_MODEL', 'claude-sonnet-5-5');        // product pages, photos
 // define('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5');   // quick suggestions
+// define('OPENAI_API_KEY', '');   // OpenAI: platform.openai.com → API keys (newest model picked automatically)
+// define('OPENAI_MODEL', '');     // optional: force a model
+// define('GEMINI_API_KEY', '');   // Google Gemini: aistudio.google.com → Get API key (newest model picked automatically)
+// define('GEMINI_MODEL', '');     // optional: force a model
+// define('AI_LOCAL_URL', '');     // your own model's OpenAI-compatible address (Ollama, LM Studio…), reachable from this server
+// define('AI_LOCAL_MODEL', '');   // its model name, e.g. qwen2.5vl
+// define('AI_PROVIDER', '');      // claude, openai, gemini or local: which answers first (default: that order)
 
 // Amazon links: Amazon blocks servers from reading its pages, so they go through
 // Apify (apify.com → Settings → API & Integrations → Personal API token).

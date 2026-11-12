@@ -58,10 +58,16 @@ Open the site and sign in with the office password. Go to **Setup → Backup & i
 
 Each person then picks their initials under **Logging as** at the top, the same as before.
 
-### 6. Turn on Claude for product links and photos
-At [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**), add a payment method, and paste the key in the site under **Setup → Data collection → Claude API key** (or put it in `config.php` as `ANTHROPIC_API_KEY`). The site checks the key, then writes it into `config.php` for you. Cost is per use, typically a few cents per product page read.
+### 6. Turn on AI for product links and photos
+Any one AI key makes the site **AI powered** (shown in Setup → Data collection):
+- **Claude:** at [console.anthropic.com](https://console.anthropic.com) create an API key (**API keys → Create key**) and add a payment method.
+- **OpenAI:** at [platform.openai.com](https://platform.openai.com/api-keys) create an API key.
+- **Google Gemini:** at [aistudio.google.com](https://aistudio.google.com/app/apikey) get an API key (has a free tier).
+- **Your own model:** an OpenAI-compatible server (Ollama, LM Studio) that this website's server can reach over the internet, plus its model name. It can't read PDF invoices.
 
-With the key set, these work again: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
+Paste it under **Setup → Data collection → AI**. The site checks the key, then writes it into `config.php` for you. With more than one, the first answers (Claude, then OpenAI, then Gemini, then your own, unless **Use first** says otherwise) and the rest take over automatically if it's down, out of credit or can't answer. Cost is per use, typically a few cents per product page read.
+
+With a key set, these work: filling in a new item from its link, reading a SKU or product photo, name and category suggestions, and **Update from supplier pages**. Without it the page still works, and adding from a link fills in only what the page itself lists (name, SKU, photo, sometimes price).
 
 The server reads product pages without signing in to your supplier accounts, so prices that only show after signing in (common at Henry Schein, Patterson and Benco) come back empty or as list price. Some supplier sites also block servers entirely. For those, add the product from Claude instead (step 7), which uses your signed-in browser.
 
