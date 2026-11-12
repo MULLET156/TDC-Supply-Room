@@ -153,6 +153,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .match .nm{font-weight:700}
 .drop{border:2px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;display:grid;gap:10px;justify-items:center}
 .drop .big{font-size:16px;font-weight:600}
+.toastbtn{margin-left:10px;background:none;border:1px solid currentColor;color:inherit;border-radius:6px;padding:3px 10px;font:600 13px var(--f-ui);cursor:pointer}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:8px;font-size:13.5px;z-index:30;max-width:90%}
 @media (prefers-reduced-motion:no-preference){.panel{animation:up .18s ease-out}@keyframes up{from{transform:translateY(16px);opacity:.6}}}
 </style>
@@ -2075,6 +2076,15 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .swwhy .same b{color:var(--ok)}.swwhy .diff b{color:var(--warn)}
 .swbtns{display:flex;gap:6px;flex-wrap:wrap}
 .swmorebtn{margin-top:8px;font-size:12.5px}
+.swr.cpr{grid-template-columns:76px minmax(100px,1.2fr) minmax(90px,1fr) minmax(90px,1fr) 110px 96px 76px}
+.swr.cpr.cur{background:color-mix(in srgb,var(--fg) 4%,transparent)}
+.swfit.f-cur{background:var(--sunk);color:var(--fg);border:1px solid var(--line)}
+.cpprice,.cpsrc{display:flex;flex-direction:column;gap:2px;min-width:0}.cpprice b{font-family:var(--f-mono);font-size:14px}.cpprice small,.cpsrc small{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cpprice .linkbtn{text-align:left;color:var(--fg);text-decoration:none}.cpprice .linkbtn:hover b{text-decoration:underline}
+.cpsrc .csrc{font-style:normal;font-size:12px}
+.cpmiss{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:12.5px}.cpmiss .cfind{font-size:12px}.cpnone{color:var(--muted);font-size:12px;padding:3px 6px}
+.cpcard .subme small{display:block}
+@media (max-width:820px){.swr.cpr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"sup price" "tag act";row-gap:4px}.swr.cpr .swsup{grid-area:sup;margin:0}.swr.cpr .cpprice{grid-area:price;align-items:flex-end}.swr.cpr .cptag{grid-area:tag}.swr.cpr .swact{grid-area:act}.swr.cpr .cpsrc,.swr.cpr .swvs,.swr.cpr .swsave{display:none}}
 @media (max-width:820px){
   .swhero{grid-template-columns:1fr}
   .swwin{max-width:150px}
@@ -2454,6 +2464,8 @@ const localQty = new Map(), saveTimers = new Map(), localOrd = new Map(), ordTim
 function sync(state, txt){ $("#dot").className = "dot " + state; $("#syncTxt").textContent = txt; }
 let toastT;
 function toast(msg){ let t = $(".toast"); if(!t){ t = document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); document.body.append(t); } t.textContent = msg; t.hidden=false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden=true, 2600); }
+/* a toast with one button (Undo), shown longer */
+function toastAct(msg, label, fn, ms = 12000){ toast(msg); const t = $(".toast"); const b = document.createElement("button"); b.type = "button"; b.className = "toastbtn"; b.textContent = label; b.onclick = () => { t.hidden = true; clearTimeout(toastT); fn(); }; t.append(" ", b); clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
 function dbErr(e){
   switch(e?.code){
     /* a refused write means "view only" only when the platform didn't already say this person can write;
@@ -3802,16 +3814,64 @@ function compareHtml(){
     return `<td class="cc${isBest ? " best" : ""}${isCur ? " cur" : ""}"><button type="button" class="ccb" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="${esc(c.s)}: ${esc(money(Number(o.price)))}${o.pack ? " / " + esc(o.pack) : ""} · ${esc(src)}${when ? " " + esc(when) : ""}${isCur ? " · your current supplier" : " · tap to switch to " + esc(c.s)}"><b>${esc(money(Number(o.price)))}${spBadge(o)}</b><small>${esc(o.pack || "")}</small><i class="csrc s-${esc(o.kind)}">${esc(src)}${when ? " " + esc(when) : ""}</i></button></td>`;
   };
   const sel = cmpSel.size, n = sel || Math.min(rows.length, 40);
-  return `<div class="toolbar spendtools"><p>The same product at each supplier, matched by MPN (manufacturer part number). Green is the cheapest; the outlined price is who you buy from now. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price.</p>
+  const wins = rows.filter(r => r.save > 0.004).sort((a, b) => b.save - a.save), top = wins[0];
+  const yourP = r => r.cur ? r.cur.p : priceNum(r.it.unitCost);
+  const qtyOf = r => Math.max(1, Number(r.it.orderQty) || 1);
+  /* the price line: each supplier's price as a dot, yours as the marker */
+  const ladder = r => {
+    const pts = r.cells.filter(c => c.o).map(c => ({ c, p: Number(c.o.price) })).filter(x => x.p > 0 && keyOf(x.c.s) !== keyOf(r.it.supplier)), mp = yourP(r);
+    if (mp == null || !pts.length) return "";
+    const all = [mp, ...pts.map(x => x.p)], lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || hi || 1;
+    const X = v => 10 + (v - lo) / span * 80, xy = X(mp), side = xy > 78 ? "r" : xy < 22 ? "l" : "";
+    return `<div class="ladder"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span><div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${esc(money(mp))}</b></div>${pts.map(x => `<button type="button" class="ldot ${x.p < mp - 0.004 ? "cheap" : "dear"}${r.best && r.best.s === x.c.s ? " best" : ""}" style="left:${X(x.p).toFixed(2)}%" data-cmp="${esc(r.it.id)}" data-sup="${esc(x.c.s)}" title="${esc(x.c.s)}: ${esc(money(x.p))}" aria-label="${esc(x.c.s)} at ${esc(money(x.p))}"><span>${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span></button>`).join("")}</div></div>`;
+  };
+  const card = r => {
+    const it = r.it, mp = yourP(r), q = qtyOf(r);
+    const priced = r.cells.filter(c => c.o && Number(c.o.price) > 0).sort((a, b) => Number(a.o.price) - Number(b.o.price));
+    const missing = r.cells.filter(c => !c.o);
+    const w = elsewhereAt(it);
+    const row = (c, ew) => { const o = c.o, p = Number(o.price), isCur = !ew && keyOf(c.s) === keyOf(it.supplier), isBest = !ew && r.best && r.best.s === c.s && r.comparable;
+      const diff = mp != null && !isCur ? mp - p : null, pct = diff != null && mp > 0 ? Math.round(Math.abs(diff) / mp * 100) : null, save = diff != null && diff > 0.004 ? diff * q : 0;
+      const when = o.at && o.kind !== "saved" ? shortDate(o.at) : "", src = o.kind === "saved" ? "Saved price" : (KIND_LBL[o.kind] || "Website");
+      return `<div class="swr cpr${isBest ? " best" : ""}${isCur ? " cur" : ""}" role="row">
+        <span class="cptag">${isCur ? `<span class="swfit f-cur">Yours</span>` : isBest ? `<span class="swfit f-good">Best</span>` : ew ? `<span class="swfit f-maybe">Elsewhere</span>` : ""}</span>
+        <span class="swsup">${supLogo(c.s)}<span>${esc(c.s)}</span></span>
+        <span class="cpprice"><button type="button" class="linkbtn" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}"${ew ? ` data-ew="1"` : ""} title="Open the page, fix the price, or mark it the wrong product"><b>${esc(money(p))}</b>${spBadge(o)}</button><small>${esc(o.pack || "")}</small></span>
+        <span class="cpsrc"><i class="csrc s-${esc(o.kind)}">${esc(src)}</i>${when ? `<small>${esc(when)}</small>` : ""}</span>
+        <span class="swvs">${pct != null && pct > 0 ? `<i class="${diff > 0 ? "lo" : "hi"}" style="width:${Math.min(100, pct)}%"></i><b>${diff > 0 ? "−" : "+"}${pct}%</b>` : ""}</span>
+        <span class="swsave">${save ? `<b>${esc(money(save))}</b><small>${q > 1 ? `on ${fmtQ(q)}` : "each"}</small>` : ""}</span>
+        <span class="swact">${readOnly || isCur || ew || !o.url ? "" : `<button type="button" class="btn sm${save ? " pri" : ""}" data-cmpsw="${esc(it.id)}" data-sup="${esc(c.s)}">Switch</button>`}</span>
+      </div>`; };
+    const miss = c => { const url = linkFor(it, c.s), m = it.links?.[keyOf(c.s)]?.none;
+      if (url) return `<button type="button" class="cfind" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="Saved ${esc(c.s)} page: no price read yet">${esc(c.s)} ${ic("ext")}</button>`;
+      if (readOnly || !clean(it.mfr) || !window.TDC?.mpnSearch) return `<span class="cpnone">${esc(c.s)}</span>`;
+      return `<button type="button" class="cfind" data-cfind="${esc(it.id)}" data-sup="${esc(c.s)}" title="Search ${esc(c.s)} for part # ${esc(it.mfr)}">${esc(c.s)}: ${m ? "not found · retry" : "Find"}</button>`; };
+    return `<article class="swcard cpcard${r.save > 0.004 ? " win" : ""}" id="cmp-${esc(it.id)}">
+      <header class="swhead">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(it.id)}" ${cmpSel.has(it.id) ? "checked" : ""} aria-label="Tick ${esc(it.name)}">`}
+        ${it.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(it.photo)}" onerror="this.remove()">` : `<span class="thumb"></span>`}
+        <div class="subme"><button type="button" class="cnb" data-cmpopen="${esc(it.id)}">${esc(it.name)}</button>
+          <small>${it.supplier ? `${supLogo(it.supplier)}${esc(it.supplier)}` : "No supplier"}${mp != null ? ` · <b>${esc(money(mp))}</b>${itemSp(it)}` : ""}${it.units ? ` / ${esc(it.units)}` : ""}${it.need ? ` · order ${fmtQ(it.orderQty)}` : ""}</small>
+          <small class="subspecs">${clean(it.mfr) ? `MPN ${esc(it.mfr)}` : `<span class="nompn">No MPN</span>`}</small></div>
+        <div class="swwin">${r.save > 0.004 ? `<span class="swbig">Save ${esc(money(r.save))}</span><small>${q > 1 ? "on this order" : "each"} with ${esc(r.best.s)}</small>` : `<span class="swnone">${r.comparable ? "Best price already" : priced.length ? "Only one price so far" : "No prices yet"}</span>`}</div>
+      </header>
+      ${ladder(r)}
+      ${priced.length || w ? `<div class="swtable" role="table"><div class="swr cpr swth" role="row"><span></span><span>Supplier</span><span>Price</span><span>From</span><span>vs yours</span><span>Saving</span><span></span></div>${priced.map(c => row(c)).join("")}${w ? row({ s: w.src, o: w }, true) : ""}</div>` : ""}
+      ${missing.length ? `<div class="cpmiss"><span class="hint">No price yet:</span> ${missing.map(miss).join("")}</div>` : ""}
+    </article>`;
+  };
+  return `<div class="toolbar spendtools">
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
     ${hiddenNoMpn || cmpNoMpn ? `<label class="cmpnm"><input type="checkbox" id="cmpNoMpn" ${cmpNoMpn ? "checked" : ""}> Show products with no MPN${hiddenNoMpn ? ` (${hiddenNoMpn} hidden)` : ""}</label>` : ""}
     <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:0;width:100%"></label></div>
     ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices. Henry Schein is skipped: Claude reads your HS prices while you're signed in.">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
-    ${cheaper.length ? `<div class="spcards"><div class="spcard"><small>Cheaper elsewhere</small><b>${cheaper.length} product${cheaper.length > 1 ? "s" : ""}</b></div><div class="spcard"><small>${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</small><b>${money(totalSave)}</b></div></div>` : ""}
-    ${rows.length ? `<div class="cmpwrap"><table class="cmp"><thead><tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpall" id="cmpAll" title="Tick all" ${rows.length && rows.every(r => cmpSel.has(r.it.id)) ? "checked" : ""}> `}Product</th>${sups.map(s => `<th>${supLogo(s)}<span>${esc(s)}</span></th>`).join("")}<th class="ce">Elsewhere</th><th class="cs">Save</th></tr></thead><tbody>
-      ${rows.map(r => `<tr><th class="cn">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(r.it.id)}" ${cmpSel.has(r.it.id) ? "checked" : ""} aria-label="Tick ${esc(r.it.name)}">`}<button type="button" class="cnb" data-cmpopen="${esc(r.it.id)}">${esc(r.it.name)}</button><small>${clean(r.it.mfr) ? `MPN ${esc(r.it.mfr)}` : `<span class="nompn">No MPN</span>`}${r.it.units ? " · " + esc(r.it.units) : ""}${r.it.need ? ` · order ${fmtQ(r.it.orderQty)}` : ""}</small></th>${r.cells.map(c => cell(r, c)).join("")}${(() => { const w = elsewhereAt(r.it); return w ? `<td class="cc ce"><button type="button" class="ccb" data-cmp="${esc(r.it.id)}" data-sup="${esc(w.src)}" data-ew="1" title="${esc(w.src)} · website price · tap for options"><b>${esc(money(Number(w.price)))}</b><small>${esc(w.pack || "")}</small><i class="csrc">${esc(w.src)}</i></button></td>` : `<td class="cc none ce"><span>—</span></td>`; })()}<td class="cs">${r.save > 0.004 ? `<b>${esc(money(r.save))}</b><small>at ${esc(r.best.s)}</small>` : r.cells.filter(c => c.o).length > 1 && !r.comparable ? `<small title="Different pack sizes that couldn't be converted to a price per unit">packs differ</small>` : ""}</td></tr>`).join("")}
-    </tbody></table></div>${cmpCards(rows, sups, cell)}` : `<div class="list"><div class="empty">${hiddenNoMpn ? `Nothing to compare: the ${hiddenNoMpn} product${hiddenNoMpn > 1 ? "s" : ""} here ${hiddenNoMpn > 1 ? "have" : "has"} no MPN yet.` : cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
+    ${rows.length ? `<div class="swhero">
+      <div><span class="swk">${cmpShow === "need" ? "Could save on this order" : "Could save (one order each)"}</span><b class="swbig">${esc(money(totalSave))}</b><small>Switching each product to its cheapest supplier</small></div>
+      <div><span class="swk">Cheaper elsewhere</span><b class="swbig">${wins.length}<small> of ${rows.length}</small></b><small>${rows.filter(r => r.comparable).length} with 2+ prices to compare</small></div>
+      <div class="swtop"><span class="swk">Biggest win</span>${top ? `<button type="button" class="linkbtn" data-cmpjump="${esc(top.it.id)}">${esc(top.it.name)}</button><small>${esc(money(top.save))} with ${esc(top.best.s)}</small>` : `<small class="hint">Update prices to find savings.</small>`}</div>
+    </div>
+    <p class="hint">The same product at each supplier, matched by MPN (manufacturer part number). Each dot on a product's price line is a supplier: green dots cost less than yours. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price. Tap a price to open its page, fix it, or mark it the wrong product.</p>
+    <div class="sublist">${rows.map(card).join("")}</div>` : `<div class="list"><div class="empty">${hiddenNoMpn ? `Nothing to compare: the ${hiddenNoMpn} product${hiddenNoMpn > 1 ? "s" : ""} here ${hiddenNoMpn > 1 ? "have" : "has"} no MPN yet.` : cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
 function wireCompare(){
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
@@ -3830,6 +3890,8 @@ function wireCompare(){
   document.querySelectorAll("[data-cfind]").forEach(b => b.onclick = async () => { const it = byId(b.dataset.cfind); if (!it || cmpBusy) return; b.disabled = true; b.textContent = "Searching…"; await findAt(it, b.dataset.sup); render(); });
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) openItem(it); });
   document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp); if (it) cmpCellPanel(it, b.dataset.sup, !!b.dataset.ew); });
+  document.querySelectorAll("[data-cmpsw]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpsw); if (it) useOffer(it, offerAt(it, b.dataset.sup)); });
+  document.querySelectorAll("[data-cmpjump]").forEach(b => b.onclick = () => { const el = document.getElementById("cmp-" + b.dataset.cmpjump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); } });
 }
 /* read one saved page and keep its price only when the page shows the part number */
 /* give up on one slow supplier page instead of holding up the whole run (null = no answer in time) */
@@ -6084,7 +6146,7 @@ function subsHtml(){
       <div><span class="swk">Products with a cheaper match</span><b class="swbig">${wins.length}<small> of ${rows.length}</small></b></div>
       <div class="swtop"><span class="swk">Biggest win</span>${top ? `<button type="button" class="linkbtn" data-subjump="${esc(top.i.id)}">${esc(top.i.name)}</button><small>${esc(money(top.b.save))} ${top.b.yearly ? "a year" : "this order"} with ${esc(top.b.x.sup)}</small>` : `<small class="hint">Search some products to see savings.</small>`}</div>
     </div>
-    <p class="hint">Cheaper products that do the same job, mostly your suppliers' own brands (set each supplier's house brand in Setup › Suppliers). Prices are compared per unit (per glove, per cup…). Each dot on a product's price line is an option: green dots cost less than yours.</p>
+    <p class="hint">Cheaper products that do the same job, mostly your suppliers' own brands (set each supplier's house brand in Setup › Suppliers). Prices are compared per unit (per glove, per cup…). Each dot on a product's price line is an option: green dots cost less than yours. Switch makes the substitute your product (reserve, location and count carry over) and archives the old one; you can undo it.</p>
     <div class="logfilt cmpfilt">
       <label>Show <select id="subShow"><option value="need" ${subShow === "need" ? "selected" : ""}>Order list</option><option value="cats" ${subShow === "cats" ? "selected" : ""}>Substitute categories</option><option value="found" ${subShow === "found" ? "selected" : ""}>With substitutes found</option></select></label>
       <label>Find <input type="search" id="subQ" value="${esc(subQ)}" placeholder="Product or category" style="min-width:0;width:100%"></label>
@@ -6112,7 +6174,7 @@ function wireSubs(){
   $("#subCats") && ($("#subCats").onclick = subCatsPanel);
   const pick = v => { const [id, k] = v.split("|"); const it = byId(id); return it ? [it, it.subs?.list?.[+k], +k] : []; };
   document.querySelectorAll("[data-subbk]").forEach(b => b.onclick = () => { const [it, x] = pick(b.dataset.subbk); if (x) saveBackup(it, { supplier: x.sup, url: x.url, title: x.title, price: x.price, pack: x.pack, sku: x.sku || "" }, b); });
-  document.querySelectorAll("[data-subsw]").forEach(b => b.onclick = () => { const [it, x] = pick(b.dataset.subsw); if (x) replaceWith(it, { supplier: x.sup, url: x.url, title: x.title, price: x.price, pack: x.pack, sku: x.sku || "" }); });
+  document.querySelectorAll("[data-subsw]").forEach(b => b.onclick = () => { const [it, x, k] = pick(b.dataset.subsw); if (x) { b.disabled = true; b.textContent = "Switching…"; switchNow(it, x, k).finally(() => { if (b.isConnected) { b.disabled = false; b.textContent = "Switch"; } }); } });
   document.querySelectorAll("[data-subno]").forEach(b => b.onclick = async () => { const [it, x] = pick(b.dataset.subno); if (!x || !needMe()) return;
     const subNo = [...new Set([...(it.subNo || []), x.url])].slice(-60);
     try { await write(it.id, { subNo }); it.subNo = subNo; render(); toast("Hidden. It won't be suggested again."); } catch(e) { toast(dbErr(e)); } });
@@ -6123,6 +6185,38 @@ function wireSubs(){
     const v = prompt(`How many ${it.subs?.unit || "unit"}s come in "${x.pack || x.title}"?`, x.count || ""); if (v == null) return; const n = num(v); if (!(n > 0)) return; if (!needMe()) return;
     const list = it.subs.list.map((y, i) => i === k ? { ...y, count: n } : y);
     try { await write(it.id, { subs: { ...it.subs, list } }); it.subs = { ...it.subs, list }; render(); } catch(e) { toast(dbErr(e)); } });
+}
+/* One tap from Substitutes: the substitute becomes a new product with the old one's place, category, count schedule and
+   reserve (converted when the packages hold different counts, e.g. boxes of 100 → boxes of 200), the stock on the
+   shelf carries over, and the old product is archived. Undo puts everything back. */
+async function switchNow(it, x, k){
+  if (!needMe()) return;
+  const old = byId(it.id) || it;
+  if (clean(old.ordered) || Number(old.orderedQty) > 0) { toast(`${old.name} is on the way. Switch after it arrives, so the delivery lands on the right product.`); return; }
+  const m = subMine(old), unit = old.subs?.unit || "each";
+  const ratio = m.c > 0 && Number(x.count) > 0 ? m.c / Number(x.count) : null;   // new packages per old package
+  const up = v => { const n = num(v); return n == null ? n : ratio ? Math.ceil(n * ratio - 1e-9) : n; };
+  const q = num(old.qty) || 0, qty = ratio ? Math.round(q * ratio * 10) / 10 : q;
+  const now = Date.now(), price = Number(x.price) > 0 ? Number(x.price) : null;
+  const doc = { name: clean(x.title) || old.name, sku: clean(x.sku), units: clean(x.pack), cat: old.cat || "", sub: old.sub || "", loc: old.loc || "", supplier: x.sup || "", link: x.url || "",
+    unitCost: price ? "$" + price.toFixed(2) : "", exp: "", notes: "", desc: "", photo: "", skuPhoto: "", qty, desired: up(old.desired) ?? 1, urgent: up(old.urgent) ?? 0, countEvery: old.countEvery ?? "",
+    ...(old.countedAt ? { countedAt: old.countedAt, countedBy: old.countedBy || "" } : {}),
+    offers: price ? [{ src: x.sup, price, pack: clean(x.pack), url: x.url || "", sku: clean(x.sku), kind: "public", at: now, sure: true }] : [],
+    subs: old.subs ? { ...old.subs, list: (old.subs.list || []).filter((y, i) => i !== k), mineCount: Number(x.count) > 0 ? Number(x.count) : null, at: old.subs.at } : null,
+    replaces: old.id, ordered: "", orderedQty: 0, createdAt: now, updatedAt: now, updatedBy: me() };
+  let ref;
+  try { ref = await addItemDoc(doc); }
+  catch(e) { toast(dbErr(e)); return; }
+  try { await write(old.id, { archived: true, archivedAt: now, replacedBy: ref.id }); }
+  catch(e) { try { await db.doc("items/" + ref.id).delete(); } catch {} toast("Not switched: " + dbErr(e)); return; }
+  const conv = ratio && Math.abs(ratio - 1) > 1e-6 ? ` (reserve ${fmtQ(num(old.desired) ?? 1)} → ${fmtQ(doc.desired)}, on hand ${fmtQ(q)} → ${fmtQ(qty)}, ${unitN(m.c, unit)} vs ${unitN(Number(x.count), unit)} a package)` : "";
+  logIt("Added", { id: ref.id, name: doc.name }, `switched from ${old.name} (substitute from ${x.sup})${conv}`);
+  logIt("Archived", old, `replaced by ${doc.name}`);
+  render();
+  toastAct(`Switched to ${doc.name}${conv ? ". Reserve and count converted to the new package." : "."}`, "Undo", async () => {
+    try { await db.doc("items/" + ref.id).delete(); await write(old.id, { archived: false, archivedAt: null, replacedBy: "" }); logIt("Edited", old, `switch to ${doc.name} undone`); toast("Switch undone"); render(); }
+    catch(e) { toast(dbErr(e)); }
+  });
 }
 function subCatsPanel(){
   const all = [...new Set(items.map(i => clean(i.cat)).filter(Boolean))].sort(), on = new Set(subCats().map(keyOf));
