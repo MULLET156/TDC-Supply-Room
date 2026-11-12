@@ -2084,7 +2084,7 @@ main .wrap{grid-template-columns:minmax(0,1fr)}
 .cpprice .linkbtn{text-align:left;color:var(--fg);text-decoration:none}.cpprice .linkbtn:hover b{text-decoration:underline}
 .cpsrc .csrc{font-style:normal;font-size:12px}
 .cpmiss{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:12.5px}.cpmiss .cfind{font-size:12px}.cpnone{color:var(--muted);font-size:12px;padding:3px 6px}
-.cpcard .subme small{display:block}
+.cpcard .subme small{display:block}.cpcard.shut{padding-bottom:4px}.cpcard.shut .ladder{margin-bottom:0;padding-bottom:12px}.cptog{font-size:12.5px;display:inline-flex;align-items:center;gap:4px;margin-top:2px}.cptog svg{width:12px;height:12px;transition:transform .15s}.cpcard.open .cptog svg{transform:rotate(90deg)}
 @media (max-width:820px){.swr.cpr{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"sup price" "tag act";row-gap:4px}.swr.cpr .swsup{grid-area:sup;margin:0}.swr.cpr .cpprice{grid-area:price;align-items:flex-end}.swr.cpr .cptag{grid-area:tag}.swr.cpr .swact{grid-area:act}.swr.cpr .cpsrc,.swr.cpr .swvs,.swr.cpr .swsave{display:none}}
 @media (max-width:820px){
   .swhero{grid-template-columns:1fr}
@@ -3218,7 +3218,9 @@ const repContact = r => [r.cell && "cell " + r.cell, r.phone && "office " + r.ph
 const supSlug = k => "s-" + keyOf(k).replace(/[^a-z0-9_\-.~]/g, "-").slice(0, 150);
 const infoOf = sup => supInfo[supSlug(sup)] || {};
 const cartOn = sup => { if (window.HOSTED) return false; const c = infoOf(sup).cart; return typeof c === "boolean" ? c : /amazon/i.test(sup || ""); };
-const supLogo = (s, cls = "") => { const l = infoOf(s).logo; return l ? `<img class="suplogo${cls ? " " + cls : ""}" src="blob.php?id=${esc(l)}" alt="" loading="lazy" onerror="this.remove()">` : ""; };
+/* a supplier's logo; a name that differs from the saved supplier (Safco Dental Supply vs Safco) uses the logo of the supplier with the same website */
+function logoOf(s){ const own = infoOf(s).logo; if (own) return own; const h = typeof siteHost === "function" ? siteHost(s) : ""; if (!h) return ""; for (const k in supInfo) { const i = supInfo[k]; if (!i?.logo || !i.website) continue; try { if (new URL(webHref(i.website)).hostname.replace(/^www\./, "") === h) return i.logo; } catch {} } return ""; }
+const supLogo = (s, cls = "") => { const l = logoOf(s); return l ? `<img class="suplogo${cls ? " " + cls : ""}" src="blob.php?id=${esc(l)}" alt="" loading="lazy" onerror="this.remove()">` : ""; };
 const webHref = u => /^https?:\/\//i.test(u) ? u : "https://" + u;
 const telHref = p => "tel:" + String(p).replace(/[^0-9+]/g, "");
 function repCompact(r, sup){
@@ -3795,7 +3797,7 @@ function cmpCards(rows, sups, cell){
       ${r.save > 0.004 ? `<div class="ccsave">Save <b>${esc(money(r.save))}</b> at ${esc(r.best.s)}</div>` : ""}
     </div>`; }).join("")}</div>`;
 }
-let cmpBusy = null; /* { stop, label } while a run is going */
+let cmpBusy = null, cmpOpen = new Set();   /* Compare prices cards start condensed; these are opened */ /* { stop, label } while a run is going */
 function compareHtml(){
   const sups = compareSups(), rows = cmpRows();
   const cheaper = rows.filter(r => r.save > 0.004), totalSave = cheaper.reduce((a, r) => a + r.save, 0);
@@ -3824,7 +3826,7 @@ function compareHtml(){
     if (mp == null || !pts.length) return "";
     const all = [mp, ...pts.map(x => x.p)], lo = Math.min(...all), hi = Math.max(...all), span = hi - lo || hi || 1;
     const X = v => 10 + (v - lo) / span * 80, xy = X(mp), side = xy > 78 ? "r" : xy < 22 ? "l" : "";
-    return `<div class="ladder"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span><div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${esc(money(mp))}</b></div>${pts.map(x => `<button type="button" class="ldot${infoOf(x.c.s).logo ? " lgdot" : ""} ${x.p < mp - 0.004 ? "cheap" : "dear"}${r.best && r.best.s === x.c.s ? " best" : ""}" style="left:${X(x.p).toFixed(2)}%" data-ini="${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}" data-cmp="${esc(r.it.id)}" data-sup="${esc(x.c.s)}" title="${esc(x.c.s)}: ${esc(money(x.p))}" aria-label="${esc(x.c.s)} at ${esc(money(x.p))}">${infoOf(x.c.s).logo ? `<img src="blob.php?id=${esc(infoOf(x.c.s).logo)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.parentNode.dataset.ini}))">` : `<span>${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span>`}</button>`).join("")}</div></div>`;
+    return `<div class="ladder"><div class="ltrack"><span class="lcheap">cheaper</span><span class="ldear">costs more</span><div class="lyou ${side}" style="left:${xy.toFixed(2)}%"><b>Yours · ${esc(money(mp))}</b></div>${pts.map(x => `<button type="button" class="ldot${logoOf(x.c.s) ? " lgdot" : ""} ${x.p < mp - 0.004 ? "cheap" : "dear"}${r.best && r.best.s === x.c.s ? " best" : ""}" style="left:${X(x.p).toFixed(2)}%" data-ini="${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}" data-cmp="${esc(r.it.id)}" data-sup="${esc(x.c.s)}" title="${esc(x.c.s)}: ${esc(money(x.p))}" aria-label="${esc(x.c.s)} at ${esc(money(x.p))}">${logoOf(x.c.s) ? `<img src="blob.php?id=${esc(logoOf(x.c.s))}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:this.parentNode.dataset.ini}))">` : `<span>${esc(x.c.s.replace(/[^A-Za-z0-9]/g, "").slice(0, 2))}</span>`}</button>`).join("")}</div></div>`;
   };
   const card = r => {
     const it = r.it, mp = yourP(r), q = qtyOf(r);
@@ -3847,17 +3849,19 @@ function compareHtml(){
       if (url) return `<button type="button" class="cfind" data-cmp="${esc(it.id)}" data-sup="${esc(c.s)}" title="Saved ${esc(c.s)} page: no price read yet">${esc(c.s)} ${ic("ext")}</button>`;
       if (readOnly || !clean(it.mfr) || !window.TDC?.mpnSearch) return `<span class="cpnone">${esc(c.s)}</span>`;
       return `<button type="button" class="cfind" data-cfind="${esc(it.id)}" data-sup="${esc(c.s)}" title="Search ${esc(c.s)} for part # ${esc(it.mfr)}">${esc(c.s)}: ${m ? "not found · retry" : "Find"}</button>`; };
-    return `<article class="swcard cpcard${r.save > 0.004 ? " win" : ""}" id="cmp-${esc(it.id)}">
+    const open = cmpOpen.has(it.id);
+    return `<article class="swcard cpcard${r.save > 0.004 ? " win" : ""}${open ? " open" : " shut"}" id="cmp-${esc(it.id)}">
       <header class="swhead">${readOnly ? "" : `<input type="checkbox" class="cmpchk" data-cmpsel="${esc(it.id)}" ${cmpSel.has(it.id) ? "checked" : ""} aria-label="Tick ${esc(it.name)}">`}
         ${it.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(it.photo)}" onerror="this.remove()">` : `<span class="thumb"></span>`}
         <div class="subme"><button type="button" class="cnb" data-cmpopen="${esc(it.id)}">${esc(it.name)}</button>
           <small>${it.supplier ? `${supLogo(it.supplier)}${esc(it.supplier)}` : "No supplier"}${mp != null ? ` · <b>${esc(money(mp))}</b>${itemSp(it)}` : ""}${it.units ? ` / ${esc(it.units)}` : ""}${it.need ? ` · order ${fmtQ(it.orderQty)}` : ""}</small>
           <small class="subspecs">${clean(it.mfr) ? `MPN ${esc(it.mfr)}` : `<span class="nompn">No MPN</span>`}</small></div>
-        <div class="swwin">${r.save > 0.004 ? `<span class="swbig">Save ${esc(money(r.save))}</span><small>${it.need ? "on this order" : "each"} with ${esc(r.best.s)}</small>` : `<span class="swnone">${r.comparable ? "Best price already" : priced.length ? "Only one price so far" : "No prices yet"}</span>`}</div>
+        <div class="swwin">${r.save > 0.004 ? `<span class="swbig">Save ${esc(money(r.save))}</span><small>${it.need ? "on this order" : "each"} with ${esc(r.best.s)}</small>` : `<span class="swnone">${r.comparable ? "Best price already" : priced.length ? "Only one price so far" : "No prices yet"}</span>`}
+          <button type="button" class="linkbtn cptog" data-cmptog="${esc(it.id)}" aria-expanded="${open}">${open ? "Hide suppliers" : `${priced.length + (w ? 1 : 0)} price${priced.length + (w ? 1 : 0) === 1 ? "" : "s"}${missing.length ? ` · ${missing.length} to find` : ""}`} ${ic("chev")}</button></div>
       </header>
       ${ladder(r)}
-      ${priced.length || w ? `<div class="swtable" role="table"><div class="swr cpr swth" role="row"><span></span><span>Supplier</span><span>Price</span><span>From</span><span>vs yours</span><span>Saving</span><span></span></div>${priced.map(c => row(c)).join("")}${w ? row({ s: w.src, o: w }, true) : ""}</div>` : ""}
-      ${missing.length ? `<div class="cpmiss"><span class="hint">No price yet:</span> ${missing.map(miss).join("")}</div>` : ""}
+      ${!open ? "" : priced.length || w ? `<div class="swtable" role="table"><div class="swr cpr swth" role="row"><span></span><span>Supplier</span><span>Price</span><span>From</span><span>vs yours</span><span>Saving</span><span></span></div>${priced.map(c => row(c)).join("")}${w ? row({ s: w.src, o: w }, true) : ""}</div>` : ""}
+      ${open && missing.length ? `<div class="cpmiss"><span class="hint">No price yet:</span> ${missing.map(miss).join("")}</div>` : ""}
     </article>`;
   };
   return `<div class="toolbar spendtools">
@@ -3871,7 +3875,7 @@ function compareHtml(){
       <div><span class="swk">Cheaper elsewhere</span><b class="swbig">${wins.length}<small> of ${rows.length}</small></b><small>${rows.filter(r => r.comparable).length} with 2+ prices to compare</small></div>
       <div class="swtop"><span class="swk">Biggest win</span>${top ? `<button type="button" class="linkbtn" data-cmpjump="${esc(top.it.id)}">${esc(top.it.name)}</button><small>${esc(money(top.save))} with ${esc(top.best.s)}</small>` : `<small class="hint">Update prices to find savings.</small>`}</div>
     </div>
-    <p class="hint">The same product at each supplier, matched by MPN (manufacturer part number). Each dot on a product's price line is a supplier: green dots cost less than yours. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price. Tap a price to open its page, fix it, or mark it the wrong product.</p>
+    <p class="hint">The same product at each supplier, matched by MPN (manufacturer part number). Each dot on a product's price line is a supplier: green dots cost less than yours. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price. Tap a price to open its page, fix it, or mark it the wrong product. <button type="button" class="linkbtn" id="cmpAllTog">${rows.every(r => cmpOpen.has(r.it.id)) ? "Collapse all" : "Expand all"}</button></p>
     <div class="sublist">${rows.map(card).join("")}</div>` : `<div class="list"><div class="empty">${hiddenNoMpn ? `Nothing to compare: the ${hiddenNoMpn} product${hiddenNoMpn > 1 ? "s" : ""} here ${hiddenNoMpn > 1 ? "have" : "has"} no MPN yet.` : cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
 function wireCompare(){
@@ -3891,8 +3895,10 @@ function wireCompare(){
   document.querySelectorAll("[data-cfind]").forEach(b => b.onclick = async () => { const it = byId(b.dataset.cfind); if (!it || cmpBusy) return; b.disabled = true; b.textContent = "Searching…"; await findAt(it, b.dataset.sup); render(); });
   document.querySelectorAll("[data-cmpopen]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpopen); if (it) openItem(it); });
   document.querySelectorAll("[data-cmp]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmp); if (it) cmpCellPanel(it, b.dataset.sup, !!b.dataset.ew); });
+  document.querySelectorAll("[data-cmptog]").forEach(b => b.onclick = () => { const id = b.dataset.cmptog; cmpOpen.has(id) ? cmpOpen.delete(id) : cmpOpen.add(id); render(); document.querySelector(`[data-cmptog="${CSS.escape(id)}"]`)?.focus(); });
+  $("#cmpAllTog") && ($("#cmpAllTog").onclick = () => { const ids = cmpRows().map(r => r.it.id), all = ids.every(i => cmpOpen.has(i)); ids.forEach(i => all ? cmpOpen.delete(i) : cmpOpen.add(i)); render(); });
   document.querySelectorAll("[data-cmpsw]").forEach(b => b.onclick = () => { const it = byId(b.dataset.cmpsw); if (it) useOffer(it, offerAt(it, b.dataset.sup)); });
-  document.querySelectorAll("[data-cmpjump]").forEach(b => b.onclick = () => { const el = document.getElementById("cmp-" + b.dataset.cmpjump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); } });
+  document.querySelectorAll("[data-cmpjump]").forEach(b => b.onclick = () => { cmpOpen.add(b.dataset.cmpjump); render(); const el = document.getElementById("cmp-" + b.dataset.cmpjump); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 1600); } });
 }
 /* read one saved page and keep its price only when the page shows the part number */
 /* give up on one slow supplier page instead of holding up the whole run (null = no answer in time) */
