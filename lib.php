@@ -435,7 +435,14 @@ function ai_call(string $p, string $prompt, array $images, string $tier, array $
         $parts[] = ['text' => $ask];
         $body = $enc(['contents' => [['role' => 'user', 'parts' => $parts]], 'generationConfig' => ['responseMimeType' => 'application/json', 'maxOutputTokens' => max(8192, $maxTok * 2)]]);
         if ($body === false) return ['ok' => false, 'error' => 'bad_request', 'message' => 'The text couldn\'t be sent.'];
-        [$res, $code, $cerr, $j] = ai_http('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', ['x-goog-api-key: ' . cfg('GEMINI_API_KEY')], $body, $timeout);
+        // a model the key's plan has no quota for (often the newest, on the free tier) is skipped for the next one down, and remembered
+        $tries = array_values(array_unique(array_filter(array_merge([$model], (array)($m['alts'] ?? []))))); $tried = 0; $t0 = microtime(true);
+        foreach ($tries as $model) {
+            [$res, $code, $cerr, $j] = ai_http('https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent', ['x-goog-api-key: ' . cfg('GEMINI_API_KEY')], $body, max(5, $timeout - (int)(microtime(true) - $t0)));
+            $noQuota = $code === 429 && preg_match('/exceeded your current quota|limit: 0/i', (string)$res) && !preg_match('/per minute|PerMinute/i', (string)$res);
+            if (!$noQuota || ++$tried >= 4 || microtime(true) - $t0 > $timeout - 5) break;
+            ai_model_drop('gemini', $model);
+        }
         if ($res === false) return ['ok' => false, 'error' => 'unavailable', 'message' => "Couldn't reach $N ($cerr)."];
         if ($code !== 200 || !is_array($j)) { $em = is_array($j) ? (string)($j['error']['message'] ?? '') : ''; return $fail($code, $em, preg_match('/API_KEY_INVALID|API key not valid/i', (string)$res) ? 'key' : (preg_match('/RESOURCE_EXHAUSTED/', (string)$res) && preg_match('/quota/i', $em) && !preg_match('/per minute/i', $em) ? 'credits' : '')); }
         $text = ''; foreach ($j['candidates'][0]['content']['parts'] ?? [] as $c) if (empty($c['thought']) && isset($c['text'])) $text .= $c['text'];
@@ -492,12 +499,20 @@ function ai_models(string $p, bool $fresh = false): array {
             $pros = array_filter([$pick('pro', true), $pick('pro', false)]); usort($pros, fn($x, $y) => $ver($y) <=> $ver($x)); $pro = $pros[0] ?? '';
             // the newest generation leads: an older Pro loses to a newer Flash
             $main = $pro && (!$flash || $ver($pro) >= $ver($flash)) ? $pro : ($flash ?: $pro);
-            if ($flash || $pro) $got = ['main' => $main, 'quick' => $flash ?: $pro];
+            $alts = array_values(array_filter($ids, fn($id) => preg_match('/^gemini-\d+(?:\.\d+)?-(flash|pro)(-lite)?$/', $id)));
+            usort($alts, fn($x, $y) => [$ver($y), str_contains($x, 'lite'), strlen($x)] <=> [$ver($x), str_contains($y, 'lite'), strlen($y)]);
+            if ($flash || $pro) $got = ['main' => $main, 'quick' => $flash ?: $pro, 'alts' => array_slice($alts, 0, 8)];
         }
         if ($got && function_exists('cache_put')) cache_put('aimodels', $p, $got);
     }
     $got = $got ?: $fallback;
-    return ['main' => $over['main'] ?: $got['main'], 'quick' => $over['quick'] ?: ($over['main'] ?: $got['quick'])];
+    $dropped = function_exists('cache_get') ? (array)(cache_get('aimodelsdrop', $p, 7) ?? []) : [];
+    if ($dropped) {   // models this key had no quota for: the next one in the list takes their place
+        $ok = array_values(array_filter((array)($got['alts'] ?? []), fn($x) => !in_array($x, $dropped, true)));
+        foreach (['main', 'quick'] as $k) if (in_array($got[$k], $dropped, true)) $got[$k] = $ok[0] ?? $got[$k];
+        $got['alts'] = $ok;
+    }
+    return ['main' => $over['main'] ?: $got['main'], 'quick' => $over['quick'] ?: ($over['main'] ?: $got['quick']), 'alts' => $over['main'] ? [] : (array)($got['alts'] ?? [])];
 }
 /* Setup › Data collection › AI › Test: one provider, three small jobs (text, a picture, a PDF), no backup */
 const AI_TEST_PNG = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAIAAAD8GO2jAAAAKklEQVR4nGO4IydHU8QwasGoBaMWjFowasGoBaMWjFowasGoBaMWDBULAJI2YD1ZaHIvAAAAAElFTkSuQmCC';
@@ -518,6 +533,11 @@ function ai_test(string $p, string $only = ''): array {
     }
     $models = $p === 'claude' ? ['main' => (string)cfg('ANTHROPIC_MODEL', 'claude-sonnet-5-5'), 'quick' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5')] : ai_models($p);
     return ['ok' => true, 'passed' => count(array_filter($out, fn($x) => $x['ok'])) === count($jobs), 'provider' => AI_NAMES[$p], 'models' => $models, 'tests' => $out];
+}
+function ai_model_drop(string $p, string $model): void {
+    if (!function_exists('cache_put')) return;
+    $d = (array)(cache_get('aimodelsdrop', $p, 7) ?? []); if (!in_array($model, $d, true)) $d[] = $model;
+    cache_put('aimodelsdrop', $p, array_values($d));
 }
 function parse_json_reply(string $t) {
     $t = trim($t);
