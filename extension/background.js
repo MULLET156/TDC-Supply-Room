@@ -74,7 +74,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         // no sign-in either way (Net32 and other stores without account prices): saved as the website price, which never replaces an account or special price
         else if (msg.page.price && (auto || sw) && msg.page.signedIn == null) { res.saved = await save(m.item, sup, { ...msg.page, signedIn: false, accountPrice: false }); if (res.saved && !res.saved.kept) res.saved.web = true; }
         else if (msg.page.price) res.unsure = msg.page.signedIn == null;
-        if (sw) { sw.seen = true; if (res.saved || res.already || res.signedOut || res.unsure) sw.done(res); else if (msg.page.signedIn === false) sw.signedOutSeen = true; }
+        if (sw) { if (res.saved || res.already || res.signedOut || res.unsure) sw.done(res); else if (msg.page.signedIn === false) sw.signedOutSeen = true; }
         return reply(res);
       }
       if (msg.type === "save") {
@@ -168,38 +168,25 @@ async function runSweep(h, from = 0, ids = null) {
                  missed: from ? prev.missed || [] : [], startedAt: from ? prev.startedAt : Date.now(), why: "" };
     await set({ sweep: st });
     tab = await chrome.tabs.create({ url: "about:blank", active: false });
-    const open1 = (t, secs) => new Promise(resolve => {
-      const w = { signedOutSeen: false, seen: false, done: r => { sweepWaiters.delete(tab.id); clearTimeout(w.t1); clearTimeout(w.t2); resolve(r); } };
-      sweepWaiters.set(tab.id, w);
-      w.t1 = setTimeout(() => { if (w.signedOutSeen) w.done({ signedOut: true }); }, 15000);
-      w.t2 = setTimeout(() => w.done({ timeout: true, seen: w.seen }), secs * 1000);
-      chrome.tabs.update(tab.id, { url: t.url + "#tdc-bg" }).catch(() => w.done({ gone: true }));   // #tdc-bg: wake.js keeps the page drawing
-    });
-    const retry = [];
     for (let i = from; i < list.length; i++) {
       if (sweepStop) { st.why = "Stopped."; st.resumable = true; break; }
       const t = list[i];
-      const res = await open1(t, 40);
+      const res = await new Promise(resolve => {
+        const w = { signedOutSeen: false, done: r => { sweepWaiters.delete(tab.id); clearTimeout(w.t1); clearTimeout(w.t2); resolve(r); } };
+        sweepWaiters.set(tab.id, w);
+        w.t1 = setTimeout(() => { if (w.signedOutSeen) w.done({ signedOut: true }); }, 15000);
+        w.t2 = setTimeout(() => w.done({ timeout: true }), 30000);
+        chrome.tabs.update(tab.id, { url: t.url }).catch(() => w.done({ gone: true }));
+      });
       if (res.gone) { st.why = "The background tab was closed."; st.resumable = true; break; }
       if (res.signedOut && h !== "*") { st.why = `You're not signed in to ${st.name}. Sign in there in this browser, then press Resume.`; st.resumable = true; chrome.action.setBadgeText({ text: "!" }); chrome.action.setBadgeBackgroundColor({ color: "#b3261e" }); break; }
       if (res.signedOut) { st.missed.push({ name: t.name, url: t.url, why: "not signed in to that store" }); st.done = i + 1; await set({ sweep: st }); continue; }
       st.done = i + 1;
       if (res.saved && res.saved.kept) st.kept++; else if (res.saved) st.saved++; else if (res.already) st.same++;
-      else if (res.timeout) retry.push(t);   // slow page: tried again at the end
       else st.missed.push({ name: t.name, url: t.url, why: res.nomatch ? "page didn't match the product" : res.unsure ? "couldn't tell if signed in" : "no price shown" });
       st.missed = st.missed.slice(-60);
       await set({ sweep: st });
       await sleep(3000 + Math.random() * 2000);   // a person's pace, not a crawler's
-    }
-    // second try for pages that were slow, with more time and a fresh load
-    for (const t of (st.why ? [] : retry)) {
-      if (sweepStop) { st.why = "Stopped."; break; }
-      await sleep(2000);
-      const res = await open1(t, 60);
-      if (res.gone) { st.why = "The background tab was closed."; break; }
-      if (res.saved && res.saved.kept) st.kept++; else if (res.saved) st.saved++; else if (res.already) st.same++;
-      else st.missed.push({ name: t.name, url: t.url, why: res.timeout ? (res.seen ? "page opened but no price showed in 60 s" : "page didn't finish loading") : res.nomatch ? "page didn't match the product" : res.unsure ? "couldn't tell if signed in" : "no price shown" });
-      st.missed = st.missed.slice(-60); await set({ sweep: st });
     }
     st.running = false; if (!st.why) { st.why = ""; st.resumable = false; st.finishedAt = Date.now(); chrome.action.setBadgeText({ text: "" }); if (!ids && (h === "*" || h === "henryschein.com")) await set({ weeklyAt: Date.now() }); }
     await set({ sweep: st });
@@ -248,10 +235,10 @@ function readOne(url) {
   const job = readChain.then(async () => {
     let tab = null;
     try {
-      tab = await chrome.tabs.create({ url: url + "#tdc-bg", active: false });
+      tab = await chrome.tabs.create({ url, active: false });
       const r = await new Promise(resolve => {
         const w = { done: x => { readWaiters.delete(tab.id); clearTimeout(w.t); resolve(x); } };
-        readWaiters.set(tab.id, w); w.t = setTimeout(() => w.done({ ok: false, message: "No price showed on the page in time." }), 35000);
+        readWaiters.set(tab.id, w); w.t = setTimeout(() => w.done({ ok: false, message: "No price showed on the page in time." }), 25000);
       });
       return r;
     } catch (e) { return { ok: false, message: e.message || String(e) }; }

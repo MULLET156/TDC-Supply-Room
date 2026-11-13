@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Supply Room Price Helper",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Saves the prices you see on your dental suppliers' websites (including signed-in account prices) to your Supply Room.",
   "icons": {
     "16": "icon16.png",
@@ -65,31 +65,6 @@
         "content.js"
       ],
       "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://*.henryschein.com/*",
-        "https://*.pattersondental.com/*",
-        "https://*.benco.com/*",
-        "https://*.darbydental.com/*",
-        "https://*.safcodental.com/*",
-        "https://*.net32.com/*",
-        "https://*.frontierdental.com/*",
-        "https://*.dentalcity.com/*",
-        "https://*.ultradent.com/*",
-        "https://*.blueskybio.com/*",
-        "https://*.brasselerusa.com/*",
-        "https://*.burkhartdental.com/*",
-        "https://*.scottsdental.com/*",
-        "https://*.practicon.com/*",
-        "https://*.pearsondental.com/*",
-        "https://*.dhpsupply.com/*"
-      ],
-      "js": [
-        "wake.js"
-      ],
-      "run_at": "document_start",
-      "world": "MAIN"
     }
   ]
 }
