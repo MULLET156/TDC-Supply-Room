@@ -1029,20 +1029,36 @@ body[data-view="all"]{--pg:var(--teal);--pg-soft:var(--teal-soft);--pg-ink:var(-
 .ihs .init{align-self:flex-start}
 .ihlist{max-height:56vh;overflow:auto;margin-top:10px}
 .ihlist .daywrap h3{font-size:13px;margin:10px 0 4px}
-/* ---- shelf labels: DYMO 30252 (1-1/8" x 3-1/2"), black and white ---- */
-.slbl{box-sizing:border-box;width:3.5in;height:1.125in;padding:.07in .08in .07in .12in;display:flex;gap:.08in;align-items:center;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;overflow:hidden}
+/* ---- shelf labels, black and white; size comes from the label stock chosen in Setup › Office (--w, --h, --q) ---- */
+.slbl{box-sizing:border-box;width:var(--w,3.5in);height:var(--h,1.125in);padding:.07in .08in .07in .12in;display:flex;gap:.08in;align-items:center;background:#fff;color:#000;font-family:Arial,Helvetica,sans-serif;overflow:hidden}
 .slbl .st{flex:1;min-width:0;display:flex;flex-direction:column;gap:.02in}
 .slbl .sn{font-weight:800;font-size:10.5pt;line-height:1.08;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .slbl .sl{font-size:8pt;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .slbl .sr{font-size:8pt;white-space:nowrap}
 .slbl .ss{font-size:7pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slbl .sq{flex:none;width:.95in;height:.95in}
+.slbl .sq{flex:none;width:var(--q,.95in);height:var(--q,.95in)}
+.slbl.lay-small{padding:.05in .05in .05in .07in;gap:.05in}
+.slbl.lay-small .sn{font-size:7.5pt;-webkit-line-clamp:3}
+.slbl.lay-small .sl{font-size:6.5pt}
+.slbl.lay-small .sr{font-size:6pt;white-space:normal;line-height:1.1}
+.slbl.lay-small .ss{display:none}
+.slbl.lay-big{padding:.14in .16in .14in .2in;gap:.16in}
+.slbl.lay-big .sn{font-size:14pt;-webkit-line-clamp:3}
+.slbl.lay-big .sl{font-size:11pt}
+.slbl.lay-big .sr{font-size:10pt}
+.slbl.lay-big .ss{font-size:9pt}
+.slbl.lay-tall{flex-direction:column;align-items:stretch;padding:.3in;gap:.25in}
+.slbl.lay-tall .st{flex:none;gap:.08in}
+.slbl.lay-tall .sn{font-size:24pt;-webkit-line-clamp:4}
+.slbl.lay-tall .sl{font-size:16pt;white-space:normal}
+.slbl.lay-tall .sr{font-size:13pt;white-space:normal}
+.slbl.lay-tall .ss{font-size:11pt;white-space:normal}
+.slbl.lay-tall .sq{align-self:center;margin-top:auto}
 .slbl .sq svg{display:block;width:100%;height:100%}
 .slprev{display:flex;flex-direction:column;gap:10px;align-items:center;max-height:52vh;overflow:auto;padding:12px;background:var(--sunk);border-radius:12px}
 .slprev .slbl{box-shadow:0 1px 4px rgba(0,0,0,.25);border-radius:6px;flex:none}
 #printLabels{display:none}
 @media print{
-  @page{size:3.5in 1.125in;margin:0}
   html.printing-labels body > *:not(#printLabels){display:none!important}
   html.printing-labels, html.printing-labels body{background:#fff!important;margin:0!important;padding:0!important}
   html.printing-labels #printLabels{display:block!important}
@@ -6454,7 +6470,23 @@ async function itemHistory(it){
   el.innerHTML = head + `<div class="ihlist">` + [...days.entries()].map(([d, es]) => `<div class="daywrap"><h3>${esc(d)}</h3><div class="list">${es.map(e => `<div class="arow"><span class="init">${esc(e.initials || "–")}</span><div><div class="t">${esc(e.action)}</div>${e.detail ? `<div class="d">${esc(e.detail)}</div>` : ""}</div><time>${esc(new Date(e.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</time></div>`).join("")}</div></div>`).join("") + `</div>`;
 }
 
-/* ---------- shelf labels (DYMO 30252) ---------- */
+/* ---------- shelf labels: the label stock is an office setting (Setup › Office › Shelf labels) ---------- */
+const LABEL_TYPES = {
+  dymo30252: { name: "DYMO 30252 Address", size: "1⅛″ × 3½″", w: 3.5, h: 1.125, q: .95, lay: "wide", print: "your DYMO LabelWriter, paper size <b>30252 Address</b>" },
+  dymo30336: { name: "DYMO 30336 Multipurpose", size: "1″ × 2⅛″", w: 2.125, h: 1, q: .86, lay: "small", print: "your DYMO LabelWriter, paper size <b>30336 Multipurpose</b> (1 in × 2-1/8 in)" },
+  dymo30334: { name: "DYMO 30334 Multipurpose", size: "2¼″ × 1¼″", w: 2.25, h: 1.25, q: .98, lay: "small", print: "your DYMO LabelWriter, paper size <b>30334 Multipurpose</b> (2-1/4 in × 1-1/4 in)" },
+  dymo30256: { name: "DYMO 30256 Shipping", size: "2⁵⁄₁₆″ × 4″", w: 4, h: 2.3125, q: 1.6, lay: "big", print: "your DYMO LabelWriter, paper size <b>30256 Shipping</b>" },
+  dk1201: { name: "Brother DK-1201 Address", size: "1.1″ × 3.5″ (29 × 90 mm)", w: 3.5, h: 1.1, q: .93, lay: "wide", print: "your Brother QL printer, paper size <b>29mm × 90mm</b> (DK-1201)" },
+  z2x1: { name: "Zebra / Rollo", size: "2″ × 1″", w: 2, h: 1, q: .86, lay: "small", print: "your Zebra or Rollo printer, paper size <b>2 × 1 in</b>" },
+  z4x6: { name: "Zebra / Rollo", size: "4″ × 6″", w: 4, h: 6, q: 2.6, lay: "tall", print: "your Zebra or Rollo printer, paper size <b>4 × 6 in</b>" },
+};
+function labelType(k){ return LABEL_TYPES[k || rules.labelType] || LABEL_TYPES.dymo30252; }
+function labelTypeName(t){ return `${t.name} (${t.size})`; }
+async function setLabelType(k){
+  if (!LABEL_TYPES[k] || k === (rules.labelType || "dymo30252")) return true;
+  try { await db.doc("settings/rules").set({ ...rules, labelType: k }); rules.labelType = k; logIt("Setup", null, "shelf labels: " + labelTypeName(LABEL_TYPES[k])); return true; }
+  catch(e) { toast(dbErr(e)); return false; }
+}
 let qrLoad;
 function loadQr(){
   if (window.qrcode) return Promise.resolve(true);
@@ -6468,24 +6500,29 @@ function qrSvg(text){
     return `<svg viewBox="0 0 ${n + 2} ${n + 2}" shape-rendering="crispEdges" aria-hidden="true"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`; }
   catch { return ""; }
 }
-function labelHtml(it){
+function labelHtml(it, t = labelType()){
   const loc = [it.loc, it.sub && !it.loc ? it.sub : ""].filter(Boolean)[0] || "";
   const lv = [num(it.desired) > 0 ? `Order below ${fmtQ(it.desired)}` : "", num(it.urgent) ? `911 at ${fmtQ(it.urgent)}` : ""].filter(Boolean).join(" · ");
   const sk = [it.supplier, it.sku ? "SKU " + it.sku : ""].filter(Boolean).join(" · ");
-  return `<div class="slbl"><div class="st"><div class="sn">${esc(it.name)}</div>${loc ? `<div class="sl">${esc(loc)}</div>` : ""}${lv ? `<div class="sr">${esc(lv)}</div>` : ""}${sk ? `<div class="ss">${esc(sk)}</div>` : ""}</div><div class="sq">${qrSvg(labelUrl(it))}</div></div>`;
+  return `<div class="slbl lay-${t.lay}" style="--w:${t.w}in;--h:${t.h}in;--q:${t.q}in"><div class="st"><div class="sn">${esc(it.name)}</div>${loc ? `<div class="sl">${esc(loc)}</div>` : ""}${lv ? `<div class="sr">${esc(lv)}</div>` : ""}${sk ? `<div class="ss">${esc(sk)}</div>` : ""}</div><div class="sq">${qrSvg(labelUrl(it))}</div></div>`;
 }
-async function shelfLabels(list){
+async function shelfLabels(list, k){
   if (!(await loadQr())) { toast("Couldn't load the QR code maker. Check the internet connection and try again"); return; }
-  const n = list.length, body = list.map(labelHtml).join("");
+  const t = labelType(k), key = Object.keys(LABEL_TYPES).find(x => LABEL_TYPES[x] === t);
+  const n = list.length, body = list.map(it => labelHtml(it, t)).join("");
   openPanel(`<div class="ph"><h2>Shelf label${n > 1 ? "s" : ""} (${n})</h2><button class="iconbtn" data-close type="button">Close</button></div>
-    <p class="hint">Sized for DYMO 30252 address labels (1⅛″ × 3½″). Scanning the QR code with a phone camera opens the product, and Scan to count jumps straight to it.</p>
+    <div class="f"><label for="slType">Label</label><select id="slType">${Object.entries(LABEL_TYPES).map(([x, v]) => `<option value="${x}"${x === key ? " selected" : ""}>${esc(labelTypeName(v))}</option>`).join("")}</select></div>
+    <p class="hint">Scanning the QR code with a phone camera opens the product, and Scan to count jumps straight to it.</p>
     <div class="slprev">${body}</div>
-    <p class="hint">In the print window: choose your DYMO LabelWriter, paper size <b>30252 Address</b>, scale <b>100%</b> (or "Actual size"), margins <b>None</b>, and turn off headers and footers.</p>
+    <p class="hint">In the print window: choose ${t.print}, scale <b>100%</b> (or "Actual size"), margins <b>None</b>, and turn off headers and footers.</p>
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" type="button" id="slPrint">${ic("tag")}Print ${n} label${n > 1 ? "s" : ""}</button></div>`);
+  $("#slType").onchange = async e => { const v = e.target.value; if (!readOnly && me()) await setLabelType(v); shelfLabels(list, v); };
   $("#slPrint").onclick = () => {
     let box = $("#printLabels"); if (!box) { box = document.createElement("div"); box.id = "printLabels"; document.body.appendChild(box); }
+    let pg = $("#labelPageCss"); if (!pg) { pg = document.createElement("style"); pg.id = "labelPageCss"; document.head.appendChild(pg); }
+    pg.textContent = `@media print{@page{size:${t.w}in ${t.h}in;margin:0}}`;
     box.innerHTML = body; document.documentElement.classList.add("printing-labels");
-    const done = () => { document.documentElement.classList.remove("printing-labels"); box.innerHTML = ""; removeEventListener("afterprint", done); };
+    const done = () => { document.documentElement.classList.remove("printing-labels"); box.innerHTML = ""; pg.textContent = ""; removeEventListener("afterprint", done); };
     addEventListener("afterprint", done); setTimeout(() => { try { window.print(); } catch { toast("Printing isn't available here. Open the Supply Room website to print labels"); } setTimeout(done, 60000); }, 60);
   };
 }
@@ -7501,13 +7538,13 @@ function setupHtml(){
     </div><div class="actions"><div class="supchips"><span class="hint">Supplier${sups.length === 1 ? "" : "s"}:</span>${sups.map(([k, nm]) => `<span class="chip">${esc(nm)}<button type="button" data-unassign="${esc(k)}" aria-label="Remove ${esc(nm)} from ${esc(r.name)}">×</button></span>`).join("")}<select data-assign="${esc(r.id)}" aria-label="Add a supplier for ${esc(r.name)}"><option value="">+ Add supplier…</option>${allSups.filter(g => supReps[keyOf(g.name)] !== r.id).map(g => { const cur = repOf(g.name); return `<option value="${esc(keyOf(g.name))}">${esc(g.name)}${cur ? " (now " + esc(cur.name) + ")" : ""}</option>`; }).join("")}</select></div><button class="btn danger" type="button" data-rdel="${esc(r.id)}">Remove</button></div></div>`; }).join("") || '<div class="empty">No reps yet. Add your first one below.</div>'}
     <form class="addline" id="repForm"><div class="f"><label for="newRepName">Name</label><input id="newRepName" autocomplete="off"></div><div class="f"><label for="newRepCo">Company</label><input id="newRepCo" autocomplete="off"></div><div class="f"><label for="newRepPhone">Cell phone</label><input id="newRepPhone" type="tel" autocomplete="off"></div><div class="f"><label for="newRepEmail">Email</label><input id="newRepEmail" type="email" autocomplete="off"></div><div class="f"><label for="newRepSup">Supplier</label><select id="newRepSup" style="border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px"><option value="">None yet</option>${allSups.map(g => `<option value="${esc(keyOf(g.name))}">${esc(g.name)}</option>`).join("")}</select></div><button class="btn pri" type="submit">Add rep</button></form></div>`;
   const G = setupGroups(), cur = G.find(g => g.k === setupGroup) || G[0];
-  const body = { team: teamSec, alerts: ruleSec, suppliers: supSec, loc: listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs."), cat: catSec(), reps: repSec, merge: mergeSec(), logo: brandSec(), backup, power, data: dataSec() };
+  const body = { team: teamSec, alerts: ruleSec, suppliers: supSec, loc: listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs."), cat: catSec(), reps: repSec, merge: mergeSec(), logo: brandSec(), labels: labelSec(), backup, power, data: dataSec() };
   const nav = `<nav class="sgtabs" role="tablist" aria-label="Setup">${G.map(g => `<button type="button" role="tab" class="${g === cur ? "on" : ""}" aria-selected="${g === cur}" data-sgroup="${g.k}">${ic(g.icon)}<span>${esc(g.label)}</span>${g.badge ? `<small>${esc(g.badge)}</small>` : ""}</button>`).join("")}</nav>`;
   const sub = cur.secs.length > 1 ? `<nav class="jump" aria-label="${esc(cur.label)} sections"><span>On this tab</span>${cur.secs.map(k => `<button type="button" data-jump="${k}">${esc(SETUP_NAMES[k])}</button>`).join("")}</nav>` : "";
   return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${nav}<p class="hint sgnote">${esc(cur.note)}</p>${sub}${cur.secs.map(k => body[k]).join("")}</div>`;
 }
 /* Setup is split into tabs so only one area shows at a time; every section keeps its old #sec- id, so links still work */
-const SETUP_NAMES = { suppliers: "Suppliers", reps: "Reps", team: "Team initials", loc: "Storage locations", cat: "Categories", merge: "Merge duplicates", alerts: "Alerts & counting", logo: "Logo", data: "Data collection", backup: "Backup & import", power: "Power tools" };
+const SETUP_NAMES = { suppliers: "Suppliers", reps: "Reps", team: "Team initials", loc: "Storage locations", cat: "Categories", merge: "Merge duplicates", alerts: "Alerts & counting", labels: "Shelf labels", logo: "Logo", data: "Data collection", backup: "Backup & import", power: "Power tools" };
 let setupGroup = (() => { try { return localStorage.getItem("tdc.setupGroup") || "people"; } catch { return "people"; } })();
 function setupGroups(){
   const sups = orderedSuppliers ? orderedSuppliers().length : 0;
@@ -7515,7 +7552,7 @@ function setupGroups(){
   return [
     { k: "people", label: "Suppliers & reps", icon: "truck", secs: ["suppliers", "reps", "team"], badge: sups ? String(sups) : "", note: "Who you buy from, their websites and reps, and the initials that stamp every change." },
     { k: "lists", label: "Lists", icon: "list", secs: ["loc", "cat", "merge"], note: "Storage locations and categories used across the supply list, and merging duplicates." },
-    { k: "office", label: "Office", icon: "gear", secs: ["alerts", "logo"], note: "Expiration warnings, how often products are counted, and your logo." },
+    { k: "office", label: "Office", icon: "gear", secs: ["alerts", "labels", "logo"], note: "Expiration warnings, how often products are counted, shelf labels and your logo." },
     { k: "data", label: "Data collection", icon: "globe", secs: ["data"], badge: warn ? String(warn) : "", note: "Keys and services that find products and read prices." },
     { k: "backup", label: "Backup & tools", icon: "download", secs: ["backup", "power"], note: "Download or restore everything, import spreadsheets, and bulk clean-up tools." },
   ];
@@ -8141,6 +8178,11 @@ function wireSites(){
     } catch(err) { toast(err.message || "Couldn't do that"); }
   });
 }
+function labelSec(){
+  const cur = rules.labelType && LABEL_TYPES[rules.labelType] ? rules.labelType : "dymo30252";
+  return `<div class="sechead" id="sec-labels"><h2>Shelf labels</h2></div><p class="secnote">The label stock your label printer uses. Shelf labels are sized to fit it, for everyone in the office.</p>
+    <div class="list"><div class="setrow two"><label for="labelType">Label printer &amp; labels</label><span class="actions"><select id="labelType">${Object.entries(LABEL_TYPES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${esc(labelTypeName(v))}</option>`).join("")}</select></span></div></div>`;
+}
 function brandSec(){
   const prev = (id, dark) => id ? `<img src="blob.php?id=${esc(id)}" alt="" style="height:44px;width:auto;max-width:220px;display:block">` : `<span class="hint">${dark ? "Uses the main logo" : "Built-in logo"}</span>`;
   const row = (k, label, note, dark) => `<div class="setrow two"><span><b>${label}</b> <span class="hint">${note}</span><span style="display:block;margin-top:6px;padding:6px 8px;border-radius:8px;width:fit-content;background:${dark ? "#1d2228" : "#fff"};border:1px solid var(--line)">${prev(brand[k], dark)}</span></span>
@@ -8216,6 +8258,7 @@ function wireSetup(){
     const v = e.target.value;
     try { await db.doc("settings/rules").set({ ...rules, countEvery: v }); rules.countEvery = v; logIt("Setup", null, `Default count schedule set to ${cntName(v)}`); toast(`Products count ${cntName(v).toLowerCase()} unless set otherwise`); render(); } catch(err) { toast(dbErr(err)); }
   });
+  $("#labelType") && ($("#labelType").onchange = async e => { if (!needMe()) { render(); return; } if (await setLabelType(e.target.value)) toast("Shelf labels: " + labelTypeName(labelType())); else render(); });
   $("#expDays").onchange = async e => {
     const n = Math.max(0, Math.min(365, Math.round(num(e.target.value) ?? 60)));
     try { await db.doc("settings/rules").set({ ...rules, expDays: n }); logIt("Setup", null, `Expiration warning set to ${n} days`); toast(`Warning ${n} days before expiration`); } catch(err) { toast(dbErr(err)); }
