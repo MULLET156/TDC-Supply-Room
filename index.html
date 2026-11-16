@@ -2319,6 +2319,13 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
 #signinForm button{min-height:44px;font-size:15px}
 #signinMsg{min-height:1.2em;margin:0;color:var(--bad);font-size:13.5px;font-weight:600}
 .sg-note{margin:0;font-size:12.5px;color:var(--muted)}
+
+/* desktop: the app name sits in the same spot in all three apps (just right of the logo); the buttons get the rest of the row */
+@media (min-width:1100px){
+  header .top{grid-template-columns:240px minmax(0,1fr) auto!important}
+  header .top .logo{margin:0!important;justify-self:start}
+  header .top .logo img{max-width:240px}
+  header .titlerow{justify-self:start!important;align-items:flex-start!important;margin-left:6px!important}}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
