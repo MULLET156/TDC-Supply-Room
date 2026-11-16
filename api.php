@@ -232,7 +232,7 @@ try {
         case 'setkey': {         // save (or clear) an Apify or Claude key pasted in Setup: written into config.php (database if it can't be)
             $n = (string)($req['name'] ?? ''); $v = trim((string)($req['value'] ?? ''));
             if ($n === 'SEARCH_SERVICE') { // which service runs web searches (not a secret)
-                if (!in_array($v, ['auto', 'scrapingbee', 'apify'], true)) fail(400, 'bad_key', 'Unknown search service.');
+                if (!in_array($v, ['auto', 'scrapingbee', 'apify', 'claude'], true)) fail(400, 'bad_key', 'Unknown search service.');
                 $where = key_save($pdo, 'SEARCH_SERVICE', $v === 'auto' ? '' : $v);
                 out(200, ['ok' => true, 'where' => $where]);
             }
@@ -325,7 +325,7 @@ try {
             $q = trim((string)($req['query'] ?? '')); if ($q === '') fail(400, 'bad_query', 'Type something to search for.');
             $svc = (string)($req['service'] ?? '');
             $t0 = microtime(true);
-            $r = $svc === 'scrapingbee' ? scrapingbee_serp($q, 10) : ($svc === 'apify' ? apify_serp_raw($q, 10) : fail(400, 'bad_service', 'Pick a service.'));
+            $r = $svc === 'scrapingbee' ? scrapingbee_serp($q, 10) : ($svc === 'apify' ? apify_serp_raw($q, 10) : ($svc === 'claude' ? claude_serp($q, 10) : fail(400, 'bad_service', 'Pick a service.')));
             if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'google', '', !empty($r['ok']));
             out(200, ['ok' => true, 'service' => $svc, 'secs' => round(microtime(true) - $t0, 1), 'found' => !empty($r['ok']), 'message' => $r['message'] ?? '', 'results' => array_slice((array)($r['results'] ?? []), 0, 10)]);
         }

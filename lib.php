@@ -1573,7 +1573,7 @@ function apify_serp(string $query, int $max = 10): array {
     if (function_exists('cache_get') && ($c = cache_get('serp', $query . '|' . $max, 14)) !== null) return $c;
     $r = ['ok' => false, 'message' => 'Searching the web needs an Apify or ScrapingBee key (Setup › Data collection).'];
     foreach (serp_services() as $svc) {
-        $r = $svc === 'scrapingbee' ? scrapingbee_serp($query, $max) : apify_serp_raw($query, $max);
+        $r = $svc === 'scrapingbee' ? scrapingbee_serp($query, $max) : ($svc === 'claude' ? claude_serp($query, $max) : apify_serp_raw($query, $max));
         $r['via'] = $svc;
         if (empty($r['ok'])) service_mark($svc, $r + ['error' => preg_match('/out of credit/i', (string)($r['message'] ?? '')) ? 'credits' : '']); else service_up($svc);
         if (function_exists('apify_meter')) apify_meter(($svc === 'apify' ? '' : $svc . '-') . 'google', preg_match('#site:(\S+)#', $query, $m) ? $m[1] : '', !empty($r['ok']));
@@ -1588,10 +1588,42 @@ function serp_services(): array {
     $have = [];
     if (trim((string)cfg('SCRAPINGBEE_KEY')) !== '' && svc_on('scrapingbee')) $have[] = 'scrapingbee';
     if (apify_ready()) $have[] = 'apify';
+    if (trim((string)cfg('ANTHROPIC_API_KEY')) !== '' && svc_on('claude')) $have[] = 'claude';   // Claude's own web search: about 1¢ a search, no extra account
     $have = skip_down($have);
     $first = (string)cfg('SEARCH_SERVICE', 'auto');
     if (in_array($first, $have, true)) $have = array_values(array_unique(array_merge([$first], $have)));
     return $have;
+}
+/* Claude's web search tool (Anthropic API, about $0.01 a search plus a little for the words). A "site:shop.com" in the
+ * query becomes a domain filter, since Claude writes its own search words. Results: page address and title. */
+function claude_serp(string $query, int $max = 10): array {
+    $host = ''; if (preg_match('#\bsite:(\S+)#i', $query, $m)) { $host = strtolower(preg_replace('#^https?://(www\.)?#i', '', rtrim($m[1], '/'))); $query = trim(str_replace($m[0], '', $query)); }
+    $tool = ['type' => 'web_search_20250305', 'name' => 'web_search', 'max_uses' => 1, 'user_location' => ['type' => 'approximate', 'country' => 'US', 'timezone' => 'America/Los_Angeles']];
+    if ($host !== '') $tool['allowed_domains'] = [$host];
+    $body = json_encode(['model' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5'), 'max_tokens' => 64, 'tools' => [$tool],
+        'messages' => [['role' => 'user', 'content' => 'Run one web search for exactly this, then reply "done" and nothing else: ' . mb_substr($query, 0, 300)]]], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    [$res, $code, $cerr, $j] = ai_http('https://api.anthropic.com/v1/messages', ['anthropic-version: 2023-06-01', 'x-api-key: ' . cfg('ANTHROPIC_API_KEY')], (string)$body, 40);
+    if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach Claude (' . $cerr . ').'];
+    if ($code !== 200 || !is_array($j)) {
+        $m = is_array($j) ? (string)($j['error']['message'] ?? '') : '';
+        error_log("tdc claude serp: $code " . mb_substr($m, 0, 200));
+        if (in_array($code, [401, 403], true)) return ['ok' => false, 'error' => 'key', 'message' => 'Claude rejected its key (Setup › Data collection).'];
+        if (preg_match('/credit balance|billing/i', $m)) return ['ok' => false, 'error' => 'credits', 'message' => 'Claude is out of credit.'];
+        if (preg_match('/web search.*not enabled|not enabled.*web search/i', $m)) return ['ok' => false, 'message' => 'Web search is turned off for this Claude account (Claude Console › Settings › Privacy).'];
+        return ['ok' => false, 'message' => 'The web search didn\'t work (' . $code . ').'];
+    }
+    $out = []; $seen = []; $err = '';
+    foreach ((array)($j['content'] ?? []) as $c) {
+        if (($c['type'] ?? '') !== 'web_search_tool_result') continue;
+        if (!array_is_list((array)($c['content'] ?? []))) { $err = (string)($c['content']['error_code'] ?? 'error'); continue; }
+        foreach ($c['content'] as $o) {
+            $u = (string)($o['url'] ?? ''); if (!preg_match('#^https?://#i', $u) || isset($seen[$u])) continue; $seen[$u] = 1;
+            $out[] = ['url' => $u, 'title' => mb_substr((string)($o['title'] ?? ''), 0, 200), 'description' => ''];
+            if (count($out) >= $max) break 2;
+        }
+    }
+    if (!$out && $err !== '') return ['ok' => false, 'message' => 'The web search didn\'t work (' . $err . ').'];
+    return ['ok' => true, 'results' => $out];
 }
 function serp_ready(): bool { return serp_services() !== []; }
 function scrapingbee_serp(string $query, int $max = 10): array {
@@ -1622,7 +1654,11 @@ function apify_serp_raw(string $query, int $max = 10): array {
     $res = curl_exec($ch); $code = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE); $err = curl_error($ch); curl_close($ch);
     if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach Apify (' . $err . ').'];
     $j = json_decode((string)$res, true);
-    if ($code < 200 || $code >= 300 || !is_array($j)) { error_log("tdc apify serp: $code " . substr((string)$res, 0, 300)); return ['ok' => false, 'message' => 'The web search didn\'t work (' . $code . ').']; }
+    if ($code < 200 || $code >= 300 || !is_array($j)) {
+        error_log("tdc apify serp: $code " . substr((string)$res, 0, 300));
+        if (in_array($code, [402, 403], true) && preg_match('/usage|limit|credit|plan|billing|quota/i', (string)$res)) return ['ok' => false, 'error' => 'credits', 'message' => 'Apify is out of credit for this month.'];
+        return ['ok' => false, 'message' => 'The web search didn\'t work (' . $code . ').'];
+    }
     $out = []; $seen = [];
     foreach ((array_is_list($j) ? $j : [$j]) as $page) {
         foreach ((array)($page['organicResults'] ?? []) as $o) {
@@ -2217,7 +2253,7 @@ function service_advice(PDO $pdo): array {
     $runs = []; foreach (apify_meter_summary() as $m) if ($m['month'] === date('Y-m')) { $svc = preg_match('/^(scrapingbee|brightdata)-/', $m['kind'], $mm) ? $mm[1] : 'apify'; $runs[$svc] = ($runs[$svc] ?? 0) + $m['runs']; }
 
     $plan = [
-        ['job' => 'Finding products by part number or name', 'use' => $nm(serp_services()), 'empty' => 'Not set up: add ScrapingBee or Apify'],
+        ['job' => 'Finding products by part number or name', 'use' => $nm(serp_services()), 'empty' => 'Not set up: add a Claude, ScrapingBee or Apify key'],
         ['job' => 'Stores that turn the server away', 'use' => $nm(page_services('raw-http')), 'empty' => count($need['proxy']) ? 'Not set up: ' . count($need['proxy']) . ' of your stores need this' : 'Not needed by your stores right now'],
         ['job' => 'Stores that need a real browser', 'use' => $nm(page_services('browser')), 'empty' => 'Not set up'],
         ['job' => 'Amazon links', 'use' => $has['apify'] ? ['Apify'] : [], 'empty' => $amazon ? 'Not set up: ' . $amazon . ' Amazon links' : 'Not needed'],
