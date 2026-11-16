@@ -12,7 +12,9 @@ This app is part of Toledo Dental Care's office apps and shares one look with th
 ## Working on this repo
 
 - The real site is https://darkorchid-wildcat-385622.hostingersite.com. **Merging to `main` deploys it live**, and staff use it during clinic hours (Mon–Wed 8–5, Thu 8–2).
-- Work on a branch and open a pull request. Pull the latest `main` and check open PRs first so newer work isn't overwritten.
+- Work on a short branch and open a pull request. Pull the latest `main` and check open PRs first so newer work isn't overwritten.
+- **Merge as you go** (Ryan, 2026-11-16): merge your own PR as soon as your checks pass; don't wait for Ryan. Right after each merge, open the live site and check what you changed. If anything broke, revert the PR at once. Contract changes (TDC-Office-Plan CONTRACT.md) still need Ryan's OK first.
+- Keep the Claude connector (`mcp.php`: search_items, set_count, record_price, price_history and the rest) working whenever you change the app.
 - Test locally before a PR: copy `config.sample.php` to `config.php`, set `DB_DRIVER` to `sqlite`, run `php -S 127.0.0.1:8000` in this folder, and use made-up data only.
 - No patient data, passwords or keys in code, commits, issues, PRs or screenshots.
 - Write for Ryan: plain language, with a short "How to test" section in each PR.
