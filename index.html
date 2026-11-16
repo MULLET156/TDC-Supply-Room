@@ -2326,6 +2326,12 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
   header .top .logo{margin:0!important;justify-self:start}
   header .top .logo img{max-width:240px}
   header .titlerow{justify-self:start!important;align-items:flex-start!important;margin-left:6px!important}}
+
+/* ===== shared page frame (TDC-Office-Plan/DESIGN.md): one 4px line under the header in the current page's colour, plain warm page, grey search boxes ===== */
+header{border-bottom-width:4px!important}
+body[data-view] main{border-top:0!important}
+body[data-view="all"] main,body[data-view="need"] main,body[data-view="ordered"] main,body[data-view="exp"] main,body[data-view="sups"] main,body[data-view="cats"] main,body[data-view="locs"] main{background:transparent!important}
+body[data-view] main .ordbar,body[data-view] main .selbar.slim,html body[data-view] .ordbar{background:var(--bg)!important}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
