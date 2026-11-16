@@ -2269,7 +2269,7 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl"><span class="lg">Inventory counter</span><span class="sh">Count</span></span></button>
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
-    <div class="pagehead" id="pageHead" aria-live="polite"><h2 id="phTitle"></h2><span class="phn" id="phN"></span><p id="phSub"></p></div>
+    <div class="pagehead" id="pageHead" aria-live="polite"><div class="pht"><h2 id="phTitle"></h2><button type="button" class="phinfo" id="phInfo" data-phinfo aria-expanded="false" aria-controls="phSub" aria-label="About this page" title="About this page">i</button></div><span class="phn" id="phN"></span><p id="phSub" hidden></p></div>
     <div class="cmrow"><div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
       <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
       <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
@@ -2332,6 +2332,16 @@ header{border-bottom-width:4px!important}
 body[data-view] main{border-top:0!important}
 body[data-view="all"] main,body[data-view="need"] main,body[data-view="ordered"] main,body[data-view="exp"] main,body[data-view="sups"] main,body[data-view="cats"] main,body[data-view="locs"] main{background:transparent!important}
 body[data-view] main .ordbar,body[data-view] main .selbar.slim,html body[data-view] .ordbar{background:var(--bg)!important}
+
+/* page banner (i) button: help line hidden until tapped (TDC-Office-Plan/DESIGN.md) */
+.pagehead .pht{display:flex;align-items:center;gap:8px;min-width:0}
+.pagehead .pht h2{min-width:0}
+.phinfo{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border:1.5px solid var(--pg,var(--accent));border-radius:50%;background:transparent;color:var(--pg-ink,var(--pg,var(--accent)));font:italic 700 13px/1 Georgia,"Times New Roman",serif;cursor:pointer;opacity:.8;position:relative;align-self:center}
+.phinfo::after{content:"";position:absolute;inset:-11px}
+.phinfo:hover,.phinfo[aria-expanded="true"]{opacity:1;background:var(--pg,var(--accent));color:var(--surface)}
+.pagehead p#phSub[hidden]{display:none!important}
+.pagehead p#phSub:not([hidden]){display:block!important}
+@media (max-width:640px){.phinfo{width:20px;height:20px;font-size:12px}}
 </style>
 <div id="signin" hidden><div class="sg-card"><div class="sg-brand"><h1>Supply Room</h1><p>Toledo Dental Care</p></div>
   <form id="signinForm" autocomplete="on"><label for="signinPw">Office password</label><input type="password" id="signinPw" name="password" autocomplete="current-password" required><button class="btn pri" type="submit">Sign in</button></form>
@@ -3365,8 +3375,12 @@ function pageHead(){
   }[CNT_MODES.includes(tab) ? "count" : tab];
   const h = $("#pageHead"); if (!h) return;
   h.hidden = !P; if (!P) return;
-  $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1]; $("#phSub").textContent = P[2];
+  $("#phTitle").textContent = P[0]; $("#phN").textContent = P[1];
+  { const sub = $("#phSub"), inf = $("#phInfo"); sub.textContent = P[2] || ""; inf.hidden = !P[2];
+    if (window.__phTab !== tab) { window.__phTab = tab; sub.hidden = true; inf.setAttribute("aria-expanded", "false"); } }
 }
+/* page banner (i) button */
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-phinfo]"); if (!b) return; const sub = $("#phSub"); const open = sub.hidden; sub.hidden = !open; b.setAttribute("aria-expanded", String(open)); });
 /* On Order list / On order, ticking items brings up a bar at the bottom so you don't have to scroll back up */
 /* Editor grid: scrolling down inside it first scrolls the page until the whole grid (with its bottom scroll bar) is on screen */
 document.addEventListener("wheel", e => {
