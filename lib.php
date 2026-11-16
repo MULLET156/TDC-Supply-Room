@@ -1600,7 +1600,7 @@ function claude_serp(string $query, int $max = 10): array {
     $host = ''; if (preg_match('#\bsite:(\S+)#i', $query, $m)) { $host = strtolower(preg_replace('#^https?://(www\.)?#i', '', rtrim($m[1], '/'))); $query = trim(str_replace($m[0], '', $query)); }
     $tool = ['type' => 'web_search_20250305', 'name' => 'web_search', 'max_uses' => 1, 'user_location' => ['type' => 'approximate', 'country' => 'US', 'timezone' => 'America/Los_Angeles']];
     if ($host !== '') $tool['allowed_domains'] = [$host];
-    $body = json_encode(['model' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5'), 'max_tokens' => 64, 'tools' => [$tool],
+    $body = json_encode(['model' => (string)cfg('ANTHROPIC_MODEL_QUICK', 'claude-haiku-5-5'), 'max_tokens' => 256, 'tools' => [$tool], 'tool_choice' => ['type' => 'any'],
         'messages' => [['role' => 'user', 'content' => 'Run one web search for exactly this, then reply "done" and nothing else: ' . mb_substr($query, 0, 300)]]], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     [$res, $code, $cerr, $j] = ai_http('https://api.anthropic.com/v1/messages', ['anthropic-version: 2023-06-01', 'x-api-key: ' . cfg('ANTHROPIC_API_KEY')], (string)$body, 40);
     if ($res === false) return ['ok' => false, 'message' => 'Couldn\'t reach Claude (' . $cerr . ').'];
@@ -1622,7 +1622,11 @@ function claude_serp(string $query, int $max = 10): array {
             if (count($out) >= $max) break 2;
         }
     }
-    if (!$out && $err !== '') return ['ok' => false, 'message' => 'The web search didn\'t work (' . $err . ').'];
+    if (!$out) {
+        $kinds = implode(',', array_map(fn($c) => (string)($c['type'] ?? '?'), (array)($j['content'] ?? [])));
+        error_log("tdc claude serp: no results (" . ($err ?: 'stop ' . ($j['stop_reason'] ?? '?')) . "; $kinds)");
+        return ['ok' => false, 'message' => $err !== '' ? 'The web search didn\'t work (' . $err . ').' : 'Claude\'s search found nothing (' . ($j['stop_reason'] ?? '?') . '; ' . $kinds . ').'];
+    }
     return ['ok' => true, 'results' => $out];
 }
 function serp_ready(): bool { return serp_services() !== []; }
