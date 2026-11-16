@@ -268,6 +268,7 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;
 .lightkey{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center}.lightkey>span{display:inline-flex;align-items:center;gap:7px}
 .setrow.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;align-items:start}.keyrow p.hint{margin:4px 0 0}
 .keyform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.keyform input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;width:230px;max-width:100%;font-family:var(--f-mono)}
+.docfill{display:flex;gap:10px;align-items:flex-start;margin:12px 0 4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.docfill[hidden]{display:none}.docfill .hint{display:block}.docfill input{width:22px;height:22px;margin-top:2px;flex:none;accent-color:var(--accent)}
 .keyform input.zone{width:170px;font-family:var(--f-mono)}#pageSvc,#pagePrio,#serpSvc{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;max-width:100%}
 .ptest{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}.ptest th,.ptest td{text-align:left;padding:6px 8px;border-top:1px solid var(--line);vertical-align:top}.ptest th{font-size:12px;color:var(--muted);font-weight:600}
 .aibadge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:99px;vertical-align:middle;white-space:nowrap}.aibadge.on{background:color-mix(in srgb,#7a4fd6 18%,transparent);color:#5b35b0}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .aibadge.on{color:#c4aefc}}:root[data-theme="dark"] .aibadge.on{color:#c4aefc}.aibadge.off{background:var(--sunk);color:var(--muted);border:1px solid var(--line)}.aibadge.big{font-size:12px;padding:4px 11px;margin-left:10px}.sechead .aibadge{align-self:center}.advmode{margin:0 0 10px;font-size:13px;line-height:1.5}.advmode .aibadge{margin-right:6px}.aitestout{display:inline-flex;flex-wrap:wrap;gap:4px 8px;font-size:12.5px;margin-left:6px}.aitestout .ok{color:var(--ok);font-weight:600}.aitestout .bad{color:#b3261e;font-weight:600}
@@ -7309,21 +7310,23 @@ function docReview(r){
         <div class="dnums"><label>Qty <input data-qty inputmode="decimal" value="${l.qty ? fmtQ(l.qty) : ""}"></label><label>Price <input data-price inputmode="decimal" value="${l.price != null ? "$" + l.price.toFixed(2) : ""}" placeholder="$0.00"></label></div>
         <div class="dchg hint" data-chg></div>
       </div></div>`).join("")}</div>
+    ${sample && !readOnly ? `<label class="docfill" id="docFillRow" hidden><input type="checkbox" id="docFill" checked> <span><b>Then fill in photos and details for new products</b><span class="hint">Looks up each new product on the supplier's site by its SKU and fills in the photo, link, description and package size. You approve each one.</span></span></label>` : ""}
     <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="docApply" type="button">Apply</button></div>`);
   const rows = [...document.querySelectorAll(".docline")];
   rows.forEach((row, k) => {
     const l = D[k], pick = row.querySelector("[data-pick]");
     pick.value = l.match && byId(l.match) ? l.match : "__new";
-    row.querySelector("[data-on]").checked = docSeenBefore(r) ? false : l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind);
+    /* packing slips are how new products usually arrive: an unmatched line starts ticked as a new product (not if backordered) */
+    row.querySelector("[data-on]").checked = docSeenBefore(r) ? false : l.match ? l.sure === "yes" && !l.backordered : ["quote", "product_page"].includes(r.kind) || (r.kind === "packing_slip" && !l.backordered && !!(clean(l.name) || clean(l.desc)));
     if (r.kind === "price_list" && !l.match) row.querySelector("[data-on]").checked = false;
     row.addEventListener("input", () => docChg(row, l, sup));
     row.addEventListener("change", () => docChg(row, l, sup));
   });
   const allBox = $("#docAll");
-  const tally = () => { const n = rows.filter(r => r.querySelector("[data-on]").checked).length; allBox.checked = n === rows.length; allBox.indeterminate = n > 0 && n < rows.length; $("#docCount").textContent = `${n} of ${rows.length} ticked`; const b = $("#docApply"); if (b) b.textContent = n ? `Apply ${n} line${n !== 1 ? "s" : ""}` : "Apply"; };
+  const tally = () => { const fr = $("#docFillRow"); if (fr) fr.hidden = !rows.some(r => r.querySelector("[data-on]").checked && r.querySelector("[data-pick]").value === "__new"); const n = rows.filter(r => r.querySelector("[data-on]").checked).length; allBox.checked = n === rows.length; allBox.indeterminate = n > 0 && n < rows.length; $("#docCount").textContent = `${n} of ${rows.length} ticked`; const b = $("#docApply"); if (b) b.textContent = n ? `Apply ${n} line${n !== 1 ? "s" : ""}` : "Apply"; };
   const all = () => { rows.forEach(row => docChg(row, D[+row.dataset.k], sup)); tally(); };
   allBox.onchange = () => { rows.forEach(row => { row.querySelector("[data-on]").checked = allBox.checked; }); all(); };
-  rows.forEach(row => row.querySelector("[data-on]").addEventListener("change", tally));
+  rows.forEach(row => { row.querySelector("[data-on]").addEventListener("change", tally); row.querySelector("[data-pick]").addEventListener("change", tally); });
   $("#docMode").onchange = all; all();
   $("#docApply").onclick = () => docApply(rows, D, r, sup);
 }
@@ -7356,7 +7359,8 @@ async function docApply(rows, D, r, sup){
   const work = rows.filter(row => row.querySelector("[data-on]").checked);
   if (!work.length) { toast("Tick at least one line"); return; }
   btn.disabled = true; btn.textContent = "Saving…"; sync("busy", "Saving…");
-  let ok = 0, added = 0, recv = 0, ordd = 0; const orderLines = [];
+  let ok = 0, added = 0, recv = 0, ordd = 0; const orderLines = [], newDocs = [];
+  const fillNew = !!$("#docFill")?.checked && !$("#docFillRow")?.hidden;
   try {
     for (const row of work) {
       const l = D[+row.dataset.k], id = row.querySelector("[data-pick]").value, it = id === "__new" ? null : byId(id);
@@ -7385,6 +7389,7 @@ async function docApply(rows, D, r, sup){
           lastReceived: mode === "receive" && q > 0 ? today() : "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() };
         const ref = await addItemDoc(doc);
         logIt("Added", { id: ref.id, name }, `From ${src}${sup ? " · " + sup : ""}`);
+        newDocs.push({ id: ref.id, ...doc });
         if (doc.ordered) orderLines.push({ id: ref.id, name, qty: q, units: doc.units, supplier: sup, ...(priceNum(price) != null ? { price: priceNum(price) } : {}) });
         ok++; added++;
       }
@@ -7394,6 +7399,8 @@ async function docApply(rows, D, r, sup){
     sync("ok", "Saved");
     if (recv) Sfx.play("receive"); else if (ordd) Sfx.play("order");
     closePanel(); render();
+    /* new products from a packing slip only have a name, SKU and price: look each one up on the supplier's site straight away */
+    if (fillNew && newDocs.length) setTimeout(() => { const list = newDocs.map(d => byId(d.id) || d); if (startBatch(list)) batchStep(); }, 400);
     toast(ok ? [recv ? `${recv} received` : "", ordd ? `${ordd} marked ordered` : "", added ? `${added} new product${added !== 1 ? "s" : ""} added` : "", !recv && !ordd && ok - added ? `${ok - added} updated` : ""].filter(Boolean).join(", ") || `${ok} updated` : "Nothing needed changing");
   } catch(e) {
     sync("err", "Not all saved"); toast(dbErr(e) + (ok ? ` (${ok} saved before that)` : "")); btn.disabled = false; btn.textContent = "Apply";
