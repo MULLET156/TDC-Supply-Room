@@ -4,8 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1C3466">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Supply Room">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
 <title>TDC Supply Room</title>
-<style>:root{color-scheme:light;box-sizing:border-box}body{margin:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<style>:root{color-scheme:light;box-sizing:border-box}body{margin:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}/* colour-coded header buttons, the same in all three apps: lists = navy, new = the app colour, log = olive, setup = grey */
+:root{--hb-nav:#1c3466;--hb-nav-soft:#dfe6f4;--hb-log:#4E5833;--hb-log-soft:#e5e9d8;--hb-set:#46575B;--hb-set-soft:#E4EAEA;--hb-fg:#ffffff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hb-nav:#93b4ff;--hb-nav-soft:#1d2a44;--hb-log:#b5c48a;--hb-log-soft:#2a3322;--hb-set:#b7c4c6;--hb-set-soft:#26343a;--hb-fg:#111a1d}}
+:root[data-theme="dark"]{--hb-nav:#93b4ff;--hb-nav-soft:#1d2a44;--hb-log:#b5c48a;--hb-log-soft:#2a3322;--hb-set:#b7c4c6;--hb-set-soft:#26343a;--hb-fg:#111a1d}
+header .topright .tooltabs .tab[data-t="log"]{border:1.5px solid var(--hb-log);background:var(--hb-log-soft);color:var(--hb-log)}
+header .topright .tooltabs .tab[data-t="log"][aria-selected="true"]{background:var(--hb-log);border-color:var(--hb-log);color:var(--hb-fg)}
+header .topright .tooltabs .tab[data-t="setup"]{border:1.5px solid var(--hb-set);background:var(--hb-set-soft);color:var(--hb-set)}
+header .topright .tooltabs .tab[data-t="setup"][aria-selected="true"]{background:var(--hb-set);border-color:var(--hb-set);color:var(--hb-fg)}
+</style>
 </head>
 <body>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -724,7 +739,18 @@ body.on-products .filters{display:none!important}
 :root{--st-ok:#e6f3e1;--st-low:#fdf6d4;--st-911:#fbe1de}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--st-ok:#203d29;--st-low:#3f3714;--st-911:#4a201e}}
 :root[data-theme="dark"]{--st-ok:#203d29;--st-low:#3f3714;--st-911:#4a201e}
-.row.st-ok{background:var(--st-ok)}.row.st-low{background:var(--st-low)}.row.st-911{background:var(--st-911)}
+/* row style C (shared with Lab Tracker): white rows, a solid status stripe on the left, and a stock bar */
+.row.st-ok,.row.st-low,.row.st-911{background:var(--surface)}
+.row.st-911{box-shadow:inset 6px 0 0 var(--red)}
+.row.st-low{box-shadow:inset 6px 0 0 var(--yel)}
+.row.st-full{box-shadow:inset 6px 0 0 var(--ok)}
+.stockbar{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+.sbtrack{position:relative;flex:none;width:110px;height:6px;border-radius:3px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line)}
+.sbtrack i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ok)}
+.st-low .sbtrack i{background:var(--yel)}
+.st-911 .sbtrack i{background:var(--red)}
+@media (max-width:640px){.sb911{display:none}.sbtrack{width:84px}.stockbar{white-space:nowrap}}
+.sbtrack b{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--fg);border-radius:1px}
 .pgrid tr.st-ok td{background:var(--st-ok)}.pgrid tr.st-low td{background:var(--st-low)}.pgrid tr.st-911 td{background:var(--st-911)}
 .pgrid tr.row:hover td{filter:brightness(.97)}
 .row .step{background:var(--surface)}
@@ -972,6 +998,12 @@ body.on-add .addgo{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .tab.big.cntbtn[aria-selected="true"]{background:var(--logo-green);border-color:var(--logo-green);color:var(--logo-green-fg)}
 @media (max-width:640px){.tab.big.cntbtn .n{display:none}}
 .countmodes{display:flex;align-items:center;gap:4px;background:var(--accent-soft);border-radius:12px;padding:3px}
+.listbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+.seg{display:inline-flex;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;border-radius:7px;padding:7px 12px;font:inherit;font-weight:700;font-size:13.5px;color:var(--muted);cursor:pointer;min-height:34px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--slate,var(--fg));box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seglbl{font-size:12.5px;color:var(--muted);font-weight:600}
+@media (max-width:640px){.seglbl{display:none}.seg button{padding:7px 9px}}
 .countmodes .cmlabel{padding:0 10px 0 8px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
 .countmodes label{flex:1;min-width:0;cursor:pointer}
 .countmodes input{position:absolute;opacity:0;width:1px;height:1px}
@@ -2690,7 +2722,7 @@ function pills(i, noOrder, noExp){
   if (i.expiring && !noExp) h += `<span class="pill p-exp">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>`;
   return h;
 }
-const LEGEND = `<div class="stlegend"><span><i style="background:var(--surface)"></i>Stocked</span><span><i style="background:var(--st-low)"></i>Below reserve</span><span><i style="background:var(--st-911)"></i>911 — order now</span></div>`;
+const LEGEND = `<div class="stlegend"><span><i style="background:var(--ok)"></i>Stocked</span><span><i style="background:var(--yel)"></i>Below reserve</span><span><i style="background:var(--red)"></i>911 — order now</span></div>`;
 const COL_DEFAULT = { ok: "#e6f3e1", low: "#fdf6d4", e911: "#fbe1de" };
 let colSaved = {};
 const stockColors = () => ({ ...COL_DEFAULT, ...colSaved });
@@ -2862,6 +2894,13 @@ function syncMusicBtn(){
 applyTheme();
 /* rows are white unless they need attention: yellow below the desired reserve, red at or below the 911 level */
 const stockCls = i => i.is911 ? "st-911" : (i.qty != null && i.desired != null && i.qty < i.desired ? "st-low" : "");
+/* on-hand vs desired, with a tick at the 911 level (row style C) */
+function stockBar(i){
+  const q = num(i.qty), d = num(i.desired), u = num(i.urgent);
+  if (q == null || !(d > 0)) return "";
+  const pct = Math.max(0, Math.min(100, Math.round(q / d * 100))), up = u > 0 ? Math.min(100, Math.round(u / d * 100)) : null;
+  return `<div class="stockbar" title="${esc(fmtQ(q))} on hand, ${esc(fmtQ(d))} wanted${up != null ? ", 911 at " + esc(fmtQ(u)) : ""}"><span class="sbtrack" aria-hidden="true"><i style="width:${pct}%"></i>${up != null ? `<b style="left:${up}%"></b>` : ""}</span><span>${esc(fmtQ(q))} of ${esc(fmtQ(d))}${up != null ? `<span class="sb911"> · 911 at ${esc(fmtQ(u))}</span>` : ""}</span></div>`;
+}
 /* Expiring: quick "Replaced" with the new box's date, without opening the item. The open editor (and what's typed
    in it) is remembered, so a refresh from another device doesn't wipe it. */
 let expEdit = null; /* { id, draft } */
@@ -3022,13 +3061,25 @@ document.addEventListener("click", async e => {
   try { await write(it.id, { orderReq: q, orderAmt: 0 }); logIt("Added to order list", it, `order ${fmtQ(q)}${it.units ? " × " + it.units : ""}`); toast(`Added ${it.name} to the order list`); }
   catch(err) { toast(dbErr(err)); }
 });
+/* All products: Group by (same control as Lab Tracker and Maintenance Tracker), remembered on this device */
+const SUP_GRPS = [["none", "A–Z"], ["supplier", "Supplier"], ["cat", "Category"], ["loc", "Location"]];
+function supGrp(){ try { const v = localStorage.getItem("tdc-sup-grp"); if (SUP_GRPS.some(g => g[0] === v)) return v; } catch {} return "none"; }
+function supGrpBar(){ const g = supGrp(); return `<div class="listbar"><span class="seglbl">Group by</span><span class="seg" role="group" aria-label="Group products by">${SUP_GRPS.map(([k, l]) => `<button type="button" data-supgrp="${k}" aria-pressed="${g === k}">${l}</button>`).join("")}</span></div>`; }
+function supGrouped(list){
+  const g = supGrp(); if (g === "none") return list.map(i => rowHtml(i, true)).join("");
+  const none = { supplier: "No supplier listed", cat: "Uncategorized", loc: "No location set" }[g], m = new Map();
+  list.forEach(i => { const n = clean(i[g]) || none, k = keyOf(n); if (!m.has(k)) m.set(k, { n, items: [] }); m.get(k).items.push(i); });
+  return [...m.values()].sort((a, b) => (a.n === none) - (b.n === none) || a.n.localeCompare(b.n, undefined, { numeric: true }))
+    .map(x => `<div class="grp"><span class="grpname">${g === "supplier" && x.n !== none ? supLogo(x.n) : g === "loc" ? ic("pin") : ""}${esc(x.n)}</span><span>${x.items.length}</span></div>` + x.items.map(i => rowHtml(i, true)).join("")).join("");
+}
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-supgrp]"); if (!b) return; try { localStorage.setItem("tdc-sup-grp", b.dataset.supgrp); } catch {} render(); });
 function rowHtml(i, withChk){
   const openNow = typeof curItem !== "undefined" && curItem?.id === i.id && document.querySelector("#overlay .panel.item") ? " open-now" : "";
-  return `<div class="row ${stockCls(i)}${openNow}" data-id="${esc(i.id)}">
+  return `<div class="row ${stockCls(i) || (num(i.desired) > 0 ? "st-full" : "")}${openNow}" data-id="${esc(i.id)}">
     <input type="checkbox" class="chk" ${withChk ? "" : "hidden"} ${selected.has(i.id) ? "checked" : ""} aria-label="Select ${esc(i.name)}">
     <div class="info" tabindex="0" role="button">${i.photo ? `<img class="thumb" loading="lazy" alt="" src="blob.php?id=${esc(i.photo)}" onerror="this.remove()">` : ""}<div class="txt">
       <div class="nm">${pills(i, true, true)}${esc(i.name)}${i.expiring ? ` <span class="pill p-exp p-after">${i.expDays < 0 ? "Expired " + esc(i.exp) : "Exp. " + esc(i.exp)}</span>` : ""}</div>
-      <div class="meta">${countedToday(i) ? `<span class="cntd" title="Counted ${esc(when(i.countedAt))}${i.countedBy ? " by " + esc(i.countedBy) : ""}${nextDue(i) ? " · next due " + esc(shortDate(+nextDue(i))) : ""}">✓ Counted</span>` : ""}${i.cat ? `<span class="catpath">${esc(i.cat)}${i.sub ? " › " + esc(i.sub) : ""}</span>` : ""}${i.loc ? `<span class="m-loc">${esc(i.loc)}</span>` : ""}${i.supplier ? `<span class="m-sup">${esc(i.supplier)}</span>` : ""}${i.units ? `<span class="m-units">${esc(i.units)}</span>` : ""}${i.sku ? `<span class="pill p-sku">${esc(i.sku)}</span>` : ""}</div>
+      <div class="meta">${countedToday(i) ? `<span class="cntd" title="Counted ${esc(when(i.countedAt))}${i.countedBy ? " by " + esc(i.countedBy) : ""}${nextDue(i) ? " · next due " + esc(shortDate(+nextDue(i))) : ""}">✓ Counted</span>` : ""}${i.cat ? `<span class="catpath">${esc(i.cat)}${i.sub ? " › " + esc(i.sub) : ""}</span>` : ""}${i.loc ? `<span class="m-loc">${esc(i.loc)}</span>` : ""}${i.supplier ? `<span class="m-sup">${esc(i.supplier)}</span>` : ""}${i.units ? `<span class="m-units">${esc(i.units)}</span>` : ""}${i.sku ? `<span class="pill p-sku">${esc(i.sku)}</span>` : ""}</div>${stockBar(i)}
     </div></div>
     <div class="rside">${xcols(i)}${i.need && tab !== "need" ? `<span class="pill p-need ordamt" title="How many to order">Order ${fmtQ(i.orderQty)}</span>` : ""}${i.link ? `<a class="golink" href="${esc(webHref(i.link))}" target="_blank" rel="noopener" title="Open the product page${i.supplier ? " on " + esc(i.supplier) : ""}" aria-label="Open the product page for ${esc(i.name)}"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.5" fill="currentColor"/><circle cx="17" cy="19.5" r="1.5" fill="currentColor"/></svg><span class="gotxt">Shop</span></a>` : ""}${tab === "need" && i.need ? ordStep(i) : tab === "exp" && i.expiring && !readOnly ? `<div class="exprep inrow" data-expid="${esc(i.id)}">${expEditor(i)}</div>` : `<div class="step" id="st-${esc(i.id)}"><button type="button" data-d="-1" aria-label="One less" ${readOnly ? "disabled" : ""}>−</button><span class="q">${fmtQ(i.qty)}<small>/${fmtQ(i.desired)}</small></span><button type="button" data-d="1" aria-label="One more" ${readOnly ? "disabled" : ""}>+</button></div>${readOnly ? "" : cntBtn(i)}`}</div>
   </div>`;
@@ -3501,7 +3552,7 @@ function renderInner(){
     const archHtml = showArch ? archSection($("#q")?.value || "") : "";
     const archToggle = archived.length ? `<label class="archtog"><input type="checkbox" id="showArch" ${showArch ? "checked" : ""}> Show archived<span class="archlong"> products</span> (${archived.length})</label>` : "";
     const newBtn = readOnly ? "" : `<button type="button" class="btn pri newprod" data-newprod>${ic("plus")}New product</button>`;
-    v.innerHTML = banner + (list.length ? "" : `<div class="newprodrow">${archToggle}${newBtn}</div>`) + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label>${archToggle}${newBtn}<span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div><div class="list">${list.map(i=>rowHtml(i,true)).join("")}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
+    v.innerHTML = banner + (list.length ? "" : `<div class="newprodrow">${archToggle}${newBtn}</div>`) + filterBar() + (list.length ? `<div class="selbar slim"><label class="selall"><input type="checkbox" class="chk" id="selShown" ${allSel ? "checked" : ""}>${allSel ? `All ${list.length} selected` : `Select all ${list.length} shown`}</label>${archToggle}${newBtn}<span class="xhead"><span>Price</span><span>Received</span><span>On hand</span></span></div>${supGrpBar()}<div class="list">${supGrouped(list)}${archHtml}</div>` : `<div class="list"><div class="empty">No products match these filters.</div>${archHtml}</div>`);
     $("#showArch") && ($("#showArch").onchange = e => { showArch = e.target.checked; try { localStorage.setItem("tdc.showArch", showArch ? "1" : ""); } catch {} render(); });
     $("#selShown") && ($("#selShown").onchange = () => { if (allSel) selected.clear(); else list.forEach(i => selected.add(i.id)); render(); });
     { const s = $("#selShown"); if (s && !allSel && selected.size) s.indeterminate = true; }
