@@ -2360,7 +2360,7 @@ window.TDC = (function(){
     for (let attempt = 0; ; attempt++) {
       try { return await call1(op, payload); }
       catch(e) {
-        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest", "pagetest", "serptest", "keycheck"].includes(op));
+        const again = e.code === "db_busy" || e.code === "db_connect" || (e.code === "unavailable" && !["add", "login", "ai", "readlink", "blob_put", "pricesearch", "aitest", "pagetest", "serptest", "keycheck", "tiletoken"].includes(op));
         if (!again || attempt >= 3) throw e.code === "db_busy" || e.code === "db_connect" ? E("unavailable", "The server was busy and couldn't save. Try again in a moment.") : e;
         await new Promise(r => setTimeout(r, 400 * (attempt + 1) + Math.random() * 300));
       }
@@ -2506,12 +2506,13 @@ window.TDC = (function(){
   async function keyCheck(name){ return call("keycheck", { name }); }
   async function mcpKey(what){ return call("mcpkey", { do: what || "show" }); }
   async function extKey(what){ return call("extkey", { do: what || "show" }); }
+  async function tileToken(what){ return call("tiletoken", { do: what || "show" }); }
   async function batch(writes){ for (let i = 0; i < writes.length; i += 200) await call("batch", { writes: writes.slice(i, i + 200) }); refreshSoon(); }
   async function logout(){ try { await call("logout"); } catch(e) {} location.reload(); }
   const blobUrl = id => "blob.php?id=" + encodeURIComponent(id);
   async function blobBytes(id){ const r = await fetch(blobUrl(id), { credentials: "same-origin" }); if (!r.ok) return null; const b = await r.blob(); return { type: b.type, data: await b64(b) }; }
   async function priceHistory(itemId){ const j = await call("prices", { itemId }); return j.docs.map(d => ({ id: d.id, ...d.data })); }
-  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, extKey, pageTest, serpTest, keyCheck, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
+  return { db, call, use, readLink, findProduct, fetchPhoto, fetchLogo, readDoc, priceSearch, priceHistory, usage, mpnSearch, subPlan, subFind, subCompare, siteProfiles, siteProbe, apifyUsage, serviceUsage, advice, aiTest, keys, setKey, mcpKey, tileToken, extKey, pageTest, serpTest, keyCheck, batch, logout, blobUrl, blobBytes, b64, ai: () => !!(status && status.ai) };
 })();
 window.claude = { use: name => window.TDC.use(name) };
 </script>
@@ -7616,13 +7617,13 @@ function setupHtml(){
     </div><div class="actions"><div class="supchips"><span class="hint">Supplier${sups.length === 1 ? "" : "s"}:</span>${sups.map(([k, nm]) => `<span class="chip">${esc(nm)}<button type="button" data-unassign="${esc(k)}" aria-label="Remove ${esc(nm)} from ${esc(r.name)}">×</button></span>`).join("")}<select data-assign="${esc(r.id)}" aria-label="Add a supplier for ${esc(r.name)}"><option value="">+ Add supplier…</option>${allSups.filter(g => supReps[keyOf(g.name)] !== r.id).map(g => { const cur = repOf(g.name); return `<option value="${esc(keyOf(g.name))}">${esc(g.name)}${cur ? " (now " + esc(cur.name) + ")" : ""}</option>`; }).join("")}</select></div><button class="btn danger" type="button" data-rdel="${esc(r.id)}">Remove</button></div></div>`; }).join("") || '<div class="empty">No reps yet. Add your first one below.</div>'}
     <form class="addline" id="repForm"><div class="f"><label for="newRepName">Name</label><input id="newRepName" autocomplete="off"></div><div class="f"><label for="newRepCo">Company</label><input id="newRepCo" autocomplete="off"></div><div class="f"><label for="newRepPhone">Cell phone</label><input id="newRepPhone" type="tel" autocomplete="off"></div><div class="f"><label for="newRepEmail">Email</label><input id="newRepEmail" type="email" autocomplete="off"></div><div class="f"><label for="newRepSup">Supplier</label><select id="newRepSup" style="border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px"><option value="">None yet</option>${allSups.map(g => `<option value="${esc(keyOf(g.name))}">${esc(g.name)}</option>`).join("")}</select></div><button class="btn pri" type="submit">Add rep</button></form></div>`;
   const G = setupGroups(), cur = G.find(g => g.k === setupGroup) || G[0];
-  const body = { team: teamSec, alerts: ruleSec, suppliers: supSec, loc: listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs."), cat: catSec(), reps: repSec, merge: mergeSec(), logo: brandSec(), labels: labelSec(), backup, power, data: dataSec() };
+  const body = { team: teamSec, alerts: ruleSec, suppliers: supSec, loc: listSec("loc", "Storage locations", "Busiest first. Drag the ⠿ handle to put them in the order you want; that order is used in the location pickers. Add new spots, rename them, or merge duplicates such as Ops and OPs."), cat: catSec(), reps: repSec, merge: mergeSec(), logo: brandSec(), labels: labelSec(), tiles: tilesSec(), backup, power, data: dataSec() };
   const nav = `<nav class="sgtabs" role="tablist" aria-label="Setup">${G.map(g => `<button type="button" role="tab" class="${g === cur ? "on" : ""}" aria-selected="${g === cur}" data-sgroup="${g.k}">${ic(g.icon)}<span>${esc(g.label)}</span>${g.badge ? `<small>${esc(g.badge)}</small>` : ""}</button>`).join("")}</nav>`;
   const sub = cur.secs.length > 1 ? `<nav class="jump" aria-label="${esc(cur.label)} sections"><span>On this tab</span>${cur.secs.map(k => `<button type="button" data-jump="${k}">${esc(SETUP_NAMES[k])}</button>`).join("")}</nav>` : "";
   return `<div class="list" style="background:transparent;border:0;display:grid;gap:10px;grid-template-columns:minmax(0,1fr);overflow:visible">${nav}<p class="hint sgnote">${esc(cur.note)}</p>${sub}${cur.secs.map(k => body[k]).join("")}</div>`;
 }
 /* Setup is split into tabs so only one area shows at a time; every section keeps its old #sec- id, so links still work */
-const SETUP_NAMES = { suppliers: "Suppliers", reps: "Reps", team: "Team initials", loc: "Storage locations", cat: "Categories", merge: "Merge duplicates", alerts: "Alerts & counting", labels: "Shelf labels", logo: "Logo", data: "Data collection", backup: "Backup & import", power: "Power tools" };
+const SETUP_NAMES = { suppliers: "Suppliers", reps: "Reps", team: "Team initials", loc: "Storage locations", cat: "Categories", merge: "Merge duplicates", alerts: "Alerts & counting", labels: "Shelf labels", tiles: "Dashboard tiles", logo: "Logo", data: "Data collection", backup: "Backup & import", power: "Power tools" };
 let setupGroup = (() => { try { return localStorage.getItem("tdc.setupGroup") || "people"; } catch { return "people"; } })();
 function setupGroups(){
   const sups = orderedSuppliers ? orderedSuppliers().length : 0;
@@ -7630,7 +7631,7 @@ function setupGroups(){
   return [
     { k: "people", label: "Suppliers & reps", icon: "truck", secs: ["suppliers", "reps", "team"], badge: sups ? String(sups) : "", note: "Who you buy from, their websites and reps, and the initials that stamp every change." },
     { k: "lists", label: "Lists", icon: "list", secs: ["loc", "cat", "merge"], note: "Storage locations and categories used across the supply list, and merging duplicates." },
-    { k: "office", label: "Office", icon: "gear", secs: ["alerts", "labels", "logo"], note: "Expiration warnings, how often products are counted, shelf labels and your logo." },
+    { k: "office", label: "Office", icon: "gear", secs: ["alerts", "labels", "tiles", "logo"], note: "Expiration warnings, how often products are counted, shelf labels, Dashboard tiles and your logo." },
     { k: "data", label: "Data collection", icon: "globe", secs: ["data"], badge: warn ? String(warn) : "", note: "Keys and services that find products and read prices." },
     { k: "backup", label: "Backup & tools", icon: "download", secs: ["backup", "power"], note: "Download or restore everything, import spreadsheets, and bulk clean-up tools." },
   ];
@@ -8241,6 +8242,17 @@ function wireSites(){
       catch { const out = $("#extOut"); if (out) out.innerHTML = `<div class="linkrow"><input readonly value="${esc(code)}" aria-label="Pairing code" onclick="this.select()"></div>`; toast("Copy the pairing code below"); }
     } catch(err) { toast(err.message || "Couldn't do that"); }
   });
+  document.querySelectorAll("[data-tile]").forEach(b => b.onclick = async () => {
+    if (!needMe()) return; const what = b.dataset.tile;
+    if (what === "new" && (keyInfo?.TILE_TOKEN || {}).set && !confirm("Make a new tile code? The Dashboard stops showing the Supply Room tiles until the new code is pasted into its settings.")) return;
+    if (what === "off" && !confirm("Turn the Dashboard tiles off? The Dashboard stops showing the Supply Room tiles.")) return;
+    try { const r = await TDC.tileToken(what);
+      if (what !== "show") { logIt("Setup", null, what === "off" ? "Turned the Dashboard tiles off" : "Made a new Dashboard tile code"); await loadKeys(true); render(); }
+      if (!r.key) { toast("Dashboard tiles are off"); return; }
+      try { await navigator.clipboard.writeText(r.key); toast("Tile code copied. Paste it into the Dashboard's settings."); }
+      catch { const out = $("#tileOut"); if (out) { out.innerHTML = `<div class="linkrow"><input readonly aria-label="Tile code"></div>`; const i = out.querySelector("input"); i.value = r.key; i.onclick = () => i.select(); } toast("Copy the tile code below"); }
+    } catch(err) { toast(err.message || "Couldn't do that"); }
+  });
   document.querySelectorAll("[data-mcp]").forEach(b => b.onclick = async () => {
     if (!needMe()) return; const what = b.dataset.mcp, o = $("#mcpOut");
     if (what === "new" && (keyInfo?.MCP_KEY || {}).set && !confirm("Make a new connector link? The old link stops working, so Claude will need the new one.")) return;
@@ -8260,6 +8272,14 @@ function labelSec(){
   const cur = rules.labelType && LABEL_TYPES[rules.labelType] ? rules.labelType : "dymo30252";
   return `<div class="sechead" id="sec-labels"><h2>Shelf labels</h2></div><p class="secnote">The label stock your label printer uses. Shelf labels are sized to fit it, for everyone in the office.</p>
     <div class="list"><div class="setrow two"><label for="labelType">Label printer &amp; labels</label><span class="actions"><select id="labelType">${Object.entries(LABEL_TYPES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${esc(labelTypeName(v))}</option>`).join("")}</select></span></div></div>`;
+}
+function tilesSec(){
+  if (!window.TDC?.tileToken) return "";
+  if (!keyInfoAt) loadKeys().then(() => { if (tab === "setup") render(); });
+  const t = (keyInfo || {}).TILE_TOKEN || {};
+  return `<div class="sechead" id="sec-tiles"><h2>Dashboard tiles</h2></div><p class="secnote">Lets the TDC Dental Dashboard show two tiles from here: <b>To order</b> and <b>Waiting to arrive</b>. They carry counts only, no product names or prices.</p>
+    <div class="list"><div class="setrow keyrow"><div><b>Tile code</b> ${!keyInfo ? `<span class="hint">Checking…</span>` : t.set ? `<span class="keyok" title="On" aria-label="On">✓</span>` : `<span class="keyst off">Off</span>`}<p class="hint">${t.set ? "Copy the code into the Dashboard's settings for the Supply Room. Anyone with it can see the two counts, nothing else." : "Turn on to make a code, then paste it into the Dashboard's settings for the Supply Room."}</p><div id="tileOut"></div></div>
+      <span class="actions">${t.set ? `<button class="btn" type="button" data-tile="show">Copy code</button><button class="btn" type="button" data-tile="new">New code</button><button class="btn" type="button" data-tile="off">Turn off</button>` : `<button class="btn pri" type="button" data-tile="new">Turn on</button>`}</span></div></div>`;
 }
 function brandSec(){
   const prev = (id, dark) => id ? `<img src="blob.php?id=${esc(id)}" alt="" style="height:44px;width:auto;max-width:220px;display:block">` : `<span class="hint">${dark ? "Uses the main logo" : "Built-in logo"}</span>`;
@@ -8582,9 +8602,12 @@ function goSection(k){
 }
 function openSection(k){ if (tab !== "setup") setTab("setup"); requestAnimationFrame(() => goSection(k)); }
 const HASH_SECTIONS = ["reps", "suppliers"];
+const HASH_TABS = ["need", "ordered"];   // links from the Dental Dashboard tiles: #need = Order list, #ordered = On the way
+function hashTab(){ const h = location.hash.slice(1); return HASH_TABS.includes(h) ? h : ""; }
+function openHashTab(){ const t = hashTab(); if (!t) return; try { history.replaceState(null, "", location.pathname + location.search); } catch {} setTab(t); }
 function hashSection(){ const h = location.hash.slice(1); return HASH_SECTIONS.includes(h) ? h : ""; }
 /* Suppliers list and Reps list live in Setup (its "Jump to" bar); #suppliers and #reps links still open them */
-addEventListener("hashchange", () => { const k = hashSection(); if (k && items.length) openSection(k); openHashItem(); });
+addEventListener("hashchange", () => { const k = hashSection(); if (k && items.length) openSection(k); if (items.length) openHashTab(); openHashItem(); });
 function hashItemId(s){ const m = /[#&?]item=([\w-]+)/.exec(String(s || "")); return m ? m[1] : ""; }
 function openHashItem(){ const id = hashItemId(location.hash); if (!id || !items.length) return; const it = byId(id); try { history.replaceState(null, "", location.pathname + location.search); } catch {} if (it) openItem(it); else toast("That shelf label's product isn't on the list any more"); }
 
@@ -8832,7 +8855,7 @@ async function boot(){
     if (!$("#overlay").innerHTML || first) render();
     else render();
     if (first && hashSection()) openSection(hashSection());
-    if (first) openHashItem();
+    if (first) { openHashTab(); openHashItem(); }
     first = false;
     sync(readOnly ? "" : "ok", readOnly ? "View only" : "Live");
   }, e => { sync("err", "Disconnected"); $("#view").innerHTML = `<div class="notice err"><b>Lost the connection to the supply list</b><span>${esc(dbErr(e))} Reload the page to reconnect.</span></div>`; });
