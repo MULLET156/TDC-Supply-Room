@@ -3987,7 +3987,7 @@ function compareHtml(){
     <div class="logfilt"><label>Show <select id="cmpShow"><option value="need" ${cmpShow === "need" ? "selected" : ""}>Order list</option><option value="priced" ${cmpShow === "priced" ? "selected" : ""}>Products with 2+ prices</option><option value="all" ${cmpShow === "all" ? "selected" : ""}>All products</option></select></label>
     ${hiddenNoMpn || cmpNoMpn ? `<label class="cmpnm"><input type="checkbox" id="cmpNoMpn" ${cmpNoMpn ? "checked" : ""}> Show products with no MPN${hiddenNoMpn ? ` (${hiddenNoMpn} hidden)` : ""}</label>` : ""}
     <label>Find <input type="search" id="cmpQ" value="${esc(cmpQ)}" placeholder="Product, SKU or MPN" style="min-width:0;width:100%"></label></div>
-    ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices. Henry Schein is skipped: Claude reads your HS prices while you're signed in.">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
+    ${readOnly ? "" : `<div class="logfilt">${window.TDC?.mpnSearch ? `<button type="button" class="btn pri" id="cmpRefresh" title="Find each supplier's page for the ${sel ? "ticked" : "shown"} products (once) and read today's prices. Henry Schein is skipped: Claude reads your HS prices while you're signed in.">${ic("refresh")}Update prices (${n})</button><button type="button" class="btn" id="cmpWeb" ${sel ? "" : "disabled"} title="Tick products, then search the whole web for the same part number">${ic("globe")}Search the web${sel ? ` (${sel})` : ""}</button>` : ""}${(() => { const k = cmpSwitchable().length; return `<button type="button" class="btn${k ? " pri" : ""}" id="cmpSwAll" ${k ? "" : "disabled"} title="Switch each ticked product that's cheaper elsewhere to its cheapest supplier, in one step">${ic("swap")}Switch ticked to cheapest${k ? ` (${k})` : ""}</button>`; })()}<button type="button" class="btn" id="cmpImport">${ic("upload")}Import price list</button><button type="button" class="btn ghost" id="cmpCols">Columns…</button></div>`}
     ${cmpBusy ? `<div class="notice"><span id="cmpProg">${esc(cmpBusy.label)}</span><button type="button" class="btn sm" id="cmpStop">Stop</button></div>` : ""}
     ${rows.length && !readOnly ? `<div class="extsw cmpext" data-extsw="*" data-extname="these products" data-ids="${esc((sel ? rows.filter(r => cmpSel.has(r.it.id)) : rows).map(r => r.it.id).join(","))}">${extSweepHtml("*", "these products", (sel ? rows.filter(r => cmpSel.has(r.it.id)) : rows).map(r => r.it.id).join(","))}</div>` : ""}
     ${rows.length ? `<div class="swhero">
@@ -3998,6 +3998,59 @@ function compareHtml(){
     <p class="hint">The same product at each supplier, matched by MPN (manufacturer part number). Each dot on a product's price line is a supplier: green dots cost less than yours. Invoice and price-list prices are what you pay; Website prices are the supplier's listed price. Tap a price to open its page, fix it, or mark it the wrong product. <button type="button" class="linkbtn" id="cmpAllTog">${rows.every(r => cmpOpen.has(r.it.id)) ? "Collapse all" : "Expand all"}</button></p>
     <div class="sublist">${rows.map(card).join("")}</div>` : `<div class="list"><div class="empty">${hiddenNoMpn ? `Nothing to compare: the ${hiddenNoMpn} product${hiddenNoMpn > 1 ? "s" : ""} here ${hiddenNoMpn > 1 ? "have" : "has"} no MPN yet.` : cmpShow === "need" ? "Nothing on the Order list." : "Nothing to compare yet."}</div></div>`}`;
 }
+/* ---------- Compare: switch every ticked product to its cheapest supplier, with one Undo ---------- */
+function cmpSwitchable(){
+  if (readOnly || !cmpSel.size) return [];
+  return cmpRows().filter(r => cmpSel.has(r.it.id) && r.save > 0.004 && r.best?.o?.url && keyOf(r.best.s) !== keyOf(r.it.supplier));
+}
+function cmpSwitchAll(){
+  if (!needMe()) return;
+  const rows = cmpSwitchable(); if (!rows.length) { toast("Tick products that are cheaper elsewhere first"); return; }
+  const packDiff = (it, o) => o.pack && it.units && keyOf(o.pack) !== keyOf(it.units) && unitCount(o.pack) !== unitCount(it.units);
+  const total = rows.reduce((a, r) => a + r.save, 0);
+  openPanel(`<div class="ph"><div><h2>Switch ${rows.length} product${rows.length === 1 ? "" : "s"} to the cheapest supplier?</h2><div class="lastby">Saves about ${esc(money(total))}${cmpShow === "need" ? " on this order" : ""}. One Undo puts them all back.</div></div><button class="iconbtn" data-close type="button">Cancel</button></div>
+    <div class="docall"><label><input type="checkbox" id="swaAll" checked> <b>Select all</b></label><span class="hint" id="swaCount"></span></div>
+    <div class="doclines">${rows.map(r => { const it = r.it, o = r.best.o, pd = packDiff(it, o), sim = o.sure === false;
+      return `<div class="docline" data-swa="${esc(it.id)}"><input type="checkbox" class="dchk" ${pd || sim ? "" : "checked"} aria-label="Switch ${esc(it.name)}">
+        <div class="dmain"><div class="ddesc">${esc(it.name)}<span class="hint">${esc(it.supplier || "No supplier")} ${esc(money(r.cur.p))} → <b>${esc(r.best.s)} ${esc(money(r.best.p))}</b>${o.pack ? " / " + esc(o.pack) : ""} · saves ${esc(money(r.save))}</span></div>
+        ${pd || sim ? `<div class="dchg hint"><span class="dwarn">${ic("alert")}${pd ? `Different pack: ${esc(o.pack)} there vs ${esc(it.units)} now` : `A similar product, not this exact item`}. Left unticked; tick it if that's fine.</span></div>` : ""}</div></div>`; }).join("")}</div>
+    <p class="hint">Each product's supplier, product link, price and item # change to the cheapest supplier's. The old supplier stays as a backup source, so it keeps showing in price checks.</p>
+    <div class="actions savebar"><button class="btn" data-close type="button">Cancel</button><button class="btn pri grow" id="swaGo" type="button">Switch</button></div>`);
+  const lines = [...document.querySelectorAll("[data-swa]")], box = id => document.querySelector(`[data-swa="${CSS.escape(id)}"] input`);
+  const tally = () => { const n = lines.filter(l => l.querySelector("input").checked).length; $("#swaAll").checked = n === lines.length; $("#swaAll").indeterminate = n > 0 && n < lines.length; $("#swaCount").textContent = `${n} of ${lines.length} ticked`; const go = $("#swaGo"); go.disabled = !n; go.textContent = n ? `Switch ${n} product${n === 1 ? "" : "s"}` : "Switch"; lines.forEach(l => l.classList.toggle("off", !l.querySelector("input").checked)); };
+  lines.forEach(l => l.querySelector("input").onchange = tally);
+  $("#swaAll").onchange = e => { lines.forEach(l => l.querySelector("input").checked = e.target.checked); tally(); }; tally();
+  $("#swaGo").onclick = async () => {
+    const go = $("#swaGo"); go.disabled = true; go.textContent = "Switching…"; sync("busy", "Saving…");
+    const undo = []; let ok = 0;
+    try {
+      for (const r of rows) {
+        if (!box(r.it.id)?.checked) continue;
+        const it = byId(r.it.id) || r.it, o = r.best.o;
+        const before = { supplier: it.supplier || "", link: it.link || "", unitCost: it.unitCost || "", sku: it.sku || "", altSources: Array.isArray(it.altSources) ? it.altSources.map(a => ({ ...a })) : [] };
+        const alt = before.altSources.map(a => ({ ...a }));
+        if (it.supplier && !alt.some(a => keyOf(a.supplier) === keyOf(it.supplier))) alt.push({ supplier: it.supplier, link: it.link || "", sku: it.sku || "", price: it.unitCost || "", units: it.units || "", at: Date.now() });
+        const patch = { supplier: r.best.s, link: o.url, unitCost: Number(o.price).toFixed(2), altSources: alt.filter(a => keyOf(a.supplier) !== keyOf(r.best.s)) };
+        if (o.sku) patch.sku = o.sku;
+        const done = await write(it.id, patch); Object.assign(byId(it.id) || it, done);
+        logIt("Edited", it, `switched supplier ${before.supplier || "–"} → ${r.best.s} at ${money(Number(o.price))} (Compare: switch ticked to cheapest)`);
+        undo.push({ id: it.id, name: it.name, before, to: r.best.s }); ok++;
+      }
+      sync("ok", "Saved"); closePanel(); render();
+      const saved = rows.filter(r => undo.some(u => u.id === r.it.id)).reduce((a, r) => a + r.save, 0);
+      toastAct(`Switched ${ok} product${ok === 1 ? "" : "s"} to the cheapest supplier · saves about ${money(saved)}`, "Undo", async () => {
+        sync("busy", "Undoing…"); let back = 0;
+        try { for (const u of undo) { const done = await write(u.id, u.before); const f = byId(u.id); if (f) Object.assign(f, done); logIt("Edited", { id: u.id, name: u.name }, `undid switch to ${u.to}; back to ${u.before.supplier || "no supplier"}`); back++; }
+          sync("ok", "Saved"); render(); toast(`Undone: ${back} product${back === 1 ? "" : "s"} back to ${back === 1 ? "its" : "their"} old supplier`); }
+        catch(e) { sync("err", "Not all undone"); toast(dbErr(e) + ` (${back} undone before that)`); render(); }
+      }, 30000);
+    } catch(e) {
+      sync("err", "Not all saved"); render();
+      if (undo.length) toastAct(dbErr(e) + ` (${undo.length} switched before that)`, "Undo those", async () => { for (const u of undo) { try { await write(u.id, u.before); } catch {} } render(); }, 30000);
+      else toast(dbErr(e));
+    }
+  };
+}
 function wireCompare(){
   document.querySelectorAll("[data-extsw]").forEach(wireExtSweep);
   $("#cmpShow") && ($("#cmpShow").onchange = e => { cmpShow = e.target.value; render(); });
@@ -4007,8 +4060,10 @@ function wireCompare(){
   $("#cmpCols") && ($("#cmpCols").onclick = compareColumns);
   $("#cmpStop") && ($("#cmpStop").onclick = () => { if (cmpBusy) { cmpBusy.stop = true; $("#cmpProg").textContent = "Stopping after this one…"; } });
   const selSync = () => { const n = cmpSel.size || Math.min(cmpRows().length, 40); const r = $("#cmpRefresh"); if (r) r.lastChild.textContent = `Update prices (${n})`; const w = $("#cmpWeb"); if (w) { w.disabled = !cmpSel.size; w.lastChild.textContent = `Search the web${cmpSel.size ? ` (${cmpSel.size})` : ""}`; } const all = $("#cmpAll"); if (all) { const ids = cmpRows().map(r => r.it.id); all.checked = ids.length > 0 && ids.every(i => cmpSel.has(i)); } };
-  document.querySelectorAll("[data-cmpsel]").forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.cmpsel) : cmpSel.delete(c.dataset.cmpsel); selSync(); });
-  $("#cmpAll") && ($("#cmpAll").onchange = e => { const ids = cmpRows().map(r => r.it.id); ids.forEach(i => e.target.checked ? cmpSel.add(i) : cmpSel.delete(i)); document.querySelectorAll("[data-cmpsel]").forEach(c => c.checked = cmpSel.has(c.dataset.cmpsel)); selSync(); });
+  const swSync = () => { const b = $("#cmpSwAll"); if (!b) return; const k = cmpSwitchable().length; b.disabled = !k; b.classList.toggle("pri", !!k); b.lastChild.textContent = `Switch ticked to cheapest${k ? ` (${k})` : ""}`; };
+  $("#cmpSwAll") && ($("#cmpSwAll").onclick = cmpSwitchAll);
+  document.querySelectorAll("[data-cmpsel]").forEach(c => c.onchange = () => { c.checked ? cmpSel.add(c.dataset.cmpsel) : cmpSel.delete(c.dataset.cmpsel); selSync(); swSync(); });
+  $("#cmpAll") && ($("#cmpAll").onchange = e => { const ids = cmpRows().map(r => r.it.id); ids.forEach(i => e.target.checked ? cmpSel.add(i) : cmpSel.delete(i)); document.querySelectorAll("[data-cmpsel]").forEach(c => c.checked = cmpSel.has(c.dataset.cmpsel)); selSync(); swSync(); });
   const picked = () => cmpSel.size ? [...cmpSel].map(byId).filter(Boolean) : cmpRows().map(r => r.it).slice(0, 40);
   $("#cmpRefresh") && ($("#cmpRefresh").onclick = () => cmpRun("update", picked()));
   $("#cmpWeb") && ($("#cmpWeb").onclick = () => cmpRun("web", [...cmpSel].map(byId).filter(Boolean)));
