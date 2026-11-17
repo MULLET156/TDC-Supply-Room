@@ -1839,11 +1839,16 @@ function read_document(PDO $pdo, array $files, array $ctx = []): array {
     if (count($files) > 8) return ['ok' => false, 'error' => 'invalid_argument', 'message' => 'Up to 8 files at a time.'];
     @set_time_limit(240);
     $items = all_docs($pdo, 'items');
-    $cat = [];
+    $cat = []; $cats = [];
     foreach ($items as $id => $it) {
         $name = trim((string)($it['name'] ?? '')); if ($name === '') continue;
-        $cat[] = $id . ' | ' . $name . ' | ' . trim((string)($it['sku'] ?? '')) . ' | ' . trim((string)($it['supplier'] ?? '')) . ' | ' . trim((string)($it['units'] ?? ''));
+        $c = trim((string)($it['cat'] ?? '')); $sb = trim((string)($it['sub'] ?? ''));
+        if ($c !== '') { $cats[$c] ??= []; if ($sb !== '') $cats[$c][$sb] = true; }
+        $cat[] = $id . ' | ' . $name . ' | ' . trim((string)($it['sku'] ?? '')) . ' | ' . trim((string)($it['supplier'] ?? '')) . ' | ' . trim((string)($it['units'] ?? '')) . ' | ' . $c . ($sb !== '' ? ' › ' . $sb : '');
     }
+    $cs = load($pdo, 'settings', 'cats') ?? []; foreach ($cs['extra'] ?? [] as $x) if (!empty($x['c'])) { $cats[$x['c']] ??= []; if (!empty($x['s'])) $cats[$x['c']][$x['s']] = true; }
+    ksort($cats);
+    $catList = implode("\n", array_map(fn($c) => $c . ($cats[$c] ? ': ' . implode(', ', array_keys($cats[$c])) : ''), array_keys($cats)));
     $nameRule = mb_substr(trim((string)($ctx['nameRule'] ?? '')), 0, 1500);
     $prompt = <<<P
 These pictures or PDFs come from a dental office's supply ordering: an invoice, packing slip, order confirmation, quote, catalog page or a screenshot of a supplier's product or order page. Read every product line and match each one to our inventory below.
@@ -1864,14 +1869,20 @@ Reply with one JSON object:
    "match": "the id of our inventory item that is this same product, or empty if none is",
    "sure": "yes" when the SKU matches or the name, maker and size clearly match; "maybe" when it's probably the same product; "no" when there is no good match,
    "packDiffers": true if this line's selling unit is clearly different from the matched item's units (for example a case vs a box),
-   "name": "when there is no match: a short, clear inventory name for it; otherwise empty"
+   "name": "when there is no match: a short, clear inventory name for it; otherwise empty",
+   "cat": "when there is no match: the best category for it from OUR CATEGORIES (exact spelling), or empty",
+   "sub": "when there is no match: the best subcategory within that category from OUR CATEGORIES (exact spelling), or empty",
+   "like": "when there is no match: the id of our inventory item most like it (same kind of product, used the same way, so it would be stored next to it), or empty"
  }],
  "notes": "anything the office should check, in one short sentence, or empty"}
 
 Rules: skip shipping, tax, fees, discounts, totals and other non-product lines. Combine the same product listed twice on one document. Match by SKU first (ignore spaces, dashes and leading zeros), then by maker, product, size and shade. Different sizes, shades, gauges or strengths are different products. If several pages are of one document, treat them as one. Only use what the documents show; leave a field empty rather than guess.
 $nameRule
 
-OUR INVENTORY (id | name | SKU | supplier | units):
+OUR CATEGORIES (category: subcategories):
+$catList
+
+OUR INVENTORY (id | name | SKU | supplier | units | category › subcategory):
 P;
     $prompt .= "\n" . implode("\n", $cat);
     $r = ai_json('Read the attached documents now and reply with the JSON described above.', $files, '', ['maxFiles' => 8, 'maxTokens' => 16000, 'timeout' => 200, 'cache' => $prompt]);
@@ -1884,6 +1895,13 @@ P;
         if ($m !== '' && !isset($items[$m])) $m = '';
         $price = numv($l['price'] ?? null);
         $qty = numv($l['qty'] ?? null);
+        /* suggested category for a new product: only names from our own list */
+        $sc = $sub = $like = '';
+        if ($m === '') {
+            foreach (array_keys($cats) as $c) if (mb_strtolower($c) === mb_strtolower(trim((string)($l['cat'] ?? '')))) { $sc = $c; break; }
+            if ($sc !== '') foreach (array_keys($cats[$sc]) as $x) if (mb_strtolower($x) === mb_strtolower(trim((string)($l['sub'] ?? '')))) { $sub = $x; break; }
+            $lk = (string)($l['like'] ?? ''); if ($lk !== '' && isset($items[$lk])) $like = $lk;
+        }
         $lines[] = [
             'desc' => mb_substr(trim((string)($l['desc'] ?? '')), 0, 200),
             'sku' => mb_substr(trim((string)($l['sku'] ?? '')), 0, 60),
@@ -1896,6 +1914,7 @@ P;
             'sure' => $m === '' ? 'no' : (in_array($l['sure'] ?? '', ['yes', 'maybe'], true) ? $l['sure'] : 'maybe'),
             'packDiffers' => $m !== '' && !empty($l['packDiffers']),
             'name' => mb_substr(trim((string)($l['name'] ?? '')), 0, 160),
+            'cat' => $sc, 'sub' => $sub, 'like' => $like,
         ];
     }
     $kinds = ['invoice', 'packing_slip', 'order_confirmation', 'quote', 'product_page', 'order_history', 'other'];

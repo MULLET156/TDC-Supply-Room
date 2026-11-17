@@ -1229,6 +1229,9 @@ body.has-ordfloat{padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 .docline .dnums{display:flex;gap:10px;flex-wrap:wrap}
 .docline .dnums label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
 .docline .dnums input{width:90px}
+.docline .dnew{display:grid;grid-template-columns:1fr 1fr;gap:10px}.docline .dnew[hidden]{display:none}
+.docline .dnew label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+@media (max-width:560px){.docline .dnew{grid-template-columns:1fr}}
 .docline .dchg{margin:0}
 .docline .dwarn{color:var(--warn,#b45309)}
 .pickcard .pk-ic{font-size:26px;line-height:1.1;flex:none}
@@ -7286,6 +7289,25 @@ let docsSeen = [];
 const docNo = v => String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^0+/, "");
 function docSeenBefore(r){ const n = docNo(r.number); if (!n) return null; return docsSeen.find(d => d.n === n && (!d.sup || !r.supplier || keyOf(d.sup) === keyOf(r.supplier))) || null; }
 async function docRemember(r, mode, count){ const n = docNo(r.number); if (!n) return; const list = [{ n, num: r.number, sup: clean(r.supplier), kind: r.kind, mode, count, at: Date.now(), by: me() }, ...docsSeen.filter(d => !(d.n === n && keyOf(d.sup) === keyOf(r.supplier)))].slice(0, 500); try { await db.doc("settings/docsSeen").set({ list }); docsSeen = list; } catch {} }
+/* Where a new product from a slip probably belongs: Claude's category, else the category of the product it's most like;
+   storage location: the most-like product's, else the most common one for that category and subcategory (then category). */
+function docSuggest(l){
+  const like = l.like ? byId(l.like) : null;
+  let cat = clean(l.cat), sub = clean(l.sub);
+  if (!cat && like) { cat = clean(like.cat); sub = clean(like.sub); }
+  let loc = like && keyOf(like.cat) === keyOf(cat) ? clean(like.loc) : "";
+  if (!loc && cat) {
+    const top = list => { const n = {}; list.forEach(i => { const v = clean(i.loc); if (v) n[v] = (n[v] || 0) + 1; }); return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || ""; };
+    const inCat = items.filter(i => keyOf(i.cat) === keyOf(cat));
+    loc = (sub && top(inCat.filter(i => keyOf(i.sub) === keyOf(sub)))) || top(inCat);
+  }
+  return { cat, sub, loc };
+}
+function docCatOpts(cat, sub){
+  const v = cat ? cat + (sub ? "\u0001" + sub : "") : "";
+  return `<option value="">No category</option>` + catTree().map(t => `<optgroup label="${esc(t.name)}"><option value="${esc(t.name)}"${v === t.name ? " selected" : ""}>${esc(t.name)}</option>${t.subs.map(x => { const k = t.name + "\u0001" + x.name; return `<option value="${esc(k)}"${v === k ? " selected" : ""}>${esc(t.name)} › ${esc(x.name)}</option>`; }).join("")}</optgroup>`).join("");
+}
+function docLocOpts(loc){ return `<option value="">No location</option>` + locNames().map(n => `<option${keyOf(n) === keyOf(loc) ? " selected" : ""}>${esc(n)}</option>`).join(""); }
 function docReview(r){
   const mode0 = ["invoice", "packing_slip"].includes(r.kind) ? "receive" : r.kind === "order_confirmation" ? "ordered" : "prices";
   const kindName = { price_list: "Price list", invoice: "Invoice", packing_slip: "Packing slip", order_confirmation: "Order confirmation", quote: "Quote", product_page: "Product page", order_history: "Order history", other: "Document" }[r.kind] || "Document";
@@ -7308,6 +7330,7 @@ function docReview(r){
         <div class="ddesc">${esc(l.desc || l.name || "Line " + (k + 1))}<span class="hint">${[l.sku ? "SKU " + esc(l.sku) : "", l.pack ? esc(l.pack) : "", l.backordered ? "<b>backordered</b>" : ""].filter(Boolean).join(" · ")}</span></div>
         <select data-pick aria-label="Inventory product for this line"><option value="__new">+ Add as a new product${l.name || l.desc ? ": " + esc(l.name || l.desc) : ""}</option>${itemOpts}</select>
         <div class="dnums"><label>Qty <input data-qty inputmode="decimal" value="${l.qty ? fmtQ(l.qty) : ""}"></label><label>Price <input data-price inputmode="decimal" value="${l.price != null ? "$" + l.price.toFixed(2) : ""}" placeholder="$0.00"></label></div>
+        ${(() => { const g = docSuggest(l); return `<div class="dnew" data-new hidden><label>Category <select data-cat aria-label="Category for the new product">${docCatOpts(g.cat, g.sub)}</select></label><label>Location <select data-loc aria-label="Storage location for the new product">${docLocOpts(g.loc)}</select></label></div>`; })()}
         <div class="dchg hint" data-chg></div>
       </div></div>`).join("")}</div>
     ${sample && !readOnly ? `<label class="docfill" id="docFillRow" hidden><input type="checkbox" id="docFill" checked> <span><b>Then fill in photos and details for new products</b><span class="hint">Looks up each new product on the supplier's site by its SKU and fills in the photo, link, description and package size. You approve each one.</span></span></label>` : ""}
@@ -7348,6 +7371,7 @@ function docChg(row, l, sup){
     bits.push(`new product${sup ? " from " + esc(sup) : ""}${l.pack ? " · " + esc(l.pack) : ""}${pr != null ? " · $" + pr.toFixed(2) : ""}${mode === "receive" && q > 0 ? ` · ${fmtQ(q)} on hand` : mode === "ordered" && q > 0 ? ` · ${fmtQ(q)} on the way` : ""}`);
   }
   if (l.backordered && mode !== "prices") warn.push("Backordered, so it hasn't arrived");
+  const nw = row.querySelector("[data-new]"); if (nw) nw.hidden = !!it;
   row.classList.toggle("off", !on);
   row.querySelector("[data-chg]").innerHTML = (bits.length ? bits.join(" · ") : "Nothing to change") + (warn.length ? `<br><span class="dwarn">${ic("alert")}${warn.join(". ")}.</span>` : "");
 }
@@ -7383,7 +7407,8 @@ async function docApply(rows, D, r, sup){
         ok++;
       } else {
         const name = clean(l.name) || clean(l.desc); if (!name) continue;
-        const doc = { name, sku: l.sku || "", supplier: sup, units: l.pack || "", unitCost: price, link: "", desc: "", cat: "", sub: "", loc: "", notes: "", exp: "", photo: "", skuPhoto: "",
+        const [cat, sub = ""] = (row.querySelector("[data-cat]")?.value || "").split("\u0001"), loc = row.querySelector("[data-loc]")?.value || "";
+        const doc = { name, sku: l.sku || "", supplier: sup, units: l.pack || "", unitCost: price, link: "", desc: "", cat: cat || "", sub, loc, notes: "", exp: "", photo: "", skuPhoto: "",
           qty: mode === "receive" && q > 0 ? q : 0, desired: null, urgent: null,
           ordered: mode === "ordered" && q > 0 ? ordDate : "", orderedQty: mode === "ordered" && q > 0 ? q : 0,
           lastReceived: mode === "receive" && q > 0 ? today() : "", createdAt: Date.now(), updatedAt: Date.now(), updatedBy: me() };
