@@ -7,6 +7,8 @@ This app is part of Toledo Dental Care's office apps and shares one look with th
 - **Follow the shared design:** https://github.com/MULLET156/TDC-Office-Plan/blob/main/DESIGN.md, and compare your pages with the pictures in https://github.com/MULLET156/TDC-Office-Plan/tree/main/brand/reference
 - This app's accent colour is **#1C3466 navy**. It is the only colour that differs from the other two apps. Base colours, status colours, fonts, header layout, status tiles, rows (solid status stripe, progress bars), search, Group by and the phone layout (bottom tab bar with More) must stay the same as in the other two apps.
 - Don't restyle on your own. A design change goes through the **Shared Design** agent or Ryan, and is then made in all three apps together.
+- `tdc-shared.css`, `tdc-shared.js` and `fonts/` are copies from TDC-Office-Plan `brand/` (DESIGN.md §9). **Never edit them here**; the Design check on each PR fails if they differ. Group headings use `tdc-gh`, toasts `tdc-toast`, dialogs `tdc-scrim`/`tdc-dialog`. Never load fonts from an outside site.
+- Design for iPhones, iPads, Android phones and Android tablets (DESIGN.md §10): 44px targets on touch screens, 16px text fields, nothing under the notch or home bar. Also check 820 and 1180px wide with touch on.
 - New screens reuse the existing pieces in this file (tiles, banner, search bar, Group by, rows, chips, progress bars, header buttons colour-coded by kind). Check them at 1400, 1100, 1000, 768 and 390px wide, in light and dark.
 
 ## Working on this repo
