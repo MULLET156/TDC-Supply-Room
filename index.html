@@ -1281,8 +1281,11 @@ header .wrap{position:relative}
 
 .jumprow{display:flex;align-items:center;gap:10px;margin:0 2px 8px;flex-wrap:wrap}
 .cmrow{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap}
-.cmrow:has(> #countModes[hidden]){display:contents}
-.cmrow > #countModes{margin-bottom:0}
+.cmrow:not(:has(#jumpSlot:not(:empty))):not(:has(#scanHd:not([hidden]))){display:none}
+/* Count by sits below the header line, at the top of the page (Ryan, 2026-11-16) */
+main .wrap.cmtop{padding-block:14px 0;justify-items:start}
+main .wrap.cmtop:has(> #countModes[hidden]){display:none}
+main .wrap.cmtop + #view{padding-top:12px}
 #jumpSlot{flex:1 1 260px;min-width:0;display:flex;justify-content:flex-end}
 #jumpSlot:empty{display:none}
 #jumpSlot .jumprow{margin:0;flex-wrap:nowrap;width:100%;justify-content:flex-end}
@@ -1539,7 +1542,7 @@ body[data-view="need"] .ordbar .actions{display:flex;width:100%}
   .tabs-main .cntbtn .sh{display:inline}
   #scanHd:not([hidden]){display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:10px;flex:none}
   .cmrow:has(#scanHd:not([hidden])) #jumpSlot{flex:1 1 0!important;min-width:0}
-  .cmrow > #countModes{flex-basis:100%}
+  main .wrap.cmtop{justify-items:stretch;padding-top:10px}
   #scanHd{display:none!important}
   .dock .wrap:has(> #dockCnt[hidden]):has(> #dockAll[hidden]):has(> #dockOrd[hidden]):not(:has(> #scanBtn:not([hidden]))){display:none!important}
   html body .dock .navslot .tabs-main > .tab.t-exp{display:none!important}
@@ -2246,6 +2249,12 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
   .gridwrap::-webkit-scrollbar-corner{background:var(--sunk,#eee)}
 }
 @supports not selector(::-webkit-scrollbar){@media (min-width:641px){.gridwrap{scrollbar-width:auto;scrollbar-color:color-mix(in srgb,var(--fg) 40%,transparent) var(--sunk,#eee)}}}
+/* "Select all" looks like the Add to list button on the Order list (Ryan, 2026-11-16) */
+label.selall,.selbar.slim .selall{display:inline-flex;align-items:center;gap:9px;min-height:38px;padding:0 15px 0 11px;border:2px solid var(--pg,var(--accent));border-radius:10px;background:var(--surface);color:var(--pg-ink,var(--fg));font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap;user-select:none}
+label.selall:hover,label.selall:has(.chk:checked){background:var(--pg-soft,var(--sunk))}
+label.selall .chk{margin:0;width:20px;height:20px;flex:none}
+label.selall:has(.chk:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.selbar.slim{padding-top:6px!important;padding-bottom:6px!important;margin:0!important}
 </style>
 <header>
   <div class="wrap">
@@ -2274,11 +2283,7 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
     <div class="pagehead" id="pageHead" aria-live="polite"><div class="pht"><h2 id="phTitle"></h2><button type="button" class="phinfo" id="phInfo" data-phinfo aria-expanded="false" aria-controls="phSub" aria-label="About this page" title="About this page">i</button></div><span class="phn" id="phN"></span><p id="phSub" hidden></p></div>
-    <div class="cmrow"><div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
-      <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
-      <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
-      <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
-    </div><div id="jumpSlot"></div><button class="btn sm" id="scanHd" type="button" hidden><i data-ic="barcode"></i>Scan</button></div>
+    <div class="cmrow"><div id="jumpSlot"></div><button class="btn sm" id="scanHd" type="button" hidden><i data-ic="barcode"></i>Scan</button></div>
     <div id="alertSlot"></div>
     <div class="filters">
       <input id="q" type="search" placeholder="Search products, SKU, supplier…" title="Search (shortcut: /)" autocomplete="off">
@@ -2290,7 +2295,11 @@ body[data-view="products"] .ptools > .actions > #bulkSlot{flex-basis:100%;justif
   </div>
 </header>
 
-<main><div class="wrap" id="view">
+<main><div class="wrap cmtop"><div class="countmodes" id="countModes" role="radiogroup" aria-label="Count by" hidden><span class="cmlabel">Count by</span>
+      <label><input type="radio" name="cmode" value="locs"><span>Location</span></label>
+      <label><input type="radio" name="cmode" value="sups"><span>Supplier</span></label>
+      <label><input type="radio" name="cmode" value="cats"><span>Category</span></label>
+    </div></div><div class="wrap" id="view">
   <div class="list"><div class="empty">Loading the supply list…</div></div>
 </div></main>
 
