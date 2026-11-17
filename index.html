@@ -23,8 +23,15 @@ header .topright .tooltabs .tab[data-t="setup"][aria-selected="true"]{background
 </style>
 </head>
 <body>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@600;800&family=Monoton&family=Bungee&display=swap">
+<link rel="preload" href="fonts/figtree.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="tdc-shared.css">
+<script src="tdc-shared.js" defer></script>
+<style>.tdc-gh.xgrp{--gc:var(--warn);--gc-soft:var(--warn-soft)}
+html .tdc-gh.archhead{--gc:var(--muted)}
+@media (pointer:coarse) and (max-width:640px){html #who{width:84px!important}}
+/* tablets (641–1099px): app name beside the logo, as in the other two apps */
+@media (min-width:641px) and (max-width:1099.98px){html header .top{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"logo title tools1" "logo title tools2"}html header .top .logo{margin:0;align-self:center}html header .titlerow{align-self:center;padding-left:8px}}
+@media (min-width:641px) and (max-width:900px){html header .top{grid-template-areas:"logo title tools1" "tools2 tools2 tools2";row-gap:8px}html header .toolrow2{justify-self:end}html header .toolrow{grid-area:tools1;grid-column:auto;padding-top:0;align-self:center}html header .top .logo img{height:44px}html header .apptitle{font-size:28px}}</style>
 <style>
 /* Layout: one-column operations list, sticky search header, fixed bottom action bar for phone use in the supply room */
 :root{
@@ -38,13 +45,13 @@ header .topright .tooltabs .tab[data-t="setup"][aria-selected="true"]{background
   --r:10px;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0f1716; --surface:#16211f; --sunk:#1d2a28; --line:#2a3a38; --red:#e5534b; --red-fg:#ffffff; --red-soft:#3d1c19; --yel:#f2c12e; --yel-fg:#2a1f00; --yel-soft:#3a3010; --yel-ink:#f2c12e;
-  --fg:#e3eceb; --muted:#93a5a3; --accent:#4fc2b9; --accent-fg:#06201e; --accent-soft:#183634;
-  --warn:#f0a94a; --warn-soft:#3a2a12; --bad:#f2847b; --bad-soft:#3d1c19; --info:#93abff; --info-soft:#1d2645; --ok:#7fd08b; color-scheme:dark}}
+  --bg:#11191C; --surface:#18242A; --sunk:#1F2E34; --line:#2D3E45; --red:#C62828; --red-fg:#ffffff; --red-soft:#413336; --yel:#f2c12e; --yel-fg:#2a1f00; --yel-soft:#3a3010; --yel-ink:#f2c12e;
+  --fg:#E5EBE7; --muted:#9AA69F; --accent:#85A1DE; --accent-fg:#11191C; --accent-soft:#273749;
+  --warn:#F58500; --warn-soft:#403522; --bad:#E98680; --bad-soft:#413336; --info:#84AAD1; --info-soft:#293C4A; --ok:#47BB5B; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1716; --surface:#16211f; --sunk:#1d2a28; --line:#2a3a38; --red:#e5534b; --red-fg:#ffffff; --red-soft:#3d1c19; --yel:#f2c12e; --yel-fg:#2a1f00; --yel-soft:#3a3010; --yel-ink:#f2c12e;
-  --fg:#e3eceb; --muted:#93a5a3; --accent:#4fc2b9; --accent-fg:#06201e; --accent-soft:#183634;
-  --warn:#f0a94a; --warn-soft:#3a2a12; --bad:#f2847b; --bad-soft:#3d1c19; --info:#93abff; --info-soft:#1d2645; --ok:#7fd08b; color-scheme:dark}
+  --bg:#11191C; --surface:#18242A; --sunk:#1F2E34; --line:#2D3E45; --red:#C62828; --red-fg:#ffffff; --red-soft:#413336; --yel:#f2c12e; --yel-fg:#2a1f00; --yel-soft:#3a3010; --yel-ink:#f2c12e;
+  --fg:#E5EBE7; --muted:#9AA69F; --accent:#85A1DE; --accent-fg:#11191C; --accent-soft:#273749;
+  --warn:#F58500; --warn-soft:#403522; --bad:#E98680; --bad-soft:#413336; --info:#84AAD1; --info-soft:#293C4A; --ok:#47BB5B; color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:15px;line-height:1.4;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
@@ -559,15 +566,15 @@ header .wrap{padding-block:10px 12px;gap:10px}
   --slate:#22343c; --slate-fg:#ffffff;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#11191c; --surface:#18242a; --sunk:#1f2e34; --line:#2d3e45;
-  --fg:#e5ebe7; --muted:#9aa69f;
-  --accent:#9cad72; --accent-fg:#141b10; --accent-soft:#2a3322;
+  --bg:#11191C; --surface:#18242A; --sunk:#1F2E34; --line:#2D3E45;
+  --fg:#E5EBE7; --muted:#9AA69F;
+  --accent:#85A1DE; --accent-fg:#11191C; --accent-soft:#273749;
   --slate:#e0e8e8; --slate-fg:#18242a;
 }}
 :root[data-theme="dark"]{
-  --bg:#11191c; --surface:#18242a; --sunk:#1f2e34; --line:#2d3e45;
-  --fg:#e5ebe7; --muted:#9aa69f;
-  --accent:#9cad72; --accent-fg:#141b10; --accent-soft:#2a3322;
+  --bg:#11191C; --surface:#18242A; --sunk:#1F2E34; --line:#2D3E45;
+  --fg:#E5EBE7; --muted:#9AA69F;
+  --accent:#85A1DE; --accent-fg:#11191C; --accent-soft:#273749;
   --slate:#e0e8e8; --slate-fg:#18242a;
 }
 header{border-bottom:3px solid var(--accent)}
@@ -2282,7 +2289,7 @@ label.selall:has(.chk:focus-visible){outline:2px solid var(--accent);outline-off
       <button class="tab big cntbtn" role="tab" data-t="count" aria-selected="false"><i data-ic="clipcheck" class="bigic"></i><span class="cl tl"><span class="lg">Inventory counter</span><span class="sh">Count</span></span></button>
       <button class="tab big morebtn" type="button" id="moreBtn" aria-haspopup="dialog"><span class="tl"><svg class="ic" viewBox="0 0 24 24" width="23" height="23" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>More</span></button>
     </div>
-    <div class="pagehead" id="pageHead" aria-live="polite"><div class="pht"><h2 id="phTitle"></h2><button type="button" class="phinfo" id="phInfo" data-phinfo aria-expanded="false" aria-controls="phSub" aria-label="About this page" title="About this page">i</button></div><span class="phn" id="phN"></span><p id="phSub" hidden></p></div>
+    <div class="pagehead" id="pageHead" aria-live="polite"><div class="pht"><h2 id="phTitle"></h2><button type="button" class="phinfo tdc-info" id="phInfo" data-phinfo aria-expanded="false" aria-controls="phSub" aria-label="About this page" title="About this page">i</button></div><span class="phn" id="phN"></span><p id="phSub" hidden></p></div>
     <div class="cmrow"><div id="jumpSlot"></div><button class="btn sm" id="scanHd" type="button" hidden><i data-ic="barcode"></i>Scan</button></div>
     <div id="alertSlot"></div>
     <div class="filters">
@@ -2563,7 +2570,7 @@ const localQty = new Map(), saveTimers = new Map(), localOrd = new Map(), ordTim
 /* ---------- status ---------- */
 function sync(state, txt){ $("#dot").className = "dot " + state; $("#syncTxt").textContent = txt; }
 let toastT;
-function toast(msg){ let t = $(".toast"); if(!t){ t = document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); document.body.append(t); } t.textContent = msg; t.hidden=false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden=true, 2600); }
+function toast(msg){ let t = $(".toast"); if(!t){ t = document.createElement("div"); t.className="toast tdc-toast"; t.setAttribute("role","status"); document.body.append(t); } t.textContent = msg; t.hidden=false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden=true, 2600); }
 /* a toast with one button (Undo), shown longer */
 function toastAct(msg, label, fn, ms = 12000){ toast(msg); const t = $(".toast"); const b = document.createElement("button"); b.type = "button"; b.className = "toastbtn"; b.textContent = label; b.onclick = () => { t.hidden = true; clearTimeout(toastT); fn(); }; t.append(" ", b); clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms); }
 function dbErr(e){
@@ -2625,7 +2632,7 @@ function archSection(q){
   const aq = keyOf(q || "");
   const arch = archived.filter(i => !aq || keyOf([i.name, i.sku, i.mfr, i.supplier, i.notes].join(" ")).includes(aq)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const rows = arch.map(i => `<div class="row archrow"><div class="rmain"><b>${esc(i.name)}</b><small class="hint">${i.archivedAt ? "Archived " + esc(new Date(i.archivedAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })) : "Archived"}${i.replacedBy ? ` · replaced by ${esc(byId(i.replacedBy)?.name || "another product")}` : ""}${i.supplier ? " · " + esc(i.supplier) : ""}${i.sku ? " · #" + esc(clean(i.sku)) : ""}${i.loc ? " · " + esc(i.loc) : ""}</small></div>${readOnly ? "" : `<button type="button" class="btn sm" data-restore="${esc(i.id)}">Restore</button>`}</div>`).join("");
-  return `<div class="grp cathead archhead"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span>${arch.length > 1 && !readOnly ? `<span class="grptools"><button type="button" class="btn sm" data-restore="${esc(arch.map(i => i.id).join(","))}">Restore all ${arch.length}${aq ? " shown" : ""}</button></span>` : ""}</div>${rows || `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}`;
+  return `<div class="grp cathead archhead tdc-gh"><span>${ic("archive")}Archived <span class="gn">${arch.length}</span></span>${arch.length > 1 && !readOnly ? `<span class="grptools"><button type="button" class="btn sm" data-restore="${esc(arch.map(i => i.id).join(","))}">Restore all ${arch.length}${aq ? " shown" : ""}</button></span>` : ""}</div>${rows || `<div class="empty">No archived products${aq ? " match the search" : ""}.</div>`}`;
 }
 document.addEventListener("click", async e => {
   const b = e.target.closest?.("[data-restore]"); if (!b || !needMe()) return;
@@ -3107,7 +3114,7 @@ function supGrouped(list){
   const none = { supplier: "No supplier listed", cat: "Uncategorized", loc: "No location set" }[g], m = new Map();
   list.forEach(i => { const n = clean(i[g]) || none, k = keyOf(n); if (!m.has(k)) m.set(k, { n, items: [] }); m.get(k).items.push(i); });
   return [...m.values()].sort((a, b) => (a.n === none) - (b.n === none) || a.n.localeCompare(b.n, undefined, { numeric: true }))
-    .map(x => `<div class="grp"><span class="grpname">${g === "supplier" && x.n !== none ? supLogo(x.n) : g === "loc" ? ic("pin") : ""}${esc(x.n)}</span><span>${x.items.length}</span></div>` + x.items.map(i => rowHtml(i, true)).join("")).join("");
+    .map(x => `<div class="grp tdc-gh"><span class="grpname">${g === "supplier" && x.n !== none ? supLogo(x.n) : g === "loc" ? ic("pin") : ""}${esc(x.n)}</span><span>${x.items.length}</span></div>` + x.items.map(i => rowHtml(i, true)).join("")).join("");
 }
 document.addEventListener("click", e => { const b = e.target.closest?.("[data-supgrp]"); if (!b) return; try { localStorage.setItem("tdc-sup-grp", b.dataset.supgrp); } catch {} render(); });
 function rowHtml(i, withChk){
@@ -3530,7 +3537,7 @@ function renderInner(){
       <div class="list">${bySupplier(list).map(([s, rows]) => {
         const rep = repOf(s);
         const real = s !== "No supplier listed", web = real ? infoOf(s).website : "";
-        return `<div class="grp"><span class="grpname">${web ? `<a class="grpweb" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open the ${esc(s)} webstore">${real ? supLogo(s) : ""}${esc(s)}<span class="gwext">${ic("ext")}</span></a>` : `${real ? supLogo(s) : ""}${esc(s)}`}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} products to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} products in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} product${rows.length>1?"s":""}${grpTotal(rows)}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
+        return `<div class="grp tdc-gh"><span class="grpname">${web ? `<a class="grpweb" href="${esc(webHref(web))}" target="_blank" rel="noopener" title="Open the ${esc(s)} webstore">${real ? supLogo(s) : ""}${esc(s)}<span class="gwext">${ic("ext")}</span></a>` : `${real ? supLogo(s) : ""}${esc(s)}`}${real && cartOn(s) ? `<button type="button" class="grpicon" data-cart="${esc(s)}" title="Add to ${esc(s)} cart (Beta — check the cart before you check out)" aria-label="Add ${esc(s)} products to cart">${ic("cart")}</button>` : ""}${real ? `<button type="button" class="grpicon" data-sendrep="${esc(s)}" title="Send list to ${rep ? esc(rep.name.split(" ")[0]) : "rep"}" aria-label="Send ${esc(s)} list to ${rep ? esc(rep.name) : "rep"}">${ic("send")}</button>` : ""}${real && !readOnly ? `<button type="button" class="btn sm ordall" data-orderall="${esc(s)}" title="Put these ${rows.length} products in the ${esc(s)} cart, or get a checklist">${ic("cart")}Order online</button>` : ""}</span><span>${rep ? `<span class="repc">${esc(rep.name)}${(rep.cell || rep.phone) ? " · " + esc(rep.cell || rep.phone) : ""}</span> · ` : ""}${rows.length} product${rows.length>1?"s":""}${grpTotal(rows)}</span></div>` + rows.map(i=>rowHtml(i,true)).join("");
       }).join("")}</div>`;
     document.querySelectorAll("[data-open911]").forEach(b => b.onclick = () => openItem(byId(b.dataset.open911)));
     $("#copyList").onclick = () => copyOrder(selected.size ? list.filter(i=>selected.has(i.id)) : list);
@@ -3545,7 +3552,7 @@ function renderInner(){
     selected = new Set([...selected].filter(id => list.some(i=>i.id===id)));
     v.innerHTML = banner + (list.length ? `<div class="ordbar"><p class="intro">${list.length} product${list.length>1?"s":""} on the way. When a box arrives, tick it and press Mark received to add the ordered quantity to stock. Open a product to receive a different amount.</p>
       <div class="actions pacts"><label class="selall"><input type="checkbox" class="chk" id="selAllRcv" ${selected.size && selected.size === list.length ? "checked" : ""}>${selected.size && selected.size === list.length ? `All ${list.length} selected` : `Select all ${list.length}`}</label>${docBtn}${readOnly ? "" : `<button class="btn pbtn act" id="markRcv" type="button" ${selected.size ? "" : "disabled"} title="Tick the products that arrived first">${markLbl("received")}</button>`}</div></div>
-      <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp"><span class="grpname">${supLogo(s)}${esc(s)}</span><span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
+      <div class="list">${bySupplier(list).map(([s, rows]) => `<div class="grp tdc-gh"><span class="grpname">${supLogo(s)}${esc(s)}</span><span>${rows.length}</span></div>` + rows.map(i=>rowHtml(i,true)).join("")).join("")}</div>`
       : `<div class="list"><div class="empty">No open orders.${docBtn ? `<div class="actions" style="justify-content:center;margin-top:10px">${docBtn}</div>` : ""}</div></div>`) + histHtml();
     if (list.length) {
       $("#markRcv").onclick = () => markReceivedMany(list.filter(i=>selected.has(i.id)));
@@ -3563,7 +3570,7 @@ function renderInner(){
     const slug = n => tab + "-" + keyOf(n).replace(/[^a-z0-9]+/g, "-");
     const head = g => { if (isLoc) return `${ic("pin")}${esc(g.name)}`; const r = repOf(g.name); return `${supLogo(g.name)}${esc(g.name)}${r ? `<small class="grprep">Rep: ${esc(r.name)}</small>` : ""}`; };
     v.innerHTML = banner + filterBar() + (list.length ? `${cntBar(list)}${jumpSel(isLoc ? "storage location" : "supplier", ordered.map(g => [slug(g.name), g.name, g.items.length]))}
-      <div class="list">${ordered.map(g => `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${grpChk((isLoc ? "Location " : "Supplier ") + g.name, g.items)}${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
+      <div class="list">${ordered.map(g => `<div class="grp cathead catsec tdc-gh" id="${esc(slug(g.name))}"><span>${grpChk((isLoc ? "Location " : "Supplier ") + g.name, g.items)}${head(g)} <span class="gn">${g.items.length}</span></span>${grpTools((isLoc ? "Location " : "Supplier ") + g.name, g.items)}</div>` + g.items.sort((a, b) => (clean(a.cat) || "~").localeCompare(clean(b.cat) || "~") || a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
   } else if (tab === "cats") {
@@ -3576,7 +3583,7 @@ function renderInner(){
     v.innerHTML = banner + filterBar() + (list.length ? `${cntBar(list)}${jumpSel("category", ordered.map(g => [slug(g.name), g.name, g.n]))}
       <div class="list">${ordered.map(g => {
         const subs = [...g.subs.values()].sort((a, b) => (a.name === "") - (b.name === "") || a.name.localeCompare(b.name, undefined, { numeric: true }));
-        return `<div class="grp cathead catsec" id="${esc(slug(g.name))}"><span>${grpChk("Category " + g.name, subs.flatMap(x => x.items))}${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead"><span>${grpChk(`Category ${g.name} › ${sb.name}`, sb.items)}↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("");
+        return `<div class="grp cathead catsec tdc-gh" id="${esc(slug(g.name))}"><span>${grpChk("Category " + g.name, subs.flatMap(x => x.items))}${esc(g.name)} <span class="gn">${g.n}</span></span>${grpTools("Category " + g.name, subs.flatMap(x => x.items))}</div>` + subs.map(sb => (sb.name ? `<div class="grp subhead tdc-gsub"><span>${grpChk(`Category ${g.name} › ${sb.name}`, sb.items)}↳ ${esc(sb.name)} <span class="gn">${sb.items.length}</span></span>${grpTools(`Category ${g.name} › ${sb.name}`, sb.items)}</div>` : (subs.length > 1 ? `<div class="grp subhead tdc-gsub"><span>↳ No subcategory</span><span>${sb.items.length}</span></div>` : "")) + sb.items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(i => rowHtml(i, true)).join("")).join("");
       }).join("")}</div>` : `<div class="list"><div class="empty">No products match these filters.</div></div>`);
     document.querySelectorAll("[data-catjump]").forEach(b => b.onclick = () => document.getElementById(b.dataset.catjump)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }));
     $("#clearFilters") && ($("#clearFilters").onclick = () => { $("#q").value = ""; $("#fLoc").value = ""; $("#fSup").value = ""; $("#fCat").value = ""; render(); });
@@ -3584,7 +3591,7 @@ function renderInner(){
     const list = all.filter(i=>i.expiring).concat(filtered(archExp())).sort((a,b)=>a.expDays-b.expDays);
     const lim = rules.expDays ?? 60, soon = Math.min(30, lim);
     const groups = [["Expired", list.filter(i => i.expDays < 0), "x-gone"], [`Next ${soon} days`, list.filter(i => i.expDays >= 0 && i.expDays <= soon), "x-soon"], [`${soon + 1}–${lim} days`, list.filter(i => i.expDays > soon), "x-later"]].filter(g => g[1].length);
-    v.innerHTML = banner + (list.length ? `<div class="list explist">${groups.map(([t, L, c]) => `<div class="grp xgrp ${c}"><span>${esc(t)} <span class="gn">${L.length}</span></span></div>${L.map(expRowHtml).join("")}`).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${lim} days.</div></div>`);
+    v.innerHTML = banner + (list.length ? `<div class="list explist">${groups.map(([t, L, c]) => `<div class="grp xgrp tdc-gh ${c}"><span>${esc(t)} <span class="gn">${L.length}</span></span></div>${L.map(expRowHtml).join("")}`).join("")}</div>` : `<div class="list"><div class="empty">Nothing expiring in the next ${lim} days.</div></div>`);
   } else {
     const list = all.slice().sort((a,b)=>a.name.localeCompare(b.name, undefined, { numeric: true }));
     selected = new Set([...selected].filter(id => list.some(i => i.id === id)));
@@ -4445,7 +4452,7 @@ addEventListener("scroll", () => {
 }, { passive: true });
 function openPanel(html){
   if (!$("#overlay").innerHTML || PS.y == null) PS.y = scrollY;
-  $("#overlay").innerHTML = `<div class="scrim" id="scrim"><div class="panel" role="dialog" aria-modal="true">${html}</div></div>`;
+  $("#overlay").innerHTML = `<div class="scrim tdc-scrim tdc-sheet" id="scrim"><div class="panel tdc-dialog" role="dialog" aria-modal="true">${html}</div></div>`;
   $("#scrim").addEventListener("click", e => { if (e.target.id === "scrim" || e.target.closest("[data-close]")) {
     /* closing an item card with unsaved changes asks first (the save bar's Cancel means "discard", so it doesn't) */
     if (!e.target.closest(".savebar [data-close]") && cardDirty()) { leavePrompt(() => closePanel()); return; }
