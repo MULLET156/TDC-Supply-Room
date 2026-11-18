@@ -2559,6 +2559,25 @@ const num = s => { if (typeof s === "number") return s; const n = parseFloat(Str
 const fmtQ = n => n == null ? "–" : (Math.round(n * 100) / 100).toString();
 const today = () => { const d = new Date(); return (d.getMonth()+1) + "/" + d.getDate() + "/" + d.getFullYear(); };
 const normSku = s => String(s ?? "").toUpperCase().replace(/^SKU[:#\s]*/,"").replace(/[^A-Z0-9]/g, "");
+/* A box barcode's product code: GS1 barcodes also carry the lot and expiry ((01)GTIN (10)lot (17)date), so two boxes of the
+   same product only share the GTIN. Plain UPC/EAN digits come back as is; leading zeros are dropped so UPC-12 = GTIN-14. */
+function gtinOf(s){
+  const t = String(s ?? "").replace(/[\x1d\s()]/g, "");
+  const m = t.match(/^01(\d{14})/); if (m) return m[1].replace(/^0+/, "");
+  return /^\d{8,14}$/.test(t) ? t.replace(/^0+/, "") : "";
+}
+/* The supplier's catalog number in a product link (Brasseler /Product/5020806U0, Henry Schein /p/x/1234567). */
+function linkCatNo(link){
+  try { const seg = new URL(link).pathname.split("/").filter(Boolean).pop() || ""; return /\d/.test(seg) && seg.length >= 4 && seg.length <= 24 && !/\.(html?|php|aspx?)$/i.test(seg) ? seg : ""; } catch { return ""; }
+}
+/* The product a scanned or typed code belongs to: its SKU, manufacturer number, the catalog number in its link, or a remembered box barcode. */
+function findByCode(code){
+  const k = normSku(code), g = gtinOf(code); if (!k && !g) return null;
+  const live = items.filter(i => !i.archived);
+  return live.find(i => k && [i.sku, i.mfr, linkCatNo(i.link)].some(v => v && normSku(v) === k))
+    || (g && live.find(i => i.barcode && gtinOf(i.barcode) === g))
+    || (k && live.find(i => i.barcode && normSku(i.barcode) === k)) || null;
+}
 const when = t => t ? new Date(t).toLocaleString([], { month:"short", day:"numeric", hour:"numeric", minute:"2-digit" }) : "";
 
 let db = null, user = null, sample = null, downloads = null, canImages = false, readOnly = false, canWrite = null, myId = null;
@@ -6807,7 +6826,7 @@ function addStatus(t, err){ const el = $("#readStatus"); if (!el) return; el.hid
 async function imgOf(file){ const img = new Image(); img.src = URL.createObjectURL(file); await img.decode().catch(() => {}); return img; }
 function setField(id, v, force){ const el = fld(id); v = clean(v); if (el && v && (force || !el.value.trim())) el.value = v; }
 function showAddMatch(code){
-  const hit = code && items.find(i => i.sku && normSku(i.sku) === normSku(code));
+  const hit = code && findByCode(code);
   const box = $("#addMatch"); if (!box) return;
   box.hidden = !hit; if (!hit) return;
   box.innerHTML = `<span class="hint">SKU ${esc(code)} is already on the list as</span> <b>${esc(hit.name)}</b> <button class="btn" type="button" id="openHit">Open it</button>`;
@@ -6829,7 +6848,7 @@ async function readSkuPhoto(file){
   if (!$("#e-sku")) return;
   const fromStep1 = quickFromSku; quickFromSku = false;
   if (sku) { setField("e-sku", sku, true); addStatus(`SKU ${sku} filled in from the photo.`); showAddMatch(sku);
-    const have = items.find(i => i.sku && normSku(i.sku) === normSku(sku));
+    const have = findByCode(sku) || (code && findByCode(code));
     if (fromStep1 && !have) quickAdd({ sku, hint: skuHint });
     else if (fromStep1) qaStat(`SKU <b>${esc(sku)}</b> is already in your inventory as <b>${esc(have.name)}</b>. See below, or keep going to add it again.`, "warn"); }
   else if (fromStep1) qaStat(sample && canImages ? "Couldn't make out a SKU in that photo. Try a closer, sharper photo, or fill it in below." : "No barcode found in that photo. Try a closer photo, or fill it in below.", "warn");
@@ -6935,7 +6954,7 @@ $("#photoCam").addEventListener("change", e => { const f = e.target.files?.[0]; 
 async function createItem(){
   const f = readFields();
   if (!f.name) { toast("Give the product a name"); return; }
-  const dup = items.find(i => keyOf(i.name) === keyOf(f.name) || (f.sku && normSku(i.sku) && normSku(i.sku) === normSku(f.sku)));
+  const dup = items.find(i => !i.archived && keyOf(i.name) === keyOf(f.name)) || (f.sku && findByCode(f.sku));
   const btn = $("#createBtn");
   if (dup && btn.dataset.ok !== "1") { btn.dataset.ok = "1"; btn.textContent = "Add anyway"; toast(`"${dup.name}" is already in the list`); return; }
   if (!needMe()) return;
@@ -7525,7 +7544,7 @@ async function scanFile(file){
   const code = await decodeBarcode(img);
   if (code && hashItemId(code)) { const lh = byId(hashItemId(code)); if (lh) { if (!$("#scanOut")) return; openItem(lh, { note: "Shelf label scanned. Update the count and save." }); return; } }
   if (code) {
-    const hit = items.find(i => (i.sku && normSku(i.sku) === normSku(code)) || (i.barcode && String(i.barcode) === String(code)));
+    const hit = findByCode(code);
     if (hit) { if (!$("#scanOut")) return; openItem(hit, { note: `Barcode ${code} matched this item. Update the count and save.` }); return; }
   }
   if (!sample || !canImages) {
@@ -7536,19 +7555,19 @@ async function scanFile(file){
     return;
   }
   status(code ? `Barcode ${code}. Reading the label…` : "Reading the label…");
-  const catalog = items.map(i => `${i.id}|${i.name}${i.sku ? "|" + i.sku : ""}`).join("\n");
+  const catalog = items.filter(i => !i.archived).map(i => `${i.id}|${i.name}|${[i.sku, i.mfr, linkCatNo(i.link)].filter(Boolean).join(" / ")}`).join("\n");
   const prompt = `This is a phone photo of a dental supply product in a dental office supply room. Read the packaging and identify the product.
 ${code ? "A barcode on it decoded as: " + code + "\n" : ""}
 Reply with only one JSON object:
 {"name": "clear, short inventory name: brand + product + shade/size (no pack count; keep any tooth shade)", "brand": "", "catalogNumber": "manufacturer catalog/REF/SKU number printed on the box, or empty", "barcode": "UPC/GTIN digits if readable, or empty", "units": "packaging unit such as Box, Case, Tube, Syringe, Pack of 100", "category": "best fit from: ${uniq("cat").slice(0,40).join(", ")}", "expiration": "M/D/YYYY if an expiry date is printed, else empty", "matchId": "id of the existing item below that is the SAME product, or null", "matchReason": "short reason"}
 
 matchId: the id from the list below that is the SAME product (same variant/shade/size), or null if none is. Be strict: a different shade or size is not a match.
-Existing inventory (id|name|sku):
+Existing inventory (id|name|SKU / manufacturer # / supplier catalog #). The box may show any of these numbers:
 ${catalog}`;
   try {
     const r = await sample.json(prompt, { images: [file] });
     const sku = clean(r?.catalogNumber) || clean(r?.barcode) || code || "";
-    const hit = r?.matchId ? byId(String(r.matchId)) : null;
+    const hit = (r?.matchId ? byId(String(r.matchId)) : null) || findByCode(r?.catalogNumber) || findByCode(r?.barcode);
     if (hit) {
       status(`Read as: ${clean(r.name)}`);
       if (!$("#scanOut")) return;
@@ -7806,7 +7825,7 @@ async function runMerge(){
     if (t === "item") {
       const K = byId(keepV), O = byId(dropV); if (!K || !O) return;
       const patch = {};
-      ["sku","units","cat","sub","loc","supplier","exp","unitCost","link","notes","desc","photo","skuPhoto"].forEach(k => { if (!clean(K[k]) && clean(O[k])) patch[k] = O[k]; });
+      ["sku","mfr","barcode","units","cat","sub","loc","supplier","exp","unitCost","link","notes","desc","photo","skuPhoto"].forEach(k => { if (!clean(K[k]) && clean(O[k])) patch[k] = O[k]; });
       patch.urgent = Math.max(num(K.urgent) || 0, num(O.urgent) || 0);
       patch.qty = mg.add ? (num(K.qty) || 0) + (num(O.qty) || 0) : (num(K.qty) ?? 0);
       patch.desired = Math.max(num(K.desired) || 0, num(O.desired) || 0);
