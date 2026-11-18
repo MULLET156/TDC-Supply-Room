@@ -2574,7 +2574,9 @@ function linkCatNo(link){
 function findByCode(code){
   const k = normSku(code), g = gtinOf(code); if (!k && !g) return null;
   const live = items.filter(i => !i.archived);
-  return live.find(i => k && [i.sku, i.mfr, linkCatNo(i.link)].some(v => v && normSku(v) === k))
+  /* a product page shared by several sizes or flavours (Blue Sky Bio implants, Cocofloss) names none of them on its own */
+  const byLink = k ? live.filter(i => normSku(linkCatNo(i.link)) === k) : [];
+  return live.find(i => k && [i.sku, i.mfr].some(v => v && normSku(v) === k)) || (byLink.length === 1 ? byLink[0] : null)
     || (g && live.find(i => i.barcode && gtinOf(i.barcode) === g))
     || (k && live.find(i => i.barcode && normSku(i.barcode) === k)) || null;
 }
